@@ -6,23 +6,28 @@ import {
   Param,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
-import { customerSchema, type CustomerInput } from '@marble/types';
+import { advanceSchema, type AdvanceInput } from '@marble/types';
 import { BootstrapAuthGuard } from '../auth/bootstrap-auth.guard';
 import { CurrentSession } from '../auth/current-session.decorator';
 import { SessionContext } from '../auth/session.types';
 import { zodBody } from '../common/zod-validation.pipe';
-import { CustomersService } from './customers.service';
+import { AdvancesService } from './advances.service';
 
-@Controller('customers')
+@Controller('advances')
 @UseGuards(BootstrapAuthGuard)
-export class CustomersController {
-  constructor(private readonly service: CustomersService) {}
+export class AdvancesController {
+  constructor(private readonly service: AdvancesService) {}
 
   @Get()
-  list(@CurrentSession() session: SessionContext) {
-    return this.service.list(session.companyId);
+  list(
+    @CurrentSession() session: SessionContext,
+    @Query('customerId') customerId?: string,
+    @Query('jobId') jobId?: string,
+  ) {
+    return this.service.list(session.companyId, { customerId, jobId });
   }
 
   @Get(':id')
@@ -30,16 +35,10 @@ export class CustomersController {
     return this.service.get(session.companyId, id);
   }
 
-  /** Financial and document cockpit for one customer. */
-  @Get(':id/hub')
-  hub(@CurrentSession() session: SessionContext, @Param('id') id: string) {
-    return this.service.hub(session.companyId, id);
-  }
-
   @Post()
   create(
     @CurrentSession() session: SessionContext,
-    @Body(zodBody(customerSchema)) body: CustomerInput,
+    @Body(zodBody(advanceSchema)) body: AdvanceInput,
   ) {
     return this.service.create(session, body);
   }
@@ -48,7 +47,7 @@ export class CustomersController {
   update(
     @CurrentSession() session: SessionContext,
     @Param('id') id: string,
-    @Body(zodBody(customerSchema)) body: CustomerInput,
+    @Body(zodBody(advanceSchema)) body: AdvanceInput,
   ) {
     return this.service.update(session, id, body);
   }

@@ -1,8 +1,13 @@
 import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
+import {
+  companyProfileSchema,
+  type CompanyProfileInput,
+} from '@marble/types';
 import { BootstrapAuthGuard } from '../auth/bootstrap-auth.guard';
 import { CurrentSession } from '../auth/current-session.decorator';
 import { SessionContext } from '../auth/session.types';
-import { CompanyProfileInput, CompanyService } from './company.service';
+import { zodBody } from '../common/zod-validation.pipe';
+import { CompanyService } from './company.service';
 
 @Controller('company')
 @UseGuards(BootstrapAuthGuard)
@@ -17,7 +22,7 @@ export class CompanyController {
   @Put('profile')
   updateProfile(
     @CurrentSession() session: SessionContext,
-    @Body() body: CompanyProfileInput,
+    @Body(zodBody(companyProfileSchema)) body: CompanyProfileInput,
   ) {
     return this.companyService.updateProfile(session, body);
   }

@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -9,10 +8,15 @@ import {
   Put,
   UseGuards,
 } from '@nestjs/common';
+import { z } from 'zod';
+import { productSchema, type ProductInput } from '@marble/types';
 import { BootstrapAuthGuard } from '../auth/bootstrap-auth.guard';
 import { CurrentSession } from '../auth/current-session.decorator';
 import { SessionContext } from '../auth/session.types';
-import { ProductInput, ProductsService } from './products.service';
+import { zodBody } from '../common/zod-validation.pipe';
+import { ProductsService } from './products.service';
+
+const imageSchema = z.object({ url: z.string().trim().min(1).max(1000) });
 
 @Controller('products')
 @UseGuards(BootstrapAuthGuard)
@@ -32,23 +36,18 @@ export class ProductsController {
   @Post()
   create(
     @CurrentSession() session: SessionContext,
-    @Body() body: ProductInput,
+    @Body(zodBody(productSchema)) body: ProductInput,
   ) {
-    if (!body?.name?.trim()) throw new BadRequestException('name is required');
-    return this.service.create(session, { ...body, name: body.name.trim() });
+    return this.service.create(session, body);
   }
 
   @Put(':id')
   update(
     @CurrentSession() session: SessionContext,
     @Param('id') id: string,
-    @Body() body: ProductInput,
+    @Body(zodBody(productSchema)) body: ProductInput,
   ) {
-    if (!body?.name?.trim()) throw new BadRequestException('name is required');
-    return this.service.update(session, id, {
-      ...body,
-      name: body.name.trim(),
-    });
+    return this.service.update(session, id, body);
   }
 
   @Delete(':id')
@@ -60,10 +59,9 @@ export class ProductsController {
   addImage(
     @CurrentSession() session: SessionContext,
     @Param('id') id: string,
-    @Body() body: { url?: string },
+    @Body(zodBody(imageSchema)) body: z.infer<typeof imageSchema>,
   ) {
-    if (!body?.url?.trim()) throw new BadRequestException('url is required');
-    return this.service.addImage(session, id, body.url.trim());
+    return this.service.addImage(session, id, body.url);
   }
 
   @Put(':id/images/:imageId/default')

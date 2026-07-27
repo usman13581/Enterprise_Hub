@@ -15,29 +15,38 @@ model Company {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  profile   CompanyProfile?
-  users     User[]
-  auditLogs AuditLog[]
-  suppliers Supplier[]
-  products  Product[]
-  customers Customer[]
+  profile    CompanyProfile?
+  users      User[]
+  auditLogs  AuditLog[]
+  suppliers  Supplier[]
+  products   Product[]
+  customers  Customer[]
+  quotations Quotation[]
+  jobs       Job[]
+  invoices   Invoice[]
+  advances   AdvancePayment[]
+  ledger     LedgerEntry[]
 }
 
 model CompanyProfile {
-  id              String  @id @default(cuid())
-  companyId       String  @unique
-  legalName       String
-  tradeName       String?
-  address         String?
-  phone           String?
-  email           String?
-  trn             String?
-  bankDetails     String?
-  logoUrl         String?
-  signatureUrl    String?
-  quotationPrefix String  @default("QT")
-  invoicePrefix   String  @default("INV")
-  currency        String  @default("AED")
+  id               String  @id @default(cuid())
+  companyId        String  @unique
+  legalName        String
+  tradeName        String?
+  address          String?
+  phone            String?
+  email            String?
+  trn              String?
+  bankDetails      String?
+  logoUrl          String?
+  signatureUrl     String?
+  quotationPrefix  String  @default("QT")
+  invoicePrefix    String  @default("INV")
+  jobPrefix        String  @default("JOB")
+  advancePrefix    String  @default("ADV")
+  creditNotePrefix String  @default("CN")
+  currency         String  @default("AED")
+  vatRate          Float   @default(0.05)
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }
@@ -90,9 +99,10 @@ model Product {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  company  Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  supplier Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  images   ProductImage[]
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier       Supplier?       @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  images         ProductImage[]
+  quotationLines QuotationLine[]
 
   @@index([companyId, name])
 }
@@ -123,9 +133,219 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company    Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  quotations Quotation[]
+  jobs       Job[]
+  invoices   Invoice[]
+  advances   AdvancePayment[]
+  ledger     LedgerEntry[]
 
   @@index([companyId, name])
+}
+
+model Quotation {
+  id            String    @id @default(cuid())
+  companyId     String
+  customerId    String
+  number        String
+  status        String    @default("draft")
+  title         String?
+  notes         String?
+  validUntil    DateTime?
+  // Totals are denormalised so list screens and ledgers never re-derive money
+  // from lines that a later product re-pricing could have changed.
+  subtotal      Float     @default(0)
+  vatAmount     Float     @default(0)
+  total         Float     @default(0)
+  purchaseTotal Float     @default(0)
+  approvedAt    DateTime?
+  cancelledAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  company  Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer Customer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  lines    QuotationLine[]
+  job      Job?
+
+  @@unique([companyId, number])
+  @@index([companyId, status])
+  @@index([companyId, customerId])
+}
+
+model QuotationLine {
+  id            String  @id @default(cuid())
+  quotationId   String
+  productId     String?
+  description   String
+  unit          String  @default("sqm")
+  qty           Float
+  // Captured per deal. Job P&L reads these, never the live catalog price.
+  purchasePrice Float
+  sellPrice     Float
+  lineTotal     Float
+  sortOrder     Int     @default(0)
+
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  product   Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([quotationId])
+}
+
+model Job {
+  id            String    @id @default(cuid())
+  companyId     String
+  customerId    String
+  quotationId   String    @unique
+  number        String
+  status        String    @default("open")
+  title         String?
+  /// Gross, VAT-inclusive value carried over from the approved quotation.
+  jobValue      Float     @default(0)
+  /// Net of VAT, used for margin so collected VAT is not counted as revenue.
+  jobNet        Float     @default(0)
+  purchaseTotal Float     @default(0)
+  completedAt   DateTime?
+  closedAt      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  company   Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer  Customer         @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  quotation Quotation        @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  invoices  Invoice[]
+  advances  AdvancePayment[]
+  ledger    LedgerEntry[]
+
+  @@unique([companyId, number])
+  @@index([companyId, status])
+  @@index([companyId, customerId])
+}
+
+model Invoice {
+  id         String  @id @default(cuid())
+  companyId  String
+  customerId String
+  jobId      String?
+  number     String
+  kind       String
+  status     String  @default("issued")
+
+  issueDate DateTime  @default(now())
+  dueDate   DateTime?
+  notes     String?
+
+  subtotal       Float @default(0)
+  vatAmount      Float @default(0)
+  total          Float @default(0)
+  purchaseTotal  Float @default(0)
+  /// Advance shown as settled on this document; see InvoiceAdvanceAllocation.
+  advanceApplied Float @default(0)
+  netPayable     Float @default(0)
+
+  creditNoteForId String?
+  cancelledAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  company       Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer      Customer                   @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  job           Job?                       @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  creditNoteFor Invoice?                   @relation("CreditNotes", fields: [creditNoteForId], references: [id], onDelete: SetNull)
+  creditNotes   Invoice[]                  @relation("CreditNotes")
+  lines         InvoiceLine[]
+  allocations   InvoiceAdvanceAllocation[]
+  ledger        LedgerEntry[]
+
+  @@unique([companyId, number])
+  @@index([companyId, status])
+  @@index([companyId, customerId])
+  @@index([companyId, jobId])
+}
+
+model InvoiceLine {
+  id            String @id @default(cuid())
+  invoiceId     String
+  description   String
+  unit          String @default("sqm")
+  qty           Float
+  unitPrice     Float
+  /// Snapshot of cost so invoice-level margin survives catalog changes.
+  purchasePrice Float  @default(0)
+  lineTotal     Float
+  sortOrder     Int    @default(0)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+model AdvancePayment {
+  id              String   @id @default(cuid())
+  companyId       String
+  customerId      String
+  jobId           String?
+  number          String
+  amount          Float
+  /// Sum of this advance's allocations across invoices.
+  allocatedAmount Float    @default(0)
+  method          String   @default("cash")
+  reference       String?
+  receivedAt      DateTime @default(now())
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company     Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer    Customer                   @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  job         Job?                       @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  allocations InvoiceAdvanceAllocation[]
+  ledger      LedgerEntry[]
+
+  @@unique([companyId, number])
+  @@index([companyId, customerId])
+  @@index([companyId, jobId])
+}
+
+/// Records which advance settles which invoice. This moves no money: the cash
+/// was already credited to the customer when the advance was received, so an
+/// allocation only affects the net payable printed on one document.
+model InvoiceAdvanceAllocation {
+  id        String   @id @default(cuid())
+  invoiceId String
+  advanceId String
+  amount    Float
+  createdAt DateTime @default(now())
+
+  invoice Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  advance AdvancePayment @relation(fields: [advanceId], references: [id], onDelete: Cascade)
+
+  @@unique([invoiceId, advanceId])
+  @@index([advanceId])
+}
+
+model LedgerEntry {
+  id         String   @id @default(cuid())
+  companyId  String
+  customerId String
+  jobId      String?
+  invoiceId  String?
+  advanceId  String?
+  entryType  String
+  direction  String
+  amount     Float
+  occurredAt DateTime @default(now())
+  memo       String?
+  createdAt  DateTime @default(now())
+
+  company  Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  job      Job?            @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  invoice  Invoice?        @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  advance  AdvancePayment? @relation(fields: [advanceId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, customerId, occurredAt])
+  @@index([companyId, jobId, occurredAt])
 }
 
 model AuditLog {
