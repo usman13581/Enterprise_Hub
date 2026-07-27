@@ -10,8 +10,8 @@ Multi-company marble business SaaS — web (Next.js) + mobile (Expo) + NestJS AP
 | 1 Catalog + CRM | Done |
 | 2 Quotations + Jobs | Done |
 | 3 Accounts + invoicing + PDFs | Done |
-| 4 Offline mobile sync | Not started |
-| 5 Binhaj pilot polish | Not started |
+| 4 Offline mobile sync | Done |
+| 5 Binhaj pilot polish | Done |
 | Later auth product | Deferred |
 
 ## Local run
@@ -20,7 +20,7 @@ Multi-company marble business SaaS — web (Next.js) + mobile (Expo) + NestJS AP
 pnpm install
 pnpm build:packages   # shared types / domain / PDF (also runs via prepare)
 pnpm db:push
-pnpm db:seed
+pnpm db:seed          # Binhaj catalog + villa job money path
 
 pnpm dev:api      # http://localhost:3001
 pnpm dev:web      # http://localhost:3000
@@ -46,8 +46,8 @@ pnpm verify   # generate Prisma client, typecheck, test, build
 
 Automated coverage today:
 
-- 67 domain unit tests (VAT, fils rounding, advance allocation, ledgers, transitions)
-- 91 API integration tests (validation, company isolation, quotation→job→invoice money path, PDFs)
+- 71 domain unit tests (VAT, fils rounding, advance allocation, ledgers, transitions, sync conflicts)
+- 95 API integration tests (validation, tenancy, money path, PDFs, sync push/pull)
 
 ## What works on web and mobile
 
@@ -60,3 +60,11 @@ Automated coverage today:
 - Advances receipts
 - Accounts overview (AR + margin by job)
 - UAE tax invoice / quotation / advance-receipt PDFs
+- **Mobile offline:** Expo SQLite cache, `GET /sync/pull` + `POST /sync/push`, mutation + image upload queues, Sync now on home
+
+## Offline sync notes
+
+- Draft quotations + catalog/CRM: last-write-wins by `version` / `updatedAt`
+- Approved / cancelled quotations, issued invoices, completed/closed jobs: **server wins**
+- New invoices and advances still need the REST APIs (ledger consistency); while offline they queue and flush on reconnect
+- Images: local URI → upload queue → `POST /uploads` → product image attach

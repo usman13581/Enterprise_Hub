@@ -203,3 +203,38 @@ export const progressiveInvoiceSchema = z.object({
     .default([]),
 });
 export type ProgressiveInvoiceInput = z.infer<typeof progressiveInvoiceSchema>;
+
+/** Entities the mobile offline engine may push or pull. */
+export const SYNC_ENTITY_KEYS = [
+  'profile',
+  'supplier',
+  'product',
+  'productImage',
+  'customer',
+  'quotation',
+  'job',
+  'invoice',
+  'advance',
+] as const;
+
+export const syncMutationSchema = z.object({
+  /** Client-stable id so retries are idempotent. */
+  clientMutationId: requiredText(80),
+  entity: z.enum(SYNC_ENTITY_KEYS),
+  op: z.enum(['upsert', 'delete']),
+  id: requiredText(60),
+  updatedAt: z
+    .string()
+    .refine((value) => !Number.isNaN(Date.parse(value)), {
+      message: 'must be a valid ISO timestamp',
+    }),
+  version: z.number().int().positive(),
+  /** Full row payload for upsert; ignored for delete. */
+  data: z.record(z.unknown()).optional(),
+});
+export type SyncMutation = z.infer<typeof syncMutationSchema>;
+
+export const syncPushSchema = z.object({
+  mutations: z.array(syncMutationSchema).max(200),
+});
+export type SyncPushInput = z.infer<typeof syncPushSchema>;

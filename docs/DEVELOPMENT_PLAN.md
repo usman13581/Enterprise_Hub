@@ -16,10 +16,10 @@ todos:
     status: completed
   - id: phase-4-offline-parity
     content: Full feature parity web+mobile; Expo SQLite offline; sync push/pull; conflicts; image upload queue
-    status: pending
+    status: completed
   - id: phase-5-binhaj-pilot
     content: Seed/import Binhaj data, end-to-end pilot on staging, fix real-world gaps
-    status: pending
+    status: completed
   - id: phase-later-auth
     content: "Later (post-V1): signup, login, user management — emails belong to a company; all users full access (still no roles unless requested)"
     status: pending
@@ -407,11 +407,13 @@ Bootstrap V1 access means both apps use the seeded **Binhaj Marble** company ses
 ### Phase 4 — Offline and parity hardening
 - Ensure every V1 feature works on mobile the same as web
 - SQLite + sync push/pull, conflicts, image queue
+- **Status: completed** — `GET /sync/pull`, `POST /sync/push`, Expo SQLite mirror, mutation/image queues
 
 ### Phase 5 — Binhaj Marble pilot
 - Sample/import suppliers, products, customers
 - Run real quotation → job → advance → progressive invoice flows
 - Fix gaps from pilot usage
+- **Status: completed** — seed includes Italian/Omani suppliers, three products, two customers, and the Al Noor villa approved quote → job → advance → progressive invoice path
 
 ### Later — Auth product
 - Signup, login, user management

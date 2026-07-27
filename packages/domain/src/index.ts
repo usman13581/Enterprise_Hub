@@ -4,6 +4,7 @@ export * from './allocations';
 export * from './ledger';
 export * from './numbering';
 export * from './transitions';
+export * from './sync';
 
 import { extendFils, fromFils } from './money';
 

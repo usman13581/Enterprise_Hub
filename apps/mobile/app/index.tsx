@@ -3,6 +3,11 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { apiFetch, getApiBaseUrl } from '../lib/api';
+import {
+  runSync,
+  subscribeSyncStatus,
+  type SyncStatus,
+} from '../lib/offline/syncEngine';
 import { colors, ui } from '../lib/ui';
 
 type Session = {
@@ -29,6 +34,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sync, setSync] = useState<SyncStatus | null>(null);
 
   useEffect(() => {
     apiFetch<Session>('/auth/session')
@@ -38,7 +44,19 @@ export default function HomeScreen() {
       );
   }, []);
 
+  useEffect(() => {
+    const unsubscribe = subscribeSyncStatus(setSync);
+    void runSync();
+    const id = setInterval(() => void runSync(), 30_000);
+    return () => {
+      unsubscribe();
+      clearInterval(id);
+    };
+  }, []);
+
   const modules = MODULE_NAV.filter((m) => m.key !== 'home');
+  const pending =
+    (sync?.pendingMutations ?? 0) + (sync?.pendingImages ?? 0);
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={ui.content}>
@@ -54,6 +72,36 @@ export default function HomeScreen() {
           <Text style={ui.cardMeta}>{session.email}</Text>
         </View>
       ) : null}
+
+      <View style={styles.syncCard}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cardLabel}>Offline sync</Text>
+          <Text style={styles.syncLine}>
+            {sync?.online === false ? 'Offline' : 'Online'}
+            {sync?.syncing ? ' · syncing…' : ''}
+            {pending > 0 ? ` · ${pending} queued` : ''}
+          </Text>
+          {sync?.lastSyncAt ? (
+            <Text style={styles.syncMeta}>
+              Last sync {new Date(sync.lastSyncAt).toLocaleString()}
+            </Text>
+          ) : (
+            <Text style={styles.syncMeta}>Not synced yet</Text>
+          )}
+          {sync?.lastError ? (
+            <Text style={ui.error}>{sync.lastError}</Text>
+          ) : null}
+        </View>
+        <Pressable
+          style={({ pressed }) => [
+            styles.syncButton,
+            pressed && styles.rowPressed,
+          ]}
+          onPress={() => void runSync()}
+        >
+          <Text style={styles.syncButtonText}>Sync now</Text>
+        </Pressable>
+      </View>
 
       <Text style={styles.section}>Modules</Text>
       {modules.map((item) => (
@@ -92,6 +140,38 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     marginBottom: 4,
+  },
+  syncCard: {
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+  },
+  syncLine: {
+    color: colors.ink,
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  syncMeta: {
+    color: colors.soft,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  syncButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: colors.accentSoft,
+  },
+  syncButtonText: {
+    color: colors.accent,
+    fontWeight: '600',
+    fontSize: 13,
   },
   section: {
     marginTop: 22,

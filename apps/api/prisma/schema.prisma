@@ -29,8 +29,8 @@ model Company {
 }
 
 model CompanyProfile {
-  id               String  @id @default(cuid())
-  companyId        String  @unique
+  id               String   @id @default(cuid())
+  companyId        String   @unique
   legalName        String
   tradeName        String?
   address          String?
@@ -40,13 +40,16 @@ model CompanyProfile {
   bankDetails      String?
   logoUrl          String?
   signatureUrl     String?
-  quotationPrefix  String  @default("QT")
-  invoicePrefix    String  @default("INV")
-  jobPrefix        String  @default("JOB")
-  advancePrefix    String  @default("ADV")
-  creditNotePrefix String  @default("CN")
-  currency         String  @default("AED")
-  vatRate          Float   @default(0.05)
+  quotationPrefix  String   @default("QT")
+  invoicePrefix    String   @default("INV")
+  jobPrefix        String   @default("JOB")
+  advancePrefix    String   @default("ADV")
+  creditNotePrefix String   @default("CN")
+  currency         String   @default("AED")
+  vatRate          Float    @default(0.05)
+  /// Bumped on every sync-visible write for offline conflict checks.
+  version          Int      @default(1)
+  updatedAt        DateTime @default(now()) @updatedAt
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }
@@ -76,6 +79,7 @@ model Supplier {
   trn       String?
   notes     String?
   active    Boolean  @default(true)
+  version   Int      @default(1)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -83,6 +87,7 @@ model Supplier {
   products Product[]
 
   @@index([companyId, name])
+  @@index([companyId, updatedAt])
 }
 
 model Product {
@@ -96,6 +101,7 @@ model Product {
   sellPrice     Float    @default(0)
   description   String?
   active        Boolean  @default(true)
+  version       Int      @default(1)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -105,6 +111,7 @@ model Product {
   quotationLines QuotationLine[]
 
   @@index([companyId, name])
+  @@index([companyId, updatedAt])
 }
 
 model ProductImage {
@@ -112,11 +119,14 @@ model ProductImage {
   productId String
   url       String
   isDefault Boolean  @default(false)
+  version   Int      @default(1)
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
+  @@index([updatedAt])
 }
 
 model Customer {
@@ -130,6 +140,7 @@ model Customer {
   trn       String?
   notes     String?
   active    Boolean  @default(true)
+  version   Int      @default(1)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -141,6 +152,7 @@ model Customer {
   ledger     LedgerEntry[]
 
   @@index([companyId, name])
+  @@index([companyId, updatedAt])
 }
 
 model Quotation {
@@ -160,6 +172,7 @@ model Quotation {
   purchaseTotal Float     @default(0)
   approvedAt    DateTime?
   cancelledAt   DateTime?
+  version       Int       @default(1)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -171,6 +184,7 @@ model Quotation {
   @@unique([companyId, number])
   @@index([companyId, status])
   @@index([companyId, customerId])
+  @@index([companyId, updatedAt])
 }
 
 model QuotationLine {
@@ -207,6 +221,7 @@ model Job {
   purchaseTotal Float     @default(0)
   completedAt   DateTime?
   closedAt      DateTime?
+  version       Int       @default(1)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -220,6 +235,7 @@ model Job {
   @@unique([companyId, number])
   @@index([companyId, status])
   @@index([companyId, customerId])
+  @@index([companyId, updatedAt])
 }
 
 model Invoice {
@@ -245,6 +261,7 @@ model Invoice {
 
   creditNoteForId String?
   cancelledAt     DateTime?
+  version         Int       @default(1)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -261,6 +278,7 @@ model Invoice {
   @@index([companyId, status])
   @@index([companyId, customerId])
   @@index([companyId, jobId])
+  @@index([companyId, updatedAt])
 }
 
 model InvoiceLine {
@@ -293,6 +311,7 @@ model AdvancePayment {
   reference       String?
   receivedAt      DateTime @default(now())
   notes           String?
+  version         Int      @default(1)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -305,6 +324,7 @@ model AdvancePayment {
   @@unique([companyId, number])
   @@index([companyId, customerId])
   @@index([companyId, jobId])
+  @@index([companyId, updatedAt])
 }
 
 /// Records which advance settles which invoice. This moves no money: the cash

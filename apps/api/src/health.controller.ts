@@ -7,7 +7,7 @@ export class HealthController {
     return {
       ok: true,
       service: 'marble-api',
-      phase: 3,
+      phase: 5,
     };
   }
 }

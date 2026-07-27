@@ -17,6 +17,7 @@ import { AdvancesModule } from './advances/advances.module';
 import { AccountsModule } from './accounts/accounts.module';
 import { DocumentsModule } from './documents/documents.module';
 import { UploadsModule } from './uploads/uploads.module';
+import { SyncModule } from './sync/sync.module';
 import { UPLOADS_DIR } from './uploads/uploads.constants';
 
 @Module({
@@ -49,6 +50,7 @@ import { UPLOADS_DIR } from './uploads/uploads.constants';
     AccountsModule,
     DocumentsModule,
     UploadsModule,
+    SyncModule,
   ],
   controllers: [HealthController],
 })
