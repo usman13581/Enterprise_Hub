@@ -39,12 +39,14 @@ export default function CustomerHubPage() {
         <Link className={finance.backLink} href="/customers">
           ← Customers
         </Link>
-        <h1 className={page.title}>Customer</h1>
-        {error ? (
-          <p className={styles.error}>{error}</p>
-        ) : (
-          <p className={page.lede}>Loading…</p>
-        )}
+        <header className={page.header}>
+          <h1 className={page.title}>Customer</h1>
+          {error ? (
+            <p className={styles.error}>{error}</p>
+          ) : (
+            <p className={page.lede}>Loading…</p>
+          )}
+        </header>
       </section>
     );
   }
@@ -59,7 +61,7 @@ export default function CustomerHubPage() {
       </Link>
 
       <div className={finance.headerRow}>
-        <div>
+        <header className={page.header}>
           <h1 className={page.title}>{customer.name}</h1>
           <p className={page.lede}>
             {[customer.contact, customer.phone, customer.email]
@@ -67,7 +69,7 @@ export default function CustomerHubPage() {
               .join(' · ') || 'No contact details'}
             {customer.trn ? ` · TRN ${customer.trn}` : ''}
           </p>
-        </div>
+        </header>
       </div>
 
       {error ? <p className={styles.error}>{error}</p> : null}

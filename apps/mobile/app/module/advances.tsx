@@ -18,6 +18,8 @@ import {
 import { Pagination, SearchBox, Toast } from '../../components/ListControls';
 import {
   ActionButton,
+  LinkAction,
+  RecordRow,
   RowActions,
   StatCard,
 } from '../../components/Finance';
@@ -169,40 +171,41 @@ export default function AdvancesScreen() {
               </View>
             ) : (
               pager.paged.map((advance) => (
-                <View key={advance.id} style={ui.card}>
-                  <Text style={ui.cardTitle}>{advance.number}</Text>
-                  <Text style={ui.cardMeta}>
-                    {advance.customer?.name ?? '—'} · {day(advance.receivedAt)}{' '}
-                    · {label(advance.method)}
-                  </Text>
-                  <Text style={ui.cardMeta}>
-                    {money(advance.amount)} · spare{' '}
-                    {money(advance.unallocatedAmount)}
-                  </Text>
-                  {advance.job ? (
-                    <Text style={ui.tag}>Job {advance.job.number}</Text>
-                  ) : null}
+                <RecordRow
+                  key={advance.id}
+                  title={advance.number}
+                  pdfPath={`/documents/advances/${advance.id}.pdf`}
+                  onPdfError={setError}
+                  meta={[
+                    advance.customer?.name,
+                    money(advance.amount),
+                    `spare ${money(advance.unallocatedAmount)}`,
+                    advance.job ? `Job ${advance.job.number}` : null,
+                    label(advance.method),
+                    day(advance.receivedAt),
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                >
                   {advance.allocatedAmount === 0 ? (
-                    <RowActions>
-                      <ActionButton
-                        label="Delete"
-                        tone="danger"
-                        onPress={() =>
-                          void apiDelete(`/advances/${advance.id}`)
-                            .then(() => reload())
-                            .then(() => notify('Deleted', 'danger'))
-                            .catch((e) =>
-                              setError(
-                                e instanceof Error
-                                  ? e.message
-                                  : 'Delete failed',
-                              ),
-                            )
-                        }
-                      />
-                    </RowActions>
+                    <LinkAction
+                      label="Delete"
+                      tone="danger"
+                      onPress={() =>
+                        void apiDelete(`/advances/${advance.id}`)
+                          .then(() => reload())
+                          .then(() => notify('Deleted', 'danger'))
+                          .catch((e) =>
+                            setError(
+                              e instanceof Error
+                                ? e.message
+                                : 'Delete failed',
+                            ),
+                          )
+                      }
+                    />
                   ) : null}
-                </View>
+                </RecordRow>
               ))
             )}
 

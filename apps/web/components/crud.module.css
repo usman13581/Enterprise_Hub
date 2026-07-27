@@ -274,11 +274,25 @@
   border-radius: 10px;
   border: 2px solid transparent;
   display: block;
+  cursor: zoom-in;
 }
 
-.thumbDefault .thumbImg {
+.thumbDefault .thumbImg,
+.thumbDefault button img {
   border-color: var(--accent);
 }
+
+.preview {
+  width: 120px;
+  height: 70px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 4px;
+  cursor: zoom-in;
+}
+
 
 .thumbBar {
   display: flex;
@@ -363,14 +377,4 @@
 .fileInput {
   font-size: 0.85rem;
   color: var(--muted);
-}
-
-.preview {
-  width: 120px;
-  height: 70px;
-  object-fit: contain;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fff;
-  padding: 4px;
 }

@@ -20,6 +20,8 @@ import {
   ActionButton,
   BalanceCard,
   FilterChips,
+  LinkAction,
+  RecordRow,
   RowActions,
   StatCard,
   StatusPill,
@@ -207,49 +209,46 @@ export default function CustomersScreen() {
               </View>
             ) : (
               pager.paged.map((item) => (
-                <View key={item.id} style={ui.card}>
-                  <Text style={ui.cardTitle}>{item.name}</Text>
-                  <Text style={ui.cardMeta}>
-                    {[item.contact, item.phone, item.email]
-                      .filter(Boolean)
-                      .join(" · ") || "No contact details"}
-                  </Text>
-                  {item.trn ? (
-                    <Text style={ui.cardMeta}>TRN {item.trn}</Text>
-                  ) : null}
-                  <View style={ui.cardActions}>
-                    <Pressable
-                      style={ui.button}
-                      onPress={() => setHubId(item.id)}
-                    >
-                      <Text style={ui.buttonText}>Open hub</Text>
-                    </Pressable>
-                    <Pressable
-                      style={ui.ghost}
-                      onPress={() => {
-                        setDraft({
-                          name: item.name,
-                          contact: item.contact ?? "",
-                          phone: item.phone ?? "",
-                          email: item.email ?? "",
-                          address: item.address ?? "",
-                          trn: item.trn ?? "",
-                          notes: item.notes ?? "",
-                        });
-                        setEditingId(item.id);
-                        setShowForm(true);
-                      }}
-                    >
-                      <Text style={ui.ghostText}>Edit</Text>
-                    </Pressable>
-                    <Pressable
-                      style={ui.ghost}
-                      onPress={() => void remove(item.id)}
-                    >
-                      <Text style={[ui.ghostText, ui.dangerText]}>Delete</Text>
-                    </Pressable>
-                  </View>
-                </View>
+                <RecordRow
+                  key={item.id}
+                  title={item.name}
+                  onPress={() => setHubId(item.id)}
+                  meta={[
+                    item.contact,
+                    item.phone,
+                    item.email,
+                    item.trn ? `TRN ${item.trn}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || "No contact details"}
+                >
+                  <LinkAction
+                    label="Open hub"
+                    tone="primary"
+                    onPress={() => setHubId(item.id)}
+                  />
+                  <LinkAction
+                    label="Edit"
+                    onPress={() => {
+                      setDraft({
+                        name: item.name,
+                        contact: item.contact ?? "",
+                        phone: item.phone ?? "",
+                        email: item.email ?? "",
+                        address: item.address ?? "",
+                        trn: item.trn ?? "",
+                        notes: item.notes ?? "",
+                      });
+                      setEditingId(item.id);
+                      setShowForm(true);
+                    }}
+                  />
+                  <LinkAction
+                    label="Delete"
+                    tone="danger"
+                    onPress={() => void remove(item.id)}
+                  />
+                </RecordRow>
               ))
             )}
 
@@ -390,23 +389,12 @@ function CustomerHubScreen({
 
         <Text style={[ui.label, { marginTop: 18 }]}>Where the money sits</Text>
         {byJob.map((row) => (
-          <View key={row.jobId} style={ui.card}>
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <Text style={ui.cardTitle}>{row.jobNumber}</Text>
-              <StatusPill status={row.status} />
-            </View>
-            <Text style={ui.cardMeta}>
-              Value {money(row.jobValue)} · invoiced {money(row.invoiced)} ·
-              advances {money(row.advances)}
-            </Text>
-            <Text style={ui.cardMeta}>Balance {money(row.balance)}</Text>
-          </View>
+          <RecordRow
+            key={row.jobId}
+            title={row.jobNumber}
+            status={row.status}
+            meta={`Value ${money(row.jobValue)} · invoiced ${money(row.invoiced)} · advances ${money(row.advances)} · bal ${money(row.balance)}`}
+          />
         ))}
 
         <FilterChips
@@ -423,61 +411,63 @@ function CustomerHubScreen({
 
         {tab === "jobs"
           ? jobs.map((job) => (
-              <View key={job.id} style={ui.card}>
-                <Text style={ui.cardTitle}>{job.number}</Text>
-                <Text style={ui.cardMeta}>
-                  {job.title || "No subject"} · {money(job.jobValue)} ·{" "}
-                  {day(job.createdAt)}
-                </Text>
-              </View>
+              <RecordRow
+                key={job.id}
+                title={job.number}
+                status={job.status}
+                meta={[job.title || "No subject", money(job.jobValue), day(job.createdAt)].join(" · ")}
+              />
             ))
           : null}
 
         {tab === "quotations"
           ? quotations.map((quotation) => (
-              <View key={quotation.id} style={ui.card}>
-                <Text style={ui.cardTitle}>{quotation.number}</Text>
-                <Text style={ui.cardMeta}>
-                  {quotation.title || "No subject"} · {money(quotation.total)}
-                </Text>
-                <StatusPill status={quotation.status} />
-              </View>
+              <RecordRow
+                key={quotation.id}
+                title={quotation.number}
+                status={quotation.status}
+                pdfPath={`/documents/quotations/${quotation.id}.pdf`}
+                onPdfError={setError}
+                meta={[quotation.title || "No subject", money(quotation.total)].join(" · ")}
+              />
             ))
           : null}
 
         {tab === "invoices"
           ? invoices.map((invoice) => (
-              <View key={invoice.id} style={ui.card}>
-                <Text style={ui.cardTitle}>{invoice.number}</Text>
-                <Text style={ui.cardMeta}>
-                  {label(invoice.kind)} · {day(invoice.issueDate)} ·{" "}
-                  {money(invoice.total)}
-                </Text>
-              </View>
+              <RecordRow
+                key={invoice.id}
+                title={invoice.number}
+                pdfPath={`/documents/invoices/${invoice.id}.pdf`}
+                onPdfError={setError}
+                meta={[label(invoice.kind), day(invoice.issueDate), money(invoice.total)].join(" · ")}
+              />
             ))
           : null}
 
         {tab === "advances"
           ? advances.map((advance) => (
-              <View key={advance.id} style={ui.card}>
-                <Text style={ui.cardTitle}>{advance.number}</Text>
-                <Text style={ui.cardMeta}>
-                  {day(advance.receivedAt)} · {money(advance.amount)} · spare{" "}
-                  {money(advance.unallocatedAmount)}
-                </Text>
-              </View>
+              <RecordRow
+                key={advance.id}
+                title={advance.number}
+                pdfPath={`/documents/advances/${advance.id}.pdf`}
+                onPdfError={setError}
+                meta={[
+                  day(advance.receivedAt),
+                  money(advance.amount),
+                  `spare ${money(advance.unallocatedAmount)}`,
+                ].join(" · ")}
+              />
             ))
           : null}
 
         {tab === "ledger"
           ? ledger.map((row) => (
-              <View key={row.id} style={ui.card}>
-                <Text style={ui.cardTitle}>{label(row.entryType)}</Text>
-                <Text style={ui.cardMeta}>
-                  {day(row.occurredAt)} · {row.direction} {money(row.amount)} ·
-                  balance {money(row.runningBalance)}
-                </Text>
-              </View>
+              <RecordRow
+                key={row.id}
+                title={label(row.entryType)}
+                meta={`${day(row.occurredAt)} · ${row.direction} ${money(row.amount)} · bal ${money(row.runningBalance)}`}
+              />
             ))
           : null}
       </ScrollView>

@@ -20,8 +20,9 @@ import { Pagination, SearchBox, Toast } from '../../components/ListControls';
 import {
   ActionButton,
   FilterChips,
+  LinkAction,
+  RecordRow,
   RowActions,
-  StatusPill,
 } from '../../components/Finance';
 import type { Customer, Product, Quotation } from '../../lib/types';
 import { colors, ui } from '../../lib/ui';
@@ -404,29 +405,29 @@ export default function QuotationsScreen() {
               </View>
             ) : (
               pager.paged.map((quotation) => (
-                <View key={quotation.id} style={ui.card}>
-                  <View style={styles.cardHead}>
-                    <Text style={ui.cardTitle}>{quotation.number}</Text>
-                    <StatusPill status={quotation.status} />
-                  </View>
-                  <Text style={ui.cardMeta}>
-                    {quotation.customer?.name ?? '—'} ·{' '}
-                    {quotation.title || 'No subject'}
-                  </Text>
-                  <Text style={ui.cardMeta}>
-                    {money(quotation.total)} · margin {money(quotation.profit)}{' '}
-                    · {day(quotation.createdAt)}
-                  </Text>
-                  {quotation.job ? (
-                    <Text style={ui.tag}>Job {quotation.job.number}</Text>
-                  ) : null}
+                <RecordRow
+                  key={quotation.id}
+                  title={quotation.number}
+                  status={quotation.status}
+                  pdfPath={`/documents/quotations/${quotation.id}.pdf`}
+                  onPdfError={setError}
+                  meta={[
+                    quotation.customer?.name,
+                    quotation.title || 'No subject',
+                    money(quotation.total),
+                    quotation.job ? `Job ${quotation.job.number}` : null,
+                    day(quotation.createdAt),
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                >
                   {quotation.status === 'draft' ? (
-                    <RowActions>
-                      <ActionButton
+                    <>
+                      <LinkAction
                         label="Edit"
                         onPress={() => startEdit(quotation)}
                       />
-                      <ActionButton
+                      <LinkAction
                         label="Approve"
                         tone="primary"
                         onPress={() =>
@@ -437,7 +438,7 @@ export default function QuotationsScreen() {
                           )
                         }
                       />
-                      <ActionButton
+                      <LinkAction
                         label="Cancel"
                         tone="danger"
                         onPress={() =>
@@ -448,7 +449,7 @@ export default function QuotationsScreen() {
                           )
                         }
                       />
-                      <ActionButton
+                      <LinkAction
                         label="Delete"
                         tone="danger"
                         onPress={() =>
@@ -464,9 +465,9 @@ export default function QuotationsScreen() {
                             )
                         }
                       />
-                    </RowActions>
+                    </>
                   ) : null}
-                </View>
+                </RecordRow>
               ))
             )}
 
@@ -487,12 +488,6 @@ export default function QuotationsScreen() {
 }
 
 const styles = {
-  cardHead: {
-    flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
-    alignItems: 'center' as const,
-    gap: 8,
-  },
   picker: {
     flexDirection: 'row' as const,
     flexWrap: 'wrap' as const,

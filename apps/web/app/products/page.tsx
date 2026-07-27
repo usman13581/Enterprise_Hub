@@ -9,6 +9,8 @@ import {
   usePolledList,
 } from "@/lib/useCollection";
 import { Pagination, SearchBox, Toast } from "@/components/ListControls";
+import { FilePicker } from "@/components/FilePicker";
+import { PreviewableImage } from "@/components/ImagePreview";
 import type { Product, Supplier } from "@/lib/types";
 import page from "../page.module.css";
 import styles from "@/components/crud.module.css";
@@ -305,7 +307,7 @@ export default function ProductsPage() {
                           }`}
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
+                          <PreviewableImage
                             className={styles.thumbImg}
                             src={assetUrl(img.url) ?? ""}
                             alt={item.name}
@@ -346,19 +348,14 @@ export default function ProductsPage() {
                   ) : null}
 
                   <div className={styles.uploadRow}>
-                    <input
-                      className={styles.fileInput}
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) void onUpload(item.id, file);
-                        e.target.value = "";
-                      }}
+                    <FilePicker
+                      variant="compact"
+                      label={
+                        uploadingFor === item.id ? "Uploading…" : "Add photo"
+                      }
+                      busy={uploadingFor === item.id}
+                      onFile={(file) => void onUpload(item.id, file)}
                     />
-                    {uploadingFor === item.id ? (
-                      <span className={styles.count}>Uploading…</span>
-                    ) : null}
                   </div>
                 </li>
               ))}

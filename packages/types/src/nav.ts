@@ -8,7 +8,6 @@ export const MODULE_NAV = [
   { key: 'invoices', label: 'Invoices', href: '/invoices' },
   { key: 'advances', label: 'Advances', href: '/advances' },
   { key: 'accounts', label: 'Accounts', href: '/accounts' },
-  { key: 'profile', label: 'Company profile', href: '/profile' },
   { key: 'audit', label: 'Audit', href: '/audit' },
 ] as const;
 

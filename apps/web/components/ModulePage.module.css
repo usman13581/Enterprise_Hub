@@ -1,14 +1,18 @@
 .page {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 0.75rem;
+  row-gap: 0.55rem;
+  align-items: baseline;
+  width: 100%;
+  min-width: 0;
   animation: rise 0.35s ease-out;
 }
 
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -16,25 +20,52 @@
   }
 }
 
+.page > .title {
+  grid-column: 1;
+}
+
+.page > .lede {
+  grid-column: 2;
+}
+
+.page > .header,
+.page > :not(.title):not(.lede) {
+  grid-column: 1 / -1;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.75rem;
+  row-gap: 0.15rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .title {
   margin: 0;
   font-family: var(--font-display), Fraunces, Georgia, serif;
-  font-size: clamp(1.85rem, 3vw, 2.35rem);
+  font-size: clamp(1.25rem, 1.8vw, 1.5rem);
   font-weight: 600;
   letter-spacing: -0.03em;
+  line-height: 1.2;
   color: var(--ink);
+  flex: 0 0 auto;
 }
 
 .lede {
   margin: 0;
   color: var(--muted);
-  max-width: 38rem;
-  line-height: 1.55;
-  font-size: 1.02rem;
+  flex: 1 1 12rem;
+  min-width: 0;
+  max-width: none;
+  line-height: 1.35;
+  font-size: 0.9rem;
 }
 
 .panel {
-  margin-top: 1.15rem;
+  margin-top: 0.35rem;
   padding: 1.25rem 1.35rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);

@@ -4,6 +4,8 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { apiFetch, apiPut, apiUpload, assetUrl } from "@/lib/api";
 import { useFlash } from "@/lib/useCollection";
 import { Toast } from "@/components/ListControls";
+import { FilePicker } from "@/components/FilePicker";
+import { PreviewableImage } from "@/components/ImagePreview";
 import type { Company } from "@/lib/types";
 import page from "../page.module.css";
 import styles from "@/components/crud.module.css";
@@ -215,21 +217,16 @@ export default function ProfilePage() {
             <label className={styles.label}>Logo</label>
             <div className={styles.uploadRow}>
               {draft.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <PreviewableImage
                   className={styles.preview}
                   src={assetUrl(draft.logoUrl) ?? ""}
                   alt="Logo"
                 />
               ) : null}
-              <input
-                className={styles.fileInput}
-                type="file"
-                accept="image/*"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void upload("logoUrl", f);
-                }}
+              <FilePicker
+                label={draft.logoUrl ? "Replace logo" : "Choose logo"}
+                hint="PNG or JPG"
+                onFile={(file) => void upload("logoUrl", file)}
               />
             </div>
           </div>
@@ -237,21 +234,18 @@ export default function ProfilePage() {
             <label className={styles.label}>Signature</label>
             <div className={styles.uploadRow}>
               {draft.signatureUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <PreviewableImage
                   className={styles.preview}
                   src={assetUrl(draft.signatureUrl) ?? ""}
                   alt="Signature"
                 />
               ) : null}
-              <input
-                className={styles.fileInput}
-                type="file"
-                accept="image/*"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void upload("signatureUrl", f);
-                }}
+              <FilePicker
+                label={
+                  draft.signatureUrl ? "Replace signature" : "Choose signature"
+                }
+                hint="PNG or JPG"
+                onFile={(file) => void upload("signatureUrl", file)}
               />
             </div>
           </div>

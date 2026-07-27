@@ -24,6 +24,7 @@ import {
   usePolledList,
 } from "../../lib/useCollection";
 import { Pagination, SearchBox, Toast } from "../../components/ListControls";
+import { LinkAction, RecordRow, UploadChip } from "../../components/Finance";
 import type { Product, Supplier } from "../../lib/types";
 import { colors, ui } from "../../lib/ui";
 
@@ -112,17 +113,26 @@ export default function ProductsScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       quality: 0.8,
+      preferredAssetRepresentationMode:
+        ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
     });
     if (result.canceled || !result.assets?.[0]) return;
 
     setUploadingFor(productId);
     try {
-      const { url } = await apiUploadImage(result.assets[0].uri);
-      await apiPost(`/products/${productId}/images`, { url });
+      const uploaded = await apiUploadImage(result.assets[0].uri, {
+        productId,
+        purpose: 'product',
+      });
+      // Offline queue already attaches the image after upload — do not POST a
+      // local file:// URL to the API (server rejects non-/static paths).
+      if (!uploaded.queued) {
+        await apiPost(`/products/${productId}/images`, { url: uploaded.url });
+      }
       await reload();
-      notify("Image uploaded");
+      notify(uploaded.queued ? 'Photo queued for upload' : 'Image uploaded');
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed");
+      setError(e instanceof Error ? e.message : 'Upload failed');
     } finally {
       setUploadingFor(null);
     }
@@ -269,20 +279,52 @@ export default function ProductsScreen() {
               </View>
             ) : (
               pager.paged.map((item) => (
-                <View key={item.id} style={ui.card}>
-                  <Text style={ui.cardTitle}>{item.name}</Text>
-                  <Text style={ui.cardMeta}>
-                    {[item.sku, `per ${item.unit}`, item.supplier?.name]
+                <View key={item.id}>
+                  <RecordRow
+                    title={item.name}
+                    meta={[
+                      item.sku,
+                      `per ${item.unit}`,
+                      item.supplier?.name,
+                      `buy ${item.purchasePrice.toFixed(2)}`,
+                      `sell ${item.sellPrice.toFixed(2)}`,
+                    ]
                       .filter(Boolean)
                       .join(" · ")}
-                  </Text>
-                  <Text style={ui.cardMeta}>
-                    Purchase AED {item.purchasePrice.toFixed(2)} · Sell AED{" "}
-                    {item.sellPrice.toFixed(2)}
-                  </Text>
-
+                  >
+                    <UploadChip
+                      label="Add photo"
+                      busy={uploadingFor === item.id}
+                      onPress={() => void pickImage(item.id)}
+                    />
+                    <LinkAction
+                      label="Edit"
+                      onPress={() => {
+                        setDraft({
+                          name: item.name,
+                          sku: item.sku ?? "",
+                          unit: item.unit,
+                          purchasePrice: String(item.purchasePrice),
+                          sellPrice: String(item.sellPrice),
+                          supplierId: item.supplierId ?? "",
+                          description: item.description ?? "",
+                        });
+                        setEditingId(item.id);
+                        setShowForm(true);
+                      }}
+                    />
+                    <LinkAction
+                      label="Delete"
+                      tone="danger"
+                      onPress={() => void remove(item.id)}
+                    />
+                  </RecordRow>
                   {item.images.length > 0 ? (
-                    <ScrollView horizontal style={styles.imageRow}>
+                    <ScrollView
+                      horizontal
+                      style={styles.imageRow}
+                      contentContainerStyle={{ paddingLeft: 4 }}
+                    >
                       {item.images.map((img) => (
                         <View key={img.id} style={styles.thumbWrap}>
                           <Image
@@ -326,41 +368,6 @@ export default function ProductsScreen() {
                       ))}
                     </ScrollView>
                   ) : null}
-
-                  <View style={ui.cardActions}>
-                    <Pressable
-                      style={ui.ghost}
-                      onPress={() => void pickImage(item.id)}
-                    >
-                      <Text style={ui.ghostText}>
-                        {uploadingFor === item.id ? "Uploading…" : "Add photo"}
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      style={ui.ghost}
-                      onPress={() => {
-                        setDraft({
-                          name: item.name,
-                          sku: item.sku ?? "",
-                          unit: item.unit,
-                          purchasePrice: String(item.purchasePrice),
-                          sellPrice: String(item.sellPrice),
-                          supplierId: item.supplierId ?? "",
-                          description: item.description ?? "",
-                        });
-                        setEditingId(item.id);
-                        setShowForm(true);
-                      }}
-                    >
-                      <Text style={ui.ghostText}>Edit</Text>
-                    </Pressable>
-                    <Pressable
-                      style={ui.ghost}
-                      onPress={() => void remove(item.id)}
-                    >
-                      <Text style={[ui.ghostText, ui.dangerText]}>Delete</Text>
-                    </Pressable>
-                  </View>
                 </View>
               ))
             )}

@@ -41,8 +41,14 @@ export default function JobHubPage() {
         <Link className={finance.backLink} href="/jobs">
           ← Jobs
         </Link>
-        <h1 className={page.title}>Job</h1>
-        {error ? <p className={styles.error}>{error}</p> : <p className={page.lede}>Loading…</p>}
+        <header className={page.header}>
+          <h1 className={page.title}>Job</h1>
+          {error ? (
+            <p className={styles.error}>{error}</p>
+          ) : (
+            <p className={page.lede}>Loading…</p>
+          )}
+        </header>
       </section>
     );
   }
@@ -84,7 +90,7 @@ export default function JobHubPage() {
       </Link>
 
       <div className={finance.headerRow}>
-        <div>
+        <header className={page.header}>
           <h1 className={page.title}>Job {job.number}</h1>
           <p className={page.lede}>
             {job.title ?? 'No subject'} ·{' '}
@@ -93,7 +99,7 @@ export default function JobHubPage() {
             </Link>
             {job.quotation ? ` · from quotation ${job.quotation.number}` : ''}
           </p>
-        </div>
+        </header>
         <StatusBadge status={job.status} />
       </div>
 

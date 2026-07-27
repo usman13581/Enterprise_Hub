@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { openPdf } from '../lib/api';
 import { colors, ui } from '../lib/ui';
 import { label, money } from '../lib/format';
 
@@ -98,8 +100,97 @@ export function FilterChips<T extends string>({
   );
 }
 
+/**
+ * Compact list row used on every mobile records screen.
+ * Left: title + one meta line. Right: status with PDF tucked under it.
+ * Optional footer for slim text actions (Edit / Approve / …).
+ */
+export function RecordRow({
+  title,
+  meta,
+  status,
+  pdfPath,
+  onPdfError,
+  onPress,
+  children,
+}: {
+  title: string;
+  meta: string;
+  status?: string;
+  pdfPath?: string;
+  onPdfError?: (message: string) => void;
+  onPress?: () => void;
+  children?: React.ReactNode;
+}) {
+  const body = (
+    <>
+      <View style={styles.rowMain}>
+        <View style={styles.rowBody}>
+          <Text style={styles.rowTitle} numberOfLines={1}>
+            {title}
+          </Text>
+          <Text style={styles.rowMeta} numberOfLines={2}>
+            {meta}
+          </Text>
+        </View>
+        {(status || pdfPath) && (
+          <View style={styles.rowSide}>
+            {status ? <StatusPill status={status} /> : null}
+            {pdfPath && onPdfError ? (
+              <PdfButton path={pdfPath} onError={onPdfError} compact />
+            ) : null}
+          </View>
+        )}
+      </View>
+      {children ? <View style={styles.rowFooter}>{children}</View> : null}
+    </>
+  );
+
+  if (onPress) {
+    return (
+      <Pressable style={styles.row} onPress={onPress}>
+        {body}
+      </Pressable>
+    );
+  }
+
+  return <View style={styles.row}>{body}</View>;
+}
+
 export function RowActions({ children }: { children: React.ReactNode }) {
   return <View style={styles.actions}>{children}</View>;
+}
+
+/** Slim text action for list footers — keeps rows short. */
+export function LinkAction({
+  label: text,
+  onPress,
+  tone = 'default',
+  disabled,
+}: {
+  label: string;
+  onPress: () => void;
+  tone?: 'default' | 'primary' | 'danger';
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      hitSlop={6}
+      style={disabled && styles.disabled}
+    >
+      <Text
+        style={[
+          styles.link,
+          tone === 'primary' && styles.linkPrimary,
+          tone === 'danger' && styles.linkDanger,
+        ]}
+      >
+        {text}
+      </Text>
+    </Pressable>
+  );
 }
 
 export function ActionButton({
@@ -135,6 +226,75 @@ export function ActionButton({
   );
 }
 
+/** Modern choose-file control for logo / photo picks on mobile. */
+export function UploadChip({
+  label,
+  onPress,
+  busy,
+}: {
+  label: string;
+  onPress: () => void;
+  busy?: boolean;
+}) {
+  return (
+    <Pressable
+      style={[styles.uploadChip, busy && styles.disabled]}
+      disabled={busy}
+      onPress={onPress}
+    >
+      <Text style={styles.uploadIcon}>↑</Text>
+      <Text style={styles.uploadLabel}>{busy ? 'Uploading…' : label}</Text>
+    </Pressable>
+  );
+}
+
+/** Fetches a PDF from the API and opens the device print / share sheet. */
+export function PdfButton({
+  path,
+  onError,
+  label: text = 'PDF',
+  compact = false,
+}: {
+  path: string;
+  onError: (message: string) => void;
+  label?: string;
+  compact?: boolean;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  function run() {
+    setBusy(true);
+    void openPdf(path)
+      .catch((error) =>
+        onError(
+          error instanceof Error ? error.message : 'Could not open the PDF',
+        ),
+      )
+      .finally(() => setBusy(false));
+  }
+
+  if (compact) {
+    return (
+      <Pressable
+        style={[styles.pdfChip, busy && styles.disabled]}
+        disabled={busy}
+        onPress={run}
+        hitSlop={4}
+      >
+        <Text style={styles.pdfChipText}>{busy ? '…' : text}</Text>
+      </Pressable>
+    );
+  }
+
+  return (
+    <ActionButton
+      label={busy ? '…' : text}
+      disabled={busy}
+      onPress={run}
+    />
+  );
+}
+
 const styles = StyleSheet.create({
   stat: {
     flexGrow: 1,
@@ -167,10 +327,10 @@ const styles = StyleSheet.create({
   pill: {
     alignSelf: 'flex-start',
     overflow: 'hidden',
-    paddingHorizontal: 9,
-    paddingVertical: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
     borderRadius: 999,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
   chips: {
@@ -200,6 +360,61 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontWeight: '700',
   },
+  row: {
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginTop: 8,
+  },
+  rowMain: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  rowBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  rowTitle: {
+    color: colors.ink,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  rowMeta: {
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  rowSide: {
+    alignItems: 'flex-end',
+    gap: 4,
+    paddingTop: 1,
+  },
+  rowFooter: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 14,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.line,
+  },
+  link: {
+    color: colors.muted,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  linkPrimary: {
+    color: colors.accent,
+  },
+  linkDanger: {
+    color: colors.danger,
+  },
   actions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -211,5 +426,41 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.4,
+  },
+  uploadChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'flex-start',
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(26,107,122,0.28)',
+    backgroundColor: colors.accentSoft,
+  },
+  uploadIcon: {
+    color: colors.accent,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  uploadLabel: {
+    color: colors.accent,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  pdfChip: {
+    marginTop: 2,
+    paddingVertical: 5,
+    paddingHorizontal: 11,
+    borderRadius: 8,
+    backgroundColor: colors.ink,
+    alignSelf: 'flex-end',
+  },
+  pdfChipText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });

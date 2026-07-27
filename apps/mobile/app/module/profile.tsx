@@ -14,6 +14,7 @@ import { useFlash } from "../../lib/useCollection";
 import { Toast } from "../../components/ListControls";
 import type { Company } from "../../lib/types";
 import { colors, ui } from "../../lib/ui";
+import { UploadChip } from "../../components/Finance";
 
 type Draft = {
   legalName: string;
@@ -90,18 +91,21 @@ export default function ProfileScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       quality: 0.9,
+      preferredAssetRepresentationMode:
+        ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
     });
     if (result.canceled || !result.assets?.[0]) return;
     try {
-      const { url } = await apiUploadImage(result.assets[0].uri);
+      const purpose = field === 'logoUrl' ? 'logo' : 'signature';
+      const { url } = await apiUploadImage(result.assets[0].uri, { purpose });
       setDraft((d) => ({ ...d, [field]: url }));
       notify(
-        field === "logoUrl"
-          ? "Logo uploaded — save to apply"
-          : "Signature uploaded — save to apply",
+        field === 'logoUrl'
+          ? 'Logo uploaded — save to apply'
+          : 'Signature uploaded — save to apply',
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed");
+      setError(e instanceof Error ? e.message : 'Upload failed');
     }
   }
 
@@ -109,11 +113,11 @@ export default function ProfileScreen() {
     if (saving) return;
     setSaving(true);
     try {
-      await apiPut("/company/profile", draft);
+      await apiPut('/company/profile', draft);
       await load();
-      notify("Company profile saved");
+      notify('Company profile saved');
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Save failed");
+      setError(e instanceof Error ? e.message : 'Save failed');
     } finally {
       setSaving(false);
     }
@@ -204,9 +208,10 @@ export default function ProfileScreen() {
                 resizeMode="contain"
               />
             ) : null}
-            <Pressable style={ui.ghost} onPress={() => void pick("logoUrl")}>
-              <Text style={ui.ghostText}>Choose logo</Text>
-            </Pressable>
+            <UploadChip
+              label={draft.logoUrl ? "Replace logo" : "Choose logo"}
+              onPress={() => void pick("logoUrl")}
+            />
           </View>
 
           <Text style={ui.label}>Signature</Text>
@@ -218,12 +223,12 @@ export default function ProfileScreen() {
                 resizeMode="contain"
               />
             ) : null}
-            <Pressable
-              style={ui.ghost}
+            <UploadChip
+              label={
+                draft.signatureUrl ? "Replace signature" : "Choose signature"
+              }
               onPress={() => void pick("signatureUrl")}
-            >
-              <Text style={ui.ghostText}>Choose signature</Text>
-            </Pressable>
+            />
           </View>
 
           <View style={ui.cardActions}>

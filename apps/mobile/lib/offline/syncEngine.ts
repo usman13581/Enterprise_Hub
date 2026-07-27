@@ -13,6 +13,7 @@ import {
   upsertEntity,
 } from './db';
 import { isOnline } from './net';
+import { prepareUploadImage } from '../prepareUploadImage';
 
 const PORT = 3001;
 const TOKEN = process.env.EXPO_PUBLIC_BOOTSTRAP_TOKEN || 'binhaj-dev-token';
@@ -186,14 +187,12 @@ async function pullAndStore() {
 async function flushImageQueue() {
   for (const item of await listPendingImages()) {
     try {
-      const name = item.local_uri.split('/').pop() || `photo-${Date.now()}.jpg`;
-      const match = /\.(\w+)$/.exec(name);
-      const type = match ? `image/${match[1].toLowerCase()}` : 'image/jpeg';
+      const prepared = await prepareUploadImage(item.local_uri);
       const form = new FormData();
       form.append('file', {
-        uri: item.local_uri,
-        name,
-        type,
+        uri: prepared.uri,
+        name: prepared.name,
+        type: prepared.type,
       } as unknown as Blob);
       const res = await fetch(`${apiBase()}/uploads`, {
         method: 'POST',
@@ -327,12 +326,23 @@ export async function queueSyncUpsert(input: {
   await emit();
 }
 
-export async function queueProductImage(localUri: string, productId: string) {
+export async function queueImageUpload(
+  localUri: string,
+  options: {
+    productId?: string;
+    purpose: 'product' | 'logo' | 'signature';
+  },
+) {
   await enqueueImage({
     id: newId('img'),
     localUri,
-    productId,
-    purpose: 'product',
+    productId: options.productId,
+    purpose: options.purpose,
   });
   await emit();
+}
+
+/** @deprecated Prefer queueImageUpload with an explicit purpose. */
+export async function queueProductImage(localUri: string, productId: string) {
+  await queueImageUpload(localUri, { productId, purpose: 'product' });
 }

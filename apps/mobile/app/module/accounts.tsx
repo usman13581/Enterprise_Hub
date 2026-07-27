@@ -10,8 +10,8 @@ import { usePolledItem } from '../../lib/useCollection';
 import {
   BalanceCard,
   FilterChips,
+  RecordRow,
   StatCard,
-  StatusPill,
 } from '../../components/Finance';
 import type { AccountsOverview } from '../../lib/types';
 import { colors, ui } from '../../lib/ui';
@@ -84,24 +84,11 @@ export default function AccountsScreen() {
                 </View>
               )
             : item.receivableByCustomer.map((row) => (
-                <View key={row.customerId} style={ui.card}>
-                  <Text style={ui.cardTitle}>{row.customerName}</Text>
-                  <Text style={ui.cardMeta}>
-                    Billed {money(row.billed)} · received {money(row.received)}
-                  </Text>
-                  <Text
-                    style={[
-                      ui.cardMeta,
-                      {
-                        color:
-                          row.balance > 0 ? colors.danger : colors.muted,
-                        fontWeight: '600',
-                      },
-                    ]}
-                  >
-                    Balance {money(row.balance)}
-                  </Text>
-                </View>
+                <RecordRow
+                  key={row.customerId}
+                  title={row.customerName}
+                  meta={`Billed ${money(row.billed)} · received ${money(row.received)} · bal ${money(row.balance)}`}
+                />
               ))
           : null}
 
@@ -113,17 +100,12 @@ export default function AccountsScreen() {
                 </View>
               )
             : item.profitByJob.map((row) => (
-                <View key={row.jobId} style={ui.card}>
-                  <View style={styles.head}>
-                    <Text style={ui.cardTitle}>{row.jobNumber}</Text>
-                    <StatusPill status={row.status} />
-                  </View>
-                  <Text style={ui.cardMeta}>{row.customerName}</Text>
-                  <Text style={ui.cardMeta}>
-                    Value {money(row.jobValue)} · cost{' '}
-                    {money(row.purchaseTotal)} · margin {money(row.profit)}
-                  </Text>
-                </View>
+                <RecordRow
+                  key={row.jobId}
+                  title={row.jobNumber}
+                  status={row.status}
+                  meta={`${row.customerName} · value ${money(row.jobValue)} · margin ${money(row.profit)}`}
+                />
               ))
           : null}
       </ScrollView>
@@ -135,12 +117,6 @@ const styles = {
   stats: {
     flexDirection: 'row' as const,
     flexWrap: 'wrap' as const,
-    gap: 8,
-  },
-  head: {
-    flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
-    alignItems: 'center' as const,
     gap: 8,
   },
 };

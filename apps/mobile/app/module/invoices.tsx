@@ -19,8 +19,9 @@ import { Pagination, SearchBox, Toast } from '../../components/ListControls';
 import {
   ActionButton,
   FilterChips,
+  LinkAction,
+  RecordRow,
   RowActions,
-  StatusPill,
 } from '../../components/Finance';
 import type { Customer, Invoice, JobListItem } from '../../lib/types';
 import { colors, ui } from '../../lib/ui';
@@ -237,34 +238,31 @@ export default function InvoicesScreen() {
               </View>
             ) : (
               pager.paged.map((invoice) => (
-                <View key={invoice.id} style={ui.card}>
-                  <View style={styles.head}>
-                    <Text style={ui.cardTitle}>{invoice.number}</Text>
-                    <StatusPill status={invoice.status} />
-                  </View>
-                  <Text style={ui.cardMeta}>
-                    {invoice.customer?.name ?? '—'} · {label(invoice.kind)} ·{' '}
-                    {day(invoice.issueDate)}
-                  </Text>
-                  <Text style={ui.cardMeta}>
-                    Total {money(invoice.total)} · advance{' '}
-                    {money(invoice.advanceApplied)} · net{' '}
-                    {money(invoice.netPayable)}
-                  </Text>
-                  {invoice.job ? (
-                    <Text style={ui.tag}>Job {invoice.job.number}</Text>
-                  ) : null}
+                <RecordRow
+                  key={invoice.id}
+                  title={invoice.number}
+                  status={invoice.status}
+                  pdfPath={`/documents/invoices/${invoice.id}.pdf`}
+                  onPdfError={setError}
+                  meta={[
+                    invoice.customer?.name,
+                    label(invoice.kind),
+                    money(invoice.netPayable),
+                    invoice.job ? `Job ${invoice.job.number}` : null,
+                    day(invoice.issueDate),
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                >
                   {invoice.status === 'issued' &&
                   invoice.kind !== 'credit_note' ? (
-                    <RowActions>
-                      <ActionButton
-                        label="Cancel"
-                        tone="danger"
-                        onPress={() => void cancel(invoice.id)}
-                      />
-                    </RowActions>
+                    <LinkAction
+                      label="Cancel"
+                      tone="danger"
+                      onPress={() => void cancel(invoice.id)}
+                    />
                   ) : null}
-                </View>
+                </RecordRow>
               ))
             )}
 
@@ -285,12 +283,6 @@ export default function InvoicesScreen() {
 }
 
 const styles = {
-  head: {
-    flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
-    alignItems: 'center' as const,
-    gap: 8,
-  },
   picker: {
     flexDirection: 'row' as const,
     flexWrap: 'wrap' as const,

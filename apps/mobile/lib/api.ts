@@ -1,12 +1,16 @@
 import Constants from 'expo-constants';
+import { File, Paths } from 'expo-file-system';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
 import { listEntities, getEntity, upsertEntity } from './offline/db';
 import { isOnline } from './offline/net';
 import {
   PATH_COLLECTION,
-  queueProductImage,
+  queueImageUpload,
   queueRestMutation,
 } from './offline/syncEngine';
+import { prepareUploadImage } from './prepareUploadImage';
 
 const PORT = 3001;
 const TOKEN = process.env.EXPO_PUBLIC_BOOTSTRAP_TOKEN || 'binhaj-dev-token';
@@ -121,18 +125,36 @@ export const apiPut = <T,>(path: string, json?: unknown) =>
 export const apiDelete = <T,>(path: string) =>
   request<T>(path, { method: 'DELETE' });
 
-export async function apiUploadImage(uri: string): Promise<{ url: string }> {
+export async function apiUploadImage(
+  uri: string,
+  options?: {
+    productId?: string;
+    purpose?: 'product' | 'logo' | 'signature';
+  },
+): Promise<{ url: string; queued?: boolean }> {
+  const purpose =
+    options?.purpose ?? (options?.productId ? 'product' : undefined);
+
   if (!(await isOnline())) {
-    await queueProductImage(uri, '');
-    return { url: uri };
+    // Product photos can wait in the offline image queue (attached on sync).
+    // Logo/signature must upload now — company profile cannot store file:// URLs.
+    if (purpose === 'product' && options?.productId) {
+      await queueImageUpload(uri, {
+        productId: options.productId,
+        purpose: 'product',
+      });
+      return { url: uri, queued: true };
+    }
+    throw new Error('Photo upload needs a network connection');
   }
 
-  const name = uri.split('/').pop() || `photo-${Date.now()}.jpg`;
-  const match = /\.(\w+)$/.exec(name);
-  const type = match ? `image/${match[1].toLowerCase()}` : 'image/jpeg';
-
+  const prepared = await prepareUploadImage(uri);
   const form = new FormData();
-  form.append('file', { uri, name, type } as unknown as Blob);
+  form.append('file', {
+    uri: prepared.uri,
+    name: prepared.name,
+    type: prepared.type,
+  } as unknown as Blob);
 
   const res = await fetch(`${getApiBaseUrl()}/uploads`, {
     method: 'POST',
@@ -147,4 +169,52 @@ export function assetUrl(url?: string | null) {
   if (!url) return undefined;
   if (url.startsWith('http') || url.startsWith('file:')) return url;
   return `${getApiBaseUrl()}${url}`;
+}
+
+/**
+ * Downloads a PDF with the bootstrap header, then opens the iOS/Android print
+ * dialog. Falls back to the share sheet (AirPrint / Save to Files) if print is
+ * cancelled or unavailable.
+ */
+export async function openPdf(path: string): Promise<void> {
+  if (!(await isOnline())) {
+    throw new Error('Printing needs a network connection');
+  }
+
+  const res = await fetch(`${getApiBaseUrl()}${path}`, {
+    headers: { 'x-marble-token': TOKEN },
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(
+      detail || `Could not generate the document (${res.status})`,
+    );
+  }
+
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  const filename = path.split('/').pop() ?? `document-${Date.now()}.pdf`;
+  const file = new File(Paths.cache, filename);
+  if (file.exists) {
+    file.delete();
+  }
+  file.create();
+  file.write(bytes);
+
+  try {
+    await Print.printAsync({ uri: file.uri });
+    return;
+  } catch {
+    // User closed the print sheet, or the device has no printer UI — share instead.
+  }
+
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(file.uri, {
+      mimeType: 'application/pdf',
+      UTI: 'com.adobe.pdf',
+      dialogTitle: filename,
+    });
+    return;
+  }
+
+  throw new Error('Printing and sharing are unavailable on this device');
 }

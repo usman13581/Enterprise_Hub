@@ -26,7 +26,6 @@ const READY = new Set([
   'invoices',
   'advances',
   'accounts',
-  'profile',
   'audit',
 ]);
 
@@ -70,6 +69,16 @@ export default function HomeScreen() {
           <Text style={styles.cardLabel}>Active company</Text>
           <Text style={ui.cardTitle}>{session.companyName}</Text>
           <Text style={ui.cardMeta}>{session.email}</Text>
+          <Text style={styles.pilot}>Binhaj Marble pilot</Text>
+          <Pressable
+            style={({ pressed }) => [
+              styles.profileBtn,
+              pressed && styles.rowPressed,
+            ]}
+            onPress={() => router.push('/module/profile' as never)}
+          >
+            <Text style={styles.profileBtnText}>Company profile</Text>
+          </Pressable>
         </View>
       ) : null}
 
@@ -140,6 +149,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     marginBottom: 4,
+  },
+  pilot: {
+    color: colors.soft,
+    fontSize: 12,
+    marginTop: 8,
+  },
+  profileBtn: {
+    alignSelf: 'flex-start',
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: '#fff',
+  },
+  profileBtnText: {
+    color: colors.ink,
+    fontSize: 13,
+    fontWeight: '600',
   },
   syncCard: {
     marginTop: 16,

@@ -15,6 +15,7 @@ import {
   usePolledList,
 } from "../../lib/useCollection";
 import { Pagination, SearchBox, Toast } from "../../components/ListControls";
+import { LinkAction, RecordRow } from "../../components/Finance";
 import type { Supplier } from "../../lib/types";
 import { colors, ui } from "../../lib/ui";
 
@@ -192,43 +193,40 @@ export default function SuppliersScreen() {
               </View>
             ) : (
               pager.paged.map((item) => (
-                <View key={item.id} style={ui.card}>
-                  <Text style={ui.cardTitle}>{item.name}</Text>
-                  <Text style={ui.cardMeta}>
-                    {[item.contact, item.phone, item.email]
-                      .filter(Boolean)
-                      .join(" · ") || "No contact details"}
-                  </Text>
-                  <Text style={ui.tag}>
-                    {item._count?.products ?? 0} products
-                  </Text>
-                  <View style={ui.cardActions}>
-                    <Pressable
-                      style={ui.ghost}
-                      onPress={() => {
-                        setDraft({
-                          name: item.name,
-                          contact: item.contact ?? "",
-                          phone: item.phone ?? "",
-                          email: item.email ?? "",
-                          address: item.address ?? "",
-                          trn: item.trn ?? "",
-                          notes: item.notes ?? "",
-                        });
-                        setEditingId(item.id);
-                        setShowForm(true);
-                      }}
-                    >
-                      <Text style={ui.ghostText}>Edit</Text>
-                    </Pressable>
-                    <Pressable
-                      style={ui.ghost}
-                      onPress={() => void remove(item.id)}
-                    >
-                      <Text style={[ui.ghostText, ui.dangerText]}>Delete</Text>
-                    </Pressable>
-                  </View>
-                </View>
+                <RecordRow
+                  key={item.id}
+                  title={item.name}
+                  meta={[
+                    item.contact,
+                    item.phone,
+                    item.email,
+                    `${item._count?.products ?? 0} products`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || "No contact details"}
+                >
+                  <LinkAction
+                    label="Edit"
+                    onPress={() => {
+                      setDraft({
+                        name: item.name,
+                        contact: item.contact ?? "",
+                        phone: item.phone ?? "",
+                        email: item.email ?? "",
+                        address: item.address ?? "",
+                        trn: item.trn ?? "",
+                        notes: item.notes ?? "",
+                      });
+                      setEditingId(item.id);
+                      setShowForm(true);
+                    }}
+                  />
+                  <LinkAction
+                    label="Delete"
+                    tone="danger"
+                    onPress={() => void remove(item.id)}
+                  />
+                </RecordRow>
               ))
             )}
 

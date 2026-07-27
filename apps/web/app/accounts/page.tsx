@@ -25,12 +25,14 @@ export default function AccountsPage() {
   if (!item) {
     return (
       <section className={page.page}>
-        <h1 className={page.title}>Accounts</h1>
-        {error ? (
-          <p className={styles.error}>{error}</p>
-        ) : (
-          <p className={page.lede}>Loading…</p>
-        )}
+        <header className={page.header}>
+          <h1 className={page.title}>Accounts</h1>
+          {error ? (
+            <p className={styles.error}>{error}</p>
+          ) : (
+            <p className={page.lede}>Loading…</p>
+          )}
+        </header>
       </section>
     );
   }

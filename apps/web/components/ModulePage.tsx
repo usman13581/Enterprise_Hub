@@ -9,8 +9,10 @@ export function ModulePage({
 }) {
   return (
     <section className={styles.page}>
-      <h1 className={styles.title}>{title}</h1>
-      <p className={styles.lede}>{description}</p>
+      <header className={styles.header}>
+        <h1 className={styles.title}>{title}</h1>
+        <p className={styles.lede}>{description}</p>
+      </header>
       <div className={styles.panel}>
         <p className={styles.panelTitle}>Coming in later phases</p>
         <p className={styles.panelBody}>

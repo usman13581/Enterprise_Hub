@@ -21,6 +21,7 @@ import {
   ActionButton,
   BalanceCard,
   FilterChips,
+  RecordRow,
   RowActions,
   StatCard,
   StatusPill,
@@ -92,27 +93,21 @@ export default function JobsScreen() {
           </View>
         ) : (
           pager.paged.map((job) => (
-            <Pressable
+            <RecordRow
               key={job.id}
-              style={ui.card}
+              title={job.number}
+              status={job.status}
               onPress={() => setSelectedId(job.id)}
-            >
-              <View style={styles.head}>
-                <Text style={ui.cardTitle}>{job.number}</Text>
-                <StatusPill status={job.status} />
-              </View>
-              <Text style={ui.cardMeta}>
-                {job.customer?.name ?? '—'} · {job.quotation?.number ?? '—'}
-              </Text>
-              <Text style={ui.cardMeta}>
-                {money(job.jobValue)} · margin{' '}
-                {money(job.jobNet - job.purchaseTotal)} · {day(job.createdAt)}
-              </Text>
-              <Text style={ui.tag}>
-                {(job._count?.invoices ?? 0)} invoices ·{' '}
-                {(job._count?.advances ?? 0)} advances
-              </Text>
-            </Pressable>
+              meta={[
+                job.customer?.name,
+                job.quotation?.number,
+                money(job.jobValue),
+                `${job._count?.invoices ?? 0} inv`,
+                day(job.createdAt),
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            />
           ))
         )}
 
@@ -336,40 +331,44 @@ function JobHubScreen({
 
         {tab === 'invoices'
           ? invoices.map((invoice) => (
-              <View key={invoice.id} style={ui.card}>
-                <View style={styles.head}>
-                  <Text style={ui.cardTitle}>{invoice.number}</Text>
-                  <StatusPill status={invoice.status} />
-                </View>
-                <Text style={ui.cardMeta}>
-                  {label(invoice.kind)} · {day(invoice.issueDate)} ·{' '}
-                  {money(invoice.total)} · net {money(invoice.netPayable)}
-                </Text>
-              </View>
+              <RecordRow
+                key={invoice.id}
+                title={invoice.number}
+                status={invoice.status}
+                pdfPath={`/documents/invoices/${invoice.id}.pdf`}
+                onPdfError={setError}
+                meta={[
+                  label(invoice.kind),
+                  money(invoice.netPayable),
+                  day(invoice.issueDate),
+                ].join(' · ')}
+              />
             ))
           : null}
 
         {tab === 'advances'
           ? advances.map((advance) => (
-              <View key={advance.id} style={ui.card}>
-                <Text style={ui.cardTitle}>{advance.number}</Text>
-                <Text style={ui.cardMeta}>
-                  {day(advance.receivedAt)} · {money(advance.amount)} · spare{' '}
-                  {money(advance.unallocatedAmount)}
-                </Text>
-              </View>
+              <RecordRow
+                key={advance.id}
+                title={advance.number}
+                pdfPath={`/documents/advances/${advance.id}.pdf`}
+                onPdfError={setError}
+                meta={[
+                  money(advance.amount),
+                  `spare ${money(advance.unallocatedAmount)}`,
+                  day(advance.receivedAt),
+                ].join(' · ')}
+              />
             ))
           : null}
 
         {tab === 'ledger'
           ? ledger.map((row) => (
-              <View key={row.id} style={ui.card}>
-                <Text style={ui.cardTitle}>{label(row.entryType)}</Text>
-                <Text style={ui.cardMeta}>
-                  {day(row.occurredAt)} · {row.direction} {money(row.amount)} ·
-                  balance {money(row.runningBalance)}
-                </Text>
-              </View>
+              <RecordRow
+                key={row.id}
+                title={label(row.entryType)}
+                meta={`${day(row.occurredAt)} · ${row.direction} ${money(row.amount)} · bal ${money(row.runningBalance)}`}
+              />
             ))
           : null}
       </ScrollView>

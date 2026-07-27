@@ -6,6 +6,7 @@ import {
   usePolledList,
 } from "../../lib/useCollection";
 import { Pagination, SearchBox } from "../../components/ListControls";
+import { RecordRow } from "../../components/Finance";
 import { colors, ui } from "../../lib/ui";
 
 type AuditRow = {
@@ -47,14 +48,11 @@ export default function AuditScreen() {
         </View>
       ) : (
         pager.paged.map((row) => (
-          <View key={row.id} style={ui.card}>
-            <Text style={ui.cardTitle}>
-              {row.action} · {row.entityType}
-            </Text>
-            <Text style={ui.cardMeta}>
-              {new Date(row.createdAt).toLocaleString()}
-            </Text>
-          </View>
+          <RecordRow
+            key={row.id}
+            title={`${row.action} · ${row.entityType}`}
+            meta={new Date(row.createdAt).toLocaleString()}
+          />
         ))
       )}
 
