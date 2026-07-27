@@ -12,10 +12,20 @@ import {
   searchItems,
   useFlash,
   usePagination,
+  usePolledItem,
   usePolledList,
 } from "../../lib/useCollection";
 import { Pagination, SearchBox, Toast } from "../../components/ListControls";
-import type { Customer } from "../../lib/types";
+import {
+  ActionButton,
+  BalanceCard,
+  FilterChips,
+  RowActions,
+  StatCard,
+  StatusPill,
+} from "../../components/Finance";
+import { day, label, money } from "../../lib/format";
+import type { Customer, CustomerHub } from "../../lib/types";
 import { colors, ui } from "../../lib/ui";
 
 type Draft = {
@@ -50,6 +60,11 @@ export default function CustomersScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [hubId, setHubId] = useState<string | null>(null);
+
+  if (hubId) {
+    return <CustomerHubScreen customerId={hubId} onBack={() => setHubId(null)} />;
+  }
 
   async function save() {
     if (!draft.name.trim() || saving) return;
@@ -204,6 +219,12 @@ export default function CustomersScreen() {
                   ) : null}
                   <View style={ui.cardActions}>
                     <Pressable
+                      style={ui.button}
+                      onPress={() => setHubId(item.id)}
+                    >
+                      <Text style={ui.buttonText}>Open hub</Text>
+                    </Pressable>
+                    <Pressable
                       style={ui.ghost}
                       onPress={() => {
                         setDraft({
@@ -244,6 +265,222 @@ export default function CustomersScreen() {
         )}
       </ScrollView>
 
+      <Toast flash={flash} />
+    </View>
+  );
+}
+
+function CustomerHubScreen({
+  customerId,
+  onBack,
+}: {
+  customerId: string;
+  onBack: () => void;
+}) {
+  const { item, error, setError, reload } = usePolledItem<CustomerHub>(
+    `/customers/${customerId}/hub`,
+  );
+  const { flash, notify } = useFlash();
+  const [tab, setTab] = useState<"jobs" | "quotations" | "invoices" | "advances" | "ledger">(
+    "jobs",
+  );
+  const [showAdvance, setShowAdvance] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  if (!item) {
+    return (
+      <View style={ui.screen}>
+        <ScrollView contentContainerStyle={ui.content}>
+          <Pressable onPress={onBack}>
+            <Text style={{ color: colors.muted, marginBottom: 8 }}>← Customers</Text>
+          </Pressable>
+          {error ? (
+            <Text style={ui.error}>{error}</Text>
+          ) : (
+            <ActivityIndicator color={colors.accent} />
+          )}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  const { customer, summary, byJob, quotations, jobs, invoices, advances, ledger } =
+    item;
+
+  async function recordAdvance() {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await apiPost("/advances", {
+        customerId: customer.id,
+        amount: Number(amount),
+        method: "cash",
+      });
+      setShowAdvance(false);
+      setAmount("");
+      await reload();
+      notify("Advance recorded");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <View style={ui.screen}>
+      <ScrollView contentContainerStyle={ui.content}>
+        <Pressable onPress={onBack}>
+          <Text style={{ color: colors.muted, marginBottom: 8 }}>← Customers</Text>
+        </Pressable>
+        <Text style={ui.title}>{customer.name}</Text>
+        <Text style={ui.lede}>
+          {[customer.contact, customer.phone, customer.email]
+            .filter(Boolean)
+            .join(" · ") || "No contact details"}
+        </Text>
+        {error ? <Text style={ui.error}>{error}</Text> : null}
+
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          <StatCard title="Billed" value={money(summary.billed)} />
+          <StatCard
+            title="Advances"
+            value={money(summary.advancesReceived)}
+          />
+          <BalanceCard title="Balance due" amount={summary.balanceDue} />
+          <StatCard
+            title="Unapplied"
+            value={money(summary.unallocatedAdvances)}
+          />
+        </View>
+
+        <RowActions>
+          <ActionButton
+            label="Record advance"
+            tone="primary"
+            onPress={() => setShowAdvance(true)}
+          />
+        </RowActions>
+
+        {showAdvance ? (
+          <View style={ui.card}>
+            <Text style={ui.cardTitle}>Record advance</Text>
+            <Text style={ui.label}>Amount *</Text>
+            <TextInput
+              style={ui.input}
+              value={amount}
+              onChangeText={setAmount}
+              keyboardType="decimal-pad"
+            />
+            <RowActions>
+              <ActionButton
+                label={saving ? "Saving…" : "Record"}
+                tone="primary"
+                disabled={saving}
+                onPress={() => void recordAdvance()}
+              />
+              <ActionButton
+                label="Cancel"
+                onPress={() => setShowAdvance(false)}
+              />
+            </RowActions>
+          </View>
+        ) : null}
+
+        <Text style={[ui.label, { marginTop: 18 }]}>Where the money sits</Text>
+        {byJob.map((row) => (
+          <View key={row.jobId} style={ui.card}>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <Text style={ui.cardTitle}>{row.jobNumber}</Text>
+              <StatusPill status={row.status} />
+            </View>
+            <Text style={ui.cardMeta}>
+              Value {money(row.jobValue)} · invoiced {money(row.invoiced)} ·
+              advances {money(row.advances)}
+            </Text>
+            <Text style={ui.cardMeta}>Balance {money(row.balance)}</Text>
+          </View>
+        ))}
+
+        <FilterChips
+          active={tab}
+          onChange={setTab}
+          options={[
+            { key: "jobs", label: `Jobs (${jobs.length})` },
+            { key: "quotations", label: `Quotations (${quotations.length})` },
+            { key: "invoices", label: `Invoices (${invoices.length})` },
+            { key: "advances", label: `Advances (${advances.length})` },
+            { key: "ledger", label: `Ledger (${ledger.length})` },
+          ]}
+        />
+
+        {tab === "jobs"
+          ? jobs.map((job) => (
+              <View key={job.id} style={ui.card}>
+                <Text style={ui.cardTitle}>{job.number}</Text>
+                <Text style={ui.cardMeta}>
+                  {job.title || "No subject"} · {money(job.jobValue)} ·{" "}
+                  {day(job.createdAt)}
+                </Text>
+              </View>
+            ))
+          : null}
+
+        {tab === "quotations"
+          ? quotations.map((quotation) => (
+              <View key={quotation.id} style={ui.card}>
+                <Text style={ui.cardTitle}>{quotation.number}</Text>
+                <Text style={ui.cardMeta}>
+                  {quotation.title || "No subject"} · {money(quotation.total)}
+                </Text>
+                <StatusPill status={quotation.status} />
+              </View>
+            ))
+          : null}
+
+        {tab === "invoices"
+          ? invoices.map((invoice) => (
+              <View key={invoice.id} style={ui.card}>
+                <Text style={ui.cardTitle}>{invoice.number}</Text>
+                <Text style={ui.cardMeta}>
+                  {label(invoice.kind)} · {day(invoice.issueDate)} ·{" "}
+                  {money(invoice.total)}
+                </Text>
+              </View>
+            ))
+          : null}
+
+        {tab === "advances"
+          ? advances.map((advance) => (
+              <View key={advance.id} style={ui.card}>
+                <Text style={ui.cardTitle}>{advance.number}</Text>
+                <Text style={ui.cardMeta}>
+                  {day(advance.receivedAt)} · {money(advance.amount)} · spare{" "}
+                  {money(advance.unallocatedAmount)}
+                </Text>
+              </View>
+            ))
+          : null}
+
+        {tab === "ledger"
+          ? ledger.map((row) => (
+              <View key={row.id} style={ui.card}>
+                <Text style={ui.cardTitle}>{label(row.entryType)}</Text>
+                <Text style={ui.cardMeta}>
+                  {day(row.occurredAt)} · {row.direction} {money(row.amount)} ·
+                  balance {money(row.runningBalance)}
+                </Text>
+              </View>
+            ))
+          : null}
+      </ScrollView>
       <Toast flash={flash} />
     </View>
   );

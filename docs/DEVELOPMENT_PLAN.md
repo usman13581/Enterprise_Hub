@@ -10,10 +10,10 @@ todos:
     status: completed
   - id: phase-2-quotations-jobs
     content: Quotation/Job/Invoice/Customer/Supplier dashboards; quotations with line price overrides; PDF; approve→Job; cancel; complete/close
-    status: pending
+    status: completed
   - id: phase-3-accounts-invoicing
     content: Customer + job ledgers; advances; invoice from customer/job/invoice screens; progressive/custom/final UAE VAT PDFs; credit notes
-    status: pending
+    status: completed
   - id: phase-4-offline-parity
     content: Full feature parity web+mobile; Expo SQLite offline; sync push/pull; conflicts; image upload queue
     status: pending

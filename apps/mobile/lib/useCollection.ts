@@ -34,6 +34,41 @@ export function usePolledList<T>(path: string, intervalMs = 3000) {
   return { items, loading, error, setError, reload: load };
 }
 
+/** Single-resource twin of usePolledList, for detail and hub screens. */
+export function usePolledItem<T>(path: string | null, intervalMs = 4000) {
+  const [item, setItem] = useState<T | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(
+    async (silent = false) => {
+      if (!path) {
+        setLoading(false);
+        return;
+      }
+      try {
+        setItem(await apiFetch<T>(path));
+        setError(null);
+      } catch (e) {
+        if (!silent) {
+          setError(e instanceof Error ? e.message : "Failed to load");
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [path],
+  );
+
+  useEffect(() => {
+    void load();
+    const id = setInterval(() => void load(true), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs, load]);
+
+  return { item, loading, error, setError, reload: load };
+}
+
 function matches(value: unknown, query: string): boolean {
   if (value == null) return false;
   if (typeof value === "string") return value.toLowerCase().includes(query);

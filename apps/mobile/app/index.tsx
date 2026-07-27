@@ -16,6 +16,11 @@ const READY = new Set([
   'customers',
   'suppliers',
   'products',
+  'quotations',
+  'jobs',
+  'invoices',
+  'advances',
+  'accounts',
   'profile',
   'audit',
 ]);

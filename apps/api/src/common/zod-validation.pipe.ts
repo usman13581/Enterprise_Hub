@@ -1,11 +1,25 @@
 import { BadRequestException, PipeTransform } from '@nestjs/common';
-import { ZodError, ZodSchema } from 'zod';
+import type { ZodIssue, ZodSchema } from 'zod';
 
 /**
- * Turns a Zod schema into a Nest pipe so controllers validate against the same
- * contract the clients import from `@marble/types`. Without this, malformed
- * numbers reached Prisma and surfaced as HTTP 500 instead of 400.
+ * Zod 3.25 ships dual ESM/CJS builds. `@marble/types` is compiled to CJS, while
+ * the Nest app (and Vitest via SWC) often import Zod as ESM. Those are separate
+ * module instances, so `error instanceof ZodError` is unreliable — duck-type
+ * instead and always map validation failures to HTTP 400.
  */
+function isZodError(
+  error: unknown,
+): error is { issues: ZodIssue[]; name?: string } {
+  return (
+    !!error &&
+    typeof error === 'object' &&
+    Array.isArray((error as { issues?: unknown }).issues) &&
+    ((error as { name?: string }).name === 'ZodError' ||
+      (error as { constructor?: { name?: string } }).constructor?.name ===
+        'ZodError')
+  );
+}
+
 export class ZodValidationPipe<T> implements PipeTransform<unknown, T> {
   constructor(private readonly schema: ZodSchema<T>) {}
 
@@ -13,7 +27,7 @@ export class ZodValidationPipe<T> implements PipeTransform<unknown, T> {
     try {
       return this.schema.parse(value);
     } catch (error) {
-      if (error instanceof ZodError) {
+      if (isZodError(error)) {
         throw new BadRequestException({
           message: 'Validation failed',
           errors: error.issues.map((issue) => ({

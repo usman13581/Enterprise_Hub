@@ -53,9 +53,11 @@ async function main() {
     await prisma.companyProfile.update({
       where: { companyId: company.id },
       data: {
-        jobPrefix: company.profile.jobPrefix || 'BM-JOB',
-        advancePrefix: company.profile.advancePrefix || 'BM-ADV',
-        creditNotePrefix: company.profile.creditNotePrefix || 'BM-CN',
+        quotationPrefix: 'BM-QT',
+        invoicePrefix: 'BM-INV',
+        jobPrefix: 'BM-JOB',
+        advancePrefix: 'BM-ADV',
+        creditNotePrefix: 'BM-CN',
       },
     });
   }

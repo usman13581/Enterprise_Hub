@@ -93,6 +93,9 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@marble/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@marble/types':
         specifier: workspace:*
         version: link:../../packages/types
