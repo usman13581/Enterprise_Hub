@@ -1,22 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import type { CompanyProfileInput } from '@marble/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { SessionContext } from '../auth/session.types';
-
-export type CompanyProfileInput = {
-  legalName?: string;
-  tradeName?: string | null;
-  address?: string | null;
-  phone?: string | null;
-  email?: string | null;
-  trn?: string | null;
-  bankDetails?: string | null;
-  logoUrl?: string | null;
-  signatureUrl?: string | null;
-  quotationPrefix?: string;
-  invoicePrefix?: string;
-  currency?: string;
-};
 
 @Injectable()
 export class CompanyService {
@@ -55,6 +41,10 @@ export class CompanyService {
         quotationPrefix:
           input.quotationPrefix?.trim() || before.quotationPrefix,
         invoicePrefix: input.invoicePrefix?.trim() || before.invoicePrefix,
+        jobPrefix: input.jobPrefix?.trim() || before.jobPrefix,
+        advancePrefix: input.advancePrefix?.trim() || before.advancePrefix,
+        creditNotePrefix:
+          input.creditNotePrefix?.trim() || before.creditNotePrefix,
         currency: input.currency?.trim() || before.currency,
       },
     });

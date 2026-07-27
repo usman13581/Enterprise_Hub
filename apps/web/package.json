@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@marble/domain": "workspace:*",
     "@marble/types": "workspace:*",
     "next": "^15.2.3",
     "react": "19.1.0",

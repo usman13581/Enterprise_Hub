@@ -106,6 +106,9 @@ export const companyProfileSchema = z.object({
   signatureUrl: optionalText(1000),
   quotationPrefix: z.string().trim().min(1).max(12).default('QT'),
   invoicePrefix: z.string().trim().min(1).max(12).default('INV'),
+  jobPrefix: z.string().trim().min(1).max(12).default('JOB'),
+  advancePrefix: z.string().trim().min(1).max(12).default('ADV'),
+  creditNotePrefix: z.string().trim().min(1).max(12).default('CN'),
   currency: z.string().trim().length(3).default('AED'),
 });
 export type CompanyProfileInput = z.infer<typeof companyProfileSchema>;

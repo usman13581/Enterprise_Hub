@@ -1,0 +1,367 @@
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.85rem;
+  margin-top: 1.15rem;
+}
+
+.stat {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow);
+}
+
+.statLabel {
+  margin: 0;
+  font-size: 0.73rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.statValue {
+  margin: 0.45rem 0 0;
+  font-family: var(--font-display), serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.statHint {
+  margin: 0.3rem 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.due {
+  color: var(--danger);
+}
+
+.credit {
+  color: var(--accent);
+}
+
+.clear {
+  color: var(--muted);
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 1.4rem 0 0.2rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.55rem;
+}
+
+.tab {
+  padding: 0.45rem 0.85rem;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--ink);
+  background: rgba(20, 32, 43, 0.04);
+}
+
+.tabActive {
+  composes: tab;
+  background: var(--accent-soft);
+  border-color: rgba(26, 107, 122, 0.25);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.tabCount {
+  margin-left: 0.4rem;
+  font-size: 0.76rem;
+  opacity: 0.7;
+}
+
+.table {
+  width: 100%;
+  margin-top: 0.9rem;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.table th {
+  padding: 0.7rem 0.85rem;
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: rgba(20, 32, 43, 0.025);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 0.7rem 0.85rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: rgba(20, 32, 43, 0.06);
+  color: var(--muted);
+}
+
+.badgeDraft {
+  composes: badge;
+  background: rgba(20, 32, 43, 0.07);
+  color: var(--muted);
+}
+
+.badgeOpen {
+  composes: badge;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.badgeDone {
+  composes: badge;
+  background: rgba(38, 132, 92, 0.12);
+  color: #26845c;
+}
+
+.badgeDanger {
+  composes: badge;
+  background: rgba(194, 59, 59, 0.1);
+  color: var(--danger);
+}
+
+.lineEditor {
+  margin-top: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.lineHead,
+.lineRow {
+  display: grid;
+  grid-template-columns: minmax(160px, 2.2fr) 80px 82px 104px 104px 104px 36px;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.55rem 0.7rem;
+}
+
+.lineHead {
+  background: rgba(20, 32, 43, 0.025);
+  border-bottom: 1px solid var(--line);
+  font-size: 0.71rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.lineRow {
+  border-bottom: 1px solid var(--line);
+}
+
+.lineRow:last-child {
+  border-bottom: none;
+}
+
+.lineInput {
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--ink);
+  font-size: 0.86rem;
+}
+
+.lineInput:focus {
+  outline: 2px solid var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.lineComputed {
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--muted);
+}
+
+.lineRemove {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--danger);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.lineRemove:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.lineFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem;
+  background: rgba(20, 32, 43, 0.02);
+  border-top: 1px solid var(--line);
+}
+
+.totalsStack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 220px;
+}
+
+.totalsRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.5rem;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.totalsRowStrong {
+  composes: totalsRow;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--line-strong);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.numericValue {
+  font-variant-numeric: tabular-nums;
+}
+
+.sectionTitle {
+  margin: 1.6rem 0 0;
+  font-size: 0.76rem
+;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.panelNote {
+  margin: 0.5rem 0 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.link {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.filterBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.9rem;
+}
+
+.allocRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.88rem;
+}
+
+.allocRow:last-child {
+  border-bottom: none;
+}
+
+.allocAmount {
+  width: 120px;
+  margin-left: auto;
+}
+
+.backLink {
+  display: inline-block;
+  margin-bottom: 0.6rem;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.backLink:hover {
+  color: var(--accent);
+}
+
+.headerRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.actionBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 1.1rem;
+}
+
+.empty {
+  margin-top: 1rem;
+  padding: 1.6rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}

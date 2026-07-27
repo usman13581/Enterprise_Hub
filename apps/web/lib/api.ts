@@ -55,3 +55,29 @@ export function assetUrl(url?: string | null) {
   if (url.startsWith('http')) return url;
   return `${API_URL}${url}`;
 }
+
+/**
+ * Fetches a PDF with the bootstrap header and opens it from a blob URL. A plain
+ * anchor cannot send the header, and putting the token in the query string
+ * would leak it into browser history and server logs.
+ */
+export async function openPdf(path: string): Promise<void> {
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: { 'x-marble-token': BOOTSTRAP_TOKEN },
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(detail || `Could not generate the document (${res.status})`);
+  }
+
+  const url = URL.createObjectURL(await res.blob());
+  const opened = window.open(url, '_blank');
+  if (!opened) {
+    // Popup blocked: fall back to a download so the document is still reachable.
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = path.split('/').pop() ?? 'document.pdf';
+    link.click();
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}

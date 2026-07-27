@@ -21,6 +21,9 @@ async function main() {
           trn: '100000000000003',
           quotationPrefix: 'BM-QT',
           invoicePrefix: 'BM-INV',
+          jobPrefix: 'BM-JOB',
+          advancePrefix: 'BM-ADV',
+          creditNotePrefix: 'BM-CN',
           currency: 'AED',
         },
       },
@@ -40,7 +43,19 @@ async function main() {
         trn: '100000000000003',
         quotationPrefix: 'BM-QT',
         invoicePrefix: 'BM-INV',
+        jobPrefix: 'BM-JOB',
+        advancePrefix: 'BM-ADV',
+        creditNotePrefix: 'BM-CN',
         currency: 'AED',
+      },
+    });
+  } else {
+    await prisma.companyProfile.update({
+      where: { companyId: company.id },
+      data: {
+        jobPrefix: company.profile.jobPrefix || 'BM-JOB',
+        advancePrefix: company.profile.advancePrefix || 'BM-ADV',
+        creditNotePrefix: company.profile.creditNotePrefix || 'BM-CN',
       },
     });
   }

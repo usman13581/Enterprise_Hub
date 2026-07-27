@@ -13,7 +13,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <aside className={styles.sidebar}>
         <div className={styles.brand}>
           <p className={styles.brandName}>Marble with Nuage</p>
-          <p className={styles.brandSub}>Phase 0 shell</p>
+          <p className={styles.brandSub}>Binhaj Marble pilot</p>
         </div>
         <nav className={styles.nav}>
           {MODULE_NAV.map((item) => {

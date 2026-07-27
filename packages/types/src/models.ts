@@ -79,6 +79,9 @@ export type CompanyProfile = {
   signatureUrl: string | null;
   quotationPrefix: string;
   invoicePrefix: string;
+  jobPrefix: string;
+  advancePrefix: string;
+  creditNotePrefix: string;
   currency: string;
 };
 
@@ -132,6 +135,7 @@ export type Job = {
   quotation: { id: string; number: string; title: string | null } | null;
   title: string | null;
   jobValue: number;
+  jobNet: number;
   purchaseTotal: number;
   completedAt: string | null;
   closedAt: string | null;
@@ -247,7 +251,12 @@ export type CustomerHub = {
 };
 
 export type JobHub = {
-  job: Job;
+  /** The hub returns the source quotation's lines so job P&L can be shown. */
+  job: Job & {
+    quotation:
+      | (NonNullable<Job['quotation']> & { lines: QuotationLine[] })
+      | null;
+  };
   financials: JobFinancials;
   invoices: Invoice[];
   advances: AdvancePayment[];

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { apiDelete, apiPost, apiPut } from "@/lib/api";
 import {
@@ -232,6 +233,12 @@ export default function CustomersPage() {
                       ) : null}
                     </div>
                     <div className={styles.cardActions}>
+                      <Link
+                        className={styles.button}
+                        href={`/customers/${item.id}`}
+                      >
+                        Open hub
+                      </Link>
                       <button
                         className={styles.ghost}
                         onClick={() => startEdit(item)}
