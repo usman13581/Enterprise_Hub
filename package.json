@@ -11,5 +11,8 @@
     "db:seed": "pnpm --filter @marble/api db:seed",
     "db:generate": "pnpm --filter @marble/api prisma:generate",
     "build": "pnpm -r --filter @marble/api --filter @marble/web build"
+  },
+  "devDependencies": {
+    "vitest": "^3"
   }
 }
