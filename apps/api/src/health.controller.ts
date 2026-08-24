@@ -8,7 +8,7 @@ export class HealthController {
       ok: true,
       service: 'marble-api',
       phase: 5,
-      deploy: 'docker-v5',
+      deploy: 'docker-v6',
     };
   }
 }
