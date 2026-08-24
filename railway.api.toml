@@ -7,7 +7,7 @@ builder = "NIXPACKS"
 buildCommand = "pnpm install && pnpm railway:build:api"
 
 [deploy]
-startCommand = "pnpm railway:deploy:api"
+startCommand = "bash scripts/railway-start-api.sh"
 healthcheckPath = "/health"
-healthcheckTimeout = 300
+healthcheckTimeout = 600
 restartPolicyType = "ON_FAILURE"

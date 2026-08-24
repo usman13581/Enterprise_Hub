@@ -3,3 +3,4 @@ nixPkgs = ["nodejs_22", "pnpm-9_x", "openssl"]
 
 [variables]
 NODE_VERSION = "22"
+NIXPACKS_NO_GITIGNORE = "true"
