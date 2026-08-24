@@ -2,11 +2,11 @@ import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { computeInvoiceTotals } from '@marble/domain';
 import { apiPost } from '../../lib/api';
 import { day, label, money } from '../../lib/format';
 import {
@@ -16,6 +16,7 @@ import {
   usePolledList,
 } from '../../lib/useCollection';
 import { Pagination, SearchBox, Toast } from '../../components/ListControls';
+import { ScreenScroll } from '../../components/ScreenScroll';
 import {
   ActionButton,
   FilterChips,
@@ -23,10 +24,39 @@ import {
   RecordRow,
   RowActions,
 } from '../../components/Finance';
+import {
+  AllocationPicker,
+  ChipSelect,
+  CreditNoteForm,
+  EMPTY_INVOICE_LINE,
+  InvoiceLineEditor,
+  allocationPayload,
+  invoiceLinePayload,
+  type InvoiceLineDraft,
+} from '../../components/MoneyForms';
 import type { Customer, Invoice, JobListItem } from '../../lib/types';
 import { colors, ui } from '../../lib/ui';
 
 type Filter = 'all' | 'issued' | 'cancelled' | 'credit_note';
+type Kind = 'progressive' | 'custom' | 'final';
+
+type Draft = {
+  kind: Kind;
+  customerId: string;
+  jobId: string;
+  dueDate: string;
+  notes: string;
+  lines: InvoiceLineDraft[];
+};
+
+const EMPTY: Draft = {
+  kind: 'custom',
+  customerId: '',
+  jobId: '',
+  dueDate: '',
+  notes: '',
+  lines: [{ ...EMPTY_INVOICE_LINE }],
+};
 
 export default function InvoicesScreen() {
   const { items, loading, error, setError, reload } =
@@ -38,12 +68,9 @@ export default function InvoicesScreen() {
   const [query, setQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [draft, setDraft] = useState({
-    customerId: '',
-    jobId: '',
-    description: 'Custom billing',
-    amount: '',
-  });
+  const [draft, setDraft] = useState<Draft>(EMPTY);
+  const [allocations, setAllocations] = useState<Record<string, string>>({});
+  const [creditFor, setCreditFor] = useState<Invoice | null>(null);
 
   const filtered = useMemo(() => {
     const byFilter =
@@ -59,26 +86,28 @@ export default function InvoicesScreen() {
   const eligibleJobs = jobs.filter(
     (job) => job.customerId === draft.customerId && job.status !== 'closed',
   );
+  const invoiceTotal = computeInvoiceTotals(
+    invoiceLinePayload(draft.lines),
+  ).total;
+
+  function startCreate() {
+    setDraft({ ...EMPTY, lines: [{ ...EMPTY_INVOICE_LINE }] });
+    setAllocations({});
+    setShowForm(true);
+  }
 
   async function save() {
     if (saving || !draft.customerId) return;
     setSaving(true);
     try {
-      const net = Number(draft.amount) / 1.05;
       await apiPost('/invoices', {
-        kind: 'custom',
+        kind: draft.kind,
         customerId: draft.customerId,
         jobId: draft.jobId || null,
-        lines: [
-          {
-            description: draft.description || 'Custom billing',
-            unit: 'job',
-            qty: 1,
-            unitPrice: Math.round(net * 100) / 100,
-            purchasePrice: 0,
-          },
-        ],
-        allocations: [],
+        dueDate: draft.dueDate || null,
+        notes: draft.notes,
+        lines: invoiceLinePayload(draft.lines),
+        allocations: allocationPayload(allocations),
       });
       setShowForm(false);
       await reload();
@@ -110,83 +139,89 @@ export default function InvoicesScreen() {
 
   return (
     <View style={ui.screen}>
-      <ScrollView contentContainerStyle={ui.content}>
+      <ScreenScroll>
         <Text style={ui.title}>Invoices</Text>
         <Text style={ui.lede}>
           UAE tax invoices with 5% VAT. Raise one here or from a job.
         </Text>
         {error ? <Text style={ui.error}>{error}</Text> : null}
 
-        {showForm ? (
+        {creditFor ? (
+          <CreditNoteForm
+            invoice={creditFor}
+            onSaved={async () => {
+              setCreditFor(null);
+              await reload();
+              notify('Credit note issued');
+            }}
+            onError={setError}
+            onCancel={() => setCreditFor(null)}
+          />
+        ) : showForm ? (
           <View style={ui.card}>
-            <Text style={ui.cardTitle}>New custom invoice</Text>
+            <Text style={ui.cardTitle}>New invoice</Text>
+            <Text style={ui.label}>Kind</Text>
+            <ChipSelect
+              value={draft.kind}
+              onChange={(kind) => setDraft({ ...draft, kind })}
+              options={[
+                { key: 'progressive', label: 'Progressive' },
+                { key: 'custom', label: 'Custom' },
+                { key: 'final', label: 'Final' },
+              ]}
+            />
             <Text style={ui.label}>Customer *</Text>
-            <View style={styles.picker}>
-              {customers.map((customer) => (
-                <Pressable
-                  key={customer.id}
-                  style={[
-                    styles.option,
-                    draft.customerId === customer.id && styles.optionActive,
-                  ]}
-                  onPress={() =>
-                    setDraft({ ...draft, customerId: customer.id, jobId: '' })
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.optionText,
-                      draft.customerId === customer.id &&
-                        styles.optionTextActive,
-                    ]}
-                  >
-                    {customer.name}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            <ChipSelect
+              value={draft.customerId}
+              onChange={(customerId) =>
+                setDraft({ ...draft, customerId, jobId: '' })
+              }
+              options={customers.map((customer) => ({
+                key: customer.id,
+                label: customer.name,
+              }))}
+            />
             {eligibleJobs.length > 0 ? (
               <>
                 <Text style={ui.label}>Job (optional)</Text>
-                <View style={styles.picker}>
-                  <Pressable
-                    style={[
-                      styles.option,
-                      !draft.jobId && styles.optionActive,
-                    ]}
-                    onPress={() => setDraft({ ...draft, jobId: '' })}
-                  >
-                    <Text style={styles.optionText}>No job</Text>
-                  </Pressable>
-                  {eligibleJobs.map((job) => (
-                    <Pressable
-                      key={job.id}
-                      style={[
-                        styles.option,
-                        draft.jobId === job.id && styles.optionActive,
-                      ]}
-                      onPress={() => setDraft({ ...draft, jobId: job.id })}
-                    >
-                      <Text style={styles.optionText}>{job.number}</Text>
-                    </Pressable>
-                  ))}
-                </View>
+                <ChipSelect
+                  value={draft.jobId}
+                  onChange={(jobId) => setDraft({ ...draft, jobId })}
+                  options={[
+                    { key: '', label: 'No job' },
+                    ...eligibleJobs.map((job) => ({
+                      key: job.id,
+                      label: job.number,
+                    })),
+                  ]}
+                />
               </>
             ) : null}
-            <Text style={ui.label}>Description</Text>
+            <Text style={ui.label}>Due date (YYYY-MM-DD)</Text>
             <TextInput
               style={ui.input}
-              value={draft.description}
-              onChangeText={(description) =>
-                setDraft({ ...draft, description })
-              }
+              value={draft.dueDate}
+              onChangeText={(dueDate) => setDraft({ ...draft, dueDate })}
+              placeholder="Optional"
+              placeholderTextColor={colors.soft}
             />
-            <Text style={ui.label}>Amount customer pays (incl. VAT) *</Text>
+            <InvoiceLineEditor
+              lines={draft.lines}
+              onChange={(lines) => setDraft({ ...draft, lines })}
+            />
+            <AllocationPicker
+              customerId={draft.customerId}
+              jobId={draft.jobId || null}
+              invoiceTotal={invoiceTotal}
+              value={allocations}
+              onChange={setAllocations}
+            />
+            <Text style={ui.label}>Notes</Text>
             <TextInput
               style={ui.input}
-              value={draft.amount}
-              onChangeText={(amount) => setDraft({ ...draft, amount })}
-              keyboardType="decimal-pad"
+              value={draft.notes}
+              onChangeText={(notes) => setDraft({ ...draft, notes })}
+              multiline
             />
             <RowActions>
               <ActionButton
@@ -204,7 +239,7 @@ export default function InvoicesScreen() {
               <Text style={ui.count}>{items.length} invoices</Text>
               <Pressable
                 style={ui.button}
-                onPress={() => setShowForm(true)}
+                onPress={startCreate}
                 disabled={customers.length === 0}
               >
                 <Text style={ui.buttonText}>New</Text>
@@ -256,11 +291,17 @@ export default function InvoicesScreen() {
                 >
                   {invoice.status === 'issued' &&
                   invoice.kind !== 'credit_note' ? (
-                    <LinkAction
-                      label="Cancel"
-                      tone="danger"
-                      onPress={() => void cancel(invoice.id)}
-                    />
+                    <>
+                      <LinkAction
+                        label="Credit note"
+                        onPress={() => setCreditFor(invoice)}
+                      />
+                      <LinkAction
+                        label="Cancel"
+                        tone="danger"
+                        onPress={() => void cancel(invoice.id)}
+                      />
+                    </>
                   ) : null}
                 </RecordRow>
               ))
@@ -276,31 +317,8 @@ export default function InvoicesScreen() {
             />
           </>
         )}
-      </ScrollView>
+      </ScreenScroll>
       <Toast flash={flash} />
     </View>
   );
 }
-
-const styles = {
-  picker: {
-    flexDirection: 'row' as const,
-    flexWrap: 'wrap' as const,
-    gap: 8,
-    marginTop: 6,
-  },
-  option: {
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(20,32,43,0.14)',
-    backgroundColor: colors.surface,
-  },
-  optionActive: {
-    backgroundColor: colors.accentSoft,
-    borderColor: colors.accent,
-  },
-  optionText: { color: colors.muted, fontSize: 13 },
-  optionTextActive: { color: colors.accent, fontWeight: '700' as const },
-};

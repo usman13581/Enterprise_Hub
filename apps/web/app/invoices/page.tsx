@@ -16,6 +16,7 @@ import {
   FilterBar,
   PdfButton,
   StatusBadge,
+  TableScroll,
 } from '@/components/Finance';
 import {
   EMPTY_INVOICE_LINE,
@@ -296,77 +297,79 @@ export default function InvoicesPage() {
                 : 'No invoices match this filter.'}
             </EmptyState>
           ) : (
-            <table className={finance.table}>
-              <thead>
-                <tr>
-                  <th>Number</th>
-                  <th>Customer</th>
-                  <th>Job</th>
-                  <th>Kind</th>
-                  <th>Issued</th>
-                  <th>Status</th>
-                  <th className={finance.numeric}>Total</th>
-                  <th className={finance.numeric}>Net payable</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {pager.paged.map((invoice) => (
-                  <tr key={invoice.id}>
-                    <td>
-                      <strong>{invoice.number}</strong>
-                    </td>
-                    <td>{invoice.customer?.name ?? '—'}</td>
-                    <td>
-                      {invoice.job ? (
-                        <Link
-                          className={finance.link}
-                          href={`/jobs/${invoice.job.id}`}
-                        >
-                          {invoice.job.number}
-                        </Link>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td>{label(invoice.kind)}</td>
-                    <td>{day(invoice.issueDate)}</td>
-                    <td>
-                      <StatusBadge status={invoice.status} />
-                    </td>
-                    <td className={finance.numeric}>{money(invoice.total)}</td>
-                    <td className={finance.numeric}>
-                      {money(invoice.netPayable)}
-                    </td>
-                    <td>
-                      <div className={finance.rowActions}>
-                        <PdfButton
-                          path={`/documents/invoices/${invoice.id}.pdf`}
-                          onError={setError}
-                        />
-                        {invoice.status === 'issued' &&
-                        invoice.kind !== 'credit_note' ? (
-                          <>
-                            <button
-                              className={styles.ghost}
-                              onClick={() => setCreditFor(invoice)}
-                            >
-                              Credit note
-                            </button>
-                            <button
-                              className={`${styles.ghost} ${styles.danger}`}
-                              onClick={() => void onCancel(invoice.id)}
-                            >
-                              Cancel
-                            </button>
-                          </>
-                        ) : null}
-                      </div>
-                    </td>
+            <TableScroll>
+              <table className={finance.table}>
+                <thead>
+                  <tr>
+                    <th>Number</th>
+                    <th>Customer</th>
+                    <th>Job</th>
+                    <th>Kind</th>
+                    <th>Issued</th>
+                    <th>Status</th>
+                    <th className={finance.numeric}>Total</th>
+                    <th className={finance.numeric}>Net payable</th>
+                    <th className={finance.actions} aria-label="Actions" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {pager.paged.map((invoice) => (
+                    <tr key={invoice.id}>
+                      <td>
+                        <strong>{invoice.number}</strong>
+                      </td>
+                      <td>{invoice.customer?.name ?? '—'}</td>
+                      <td>
+                        {invoice.job ? (
+                          <Link
+                            className={finance.link}
+                            href={`/jobs/${invoice.job.id}`}
+                          >
+                            {invoice.job.number}
+                          </Link>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td>{label(invoice.kind)}</td>
+                      <td>{day(invoice.issueDate)}</td>
+                      <td>
+                        <StatusBadge status={invoice.status} />
+                      </td>
+                      <td className={finance.numeric}>{money(invoice.total)}</td>
+                      <td className={finance.numeric}>
+                        {money(invoice.netPayable)}
+                      </td>
+                      <td className={finance.actions}>
+                        <div className={finance.rowActions}>
+                          <PdfButton
+                            path={`/documents/invoices/${invoice.id}.pdf`}
+                            onError={setError}
+                          />
+                          {invoice.status === 'issued' &&
+                          invoice.kind !== 'credit_note' ? (
+                            <>
+                              <button
+                                className={styles.ghost}
+                                onClick={() => setCreditFor(invoice)}
+                              >
+                                Credit note
+                              </button>
+                              <button
+                                className={`${styles.ghost} ${styles.danger}`}
+                                onClick={() => void onCancel(invoice.id)}
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableScroll>
           )}
 
           <Pagination

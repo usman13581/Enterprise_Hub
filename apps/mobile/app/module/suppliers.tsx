@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
@@ -15,6 +14,7 @@ import {
   usePolledList,
 } from "../../lib/useCollection";
 import { Pagination, SearchBox, Toast } from "../../components/ListControls";
+import { ScreenScroll } from "../../components/ScreenScroll";
 import { LinkAction, RecordRow } from "../../components/Finance";
 import type { Supplier } from "../../lib/types";
 import { colors, ui } from "../../lib/ui";
@@ -86,7 +86,7 @@ export default function SuppliersScreen() {
 
   return (
     <View style={ui.screen}>
-      <ScrollView contentContainerStyle={ui.content}>
+      <ScreenScroll>
         <Text style={ui.title}>Suppliers</Text>
         <Text style={ui.lede}>
           Supplier directory. Products can optionally be tagged to a supplier.
@@ -240,7 +240,7 @@ export default function SuppliersScreen() {
             />
           </>
         )}
-      </ScrollView>
+      </ScreenScroll>
 
       <Toast flash={flash} />
     </View>

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  ScrollView,
   Text,
   View,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { money } from '../../lib/format';
 import { usePolledItem } from '../../lib/useCollection';
+import { ScreenScroll } from '../../components/ScreenScroll';
 import {
   BalanceCard,
   FilterChips,
@@ -19,7 +20,8 @@ import { colors, ui } from '../../lib/ui';
 type Tab = 'receivables' | 'profit';
 
 export default function AccountsScreen() {
-  const { item, loading, error } =
+  const router = useRouter();
+  const { item, error } =
     usePolledItem<AccountsOverview>('/accounts/overview');
   const [tab, setTab] = useState<Tab>('receivables');
 
@@ -37,10 +39,11 @@ export default function AccountsScreen() {
 
   return (
     <View style={ui.screen}>
-      <ScrollView contentContainerStyle={ui.content}>
+      <ScreenScroll>
         <Text style={ui.title}>Accounts</Text>
         <Text style={ui.lede}>
-          Company position across every customer and job.
+          Company position across every customer and job. Balances come from the
+          ledger, so they always agree with the individual statements.
         </Text>
 
         <View style={styles.stats}>
@@ -54,10 +57,14 @@ export default function AccountsScreen() {
             title="Unapplied advances"
             value={money(item.summary.unallocatedAdvances)}
           />
-          <StatCard title="Planned margin" value={money(item.totalProfit)} />
           <StatCard
-            title="Open jobs"
-            value={String(item.openJobs)}
+            title="Credit notes"
+            value={money(item.summary.credited)}
+          />
+          <StatCard
+            title="Planned margin"
+            value={money(item.totalProfit)}
+            hint={`${item.openJobs} job${item.openJobs === 1 ? '' : 's'} still open`}
           />
         </View>
 
@@ -87,6 +94,11 @@ export default function AccountsScreen() {
                 <RecordRow
                   key={row.customerId}
                   title={row.customerName}
+                  onPress={() =>
+                    router.push(
+                      `/module/customers?open=${row.customerId}` as never,
+                    )
+                  }
                   meta={`Billed ${money(row.billed)} · received ${money(row.received)} · bal ${money(row.balance)}`}
                 />
               ))
@@ -104,11 +116,14 @@ export default function AccountsScreen() {
                   key={row.jobId}
                   title={row.jobNumber}
                   status={row.status}
-                  meta={`${row.customerName} · value ${money(row.jobValue)} · margin ${money(row.profit)}`}
+                  onPress={() =>
+                    router.push(`/module/jobs?open=${row.jobId}` as never)
+                  }
+                  meta={`${row.customerName} · value ${money(row.jobValue)} · cost ${money(row.purchaseTotal)} · margin ${money(row.profit)}`}
                 />
               ))
           : null}
-      </ScrollView>
+      </ScreenScroll>
     </View>
   );
 }

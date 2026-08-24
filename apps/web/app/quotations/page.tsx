@@ -16,6 +16,7 @@ import {
   FilterBar,
   PdfButton,
   StatusBadge,
+  TableScroll,
 } from '@/components/Finance';
 import {
   EMPTY_QUOTATION_LINE,
@@ -274,103 +275,105 @@ export default function QuotationsPage() {
                 : 'No quotations match this filter.'}
             </EmptyState>
           ) : (
-            <table className={finance.table}>
-              <thead>
-                <tr>
-                  <th>Number</th>
-                  <th>Customer</th>
-                  <th>Subject</th>
-                  <th>Status</th>
-                  <th className={finance.numeric}>Total</th>
-                  <th className={finance.numeric}>Margin</th>
-                  <th>Job</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {pager.paged.map((quotation) => (
-                  <tr key={quotation.id}>
-                    <td>
-                      <strong>{quotation.number}</strong>
-                      <div className={styles.cardMeta}>
-                        {day(quotation.createdAt)}
-                      </div>
-                    </td>
-                    <td>{quotation.customer?.name ?? '—'}</td>
-                    <td>{quotation.title ?? '—'}</td>
-                    <td>
-                      <StatusBadge status={quotation.status} />
-                    </td>
-                    <td className={finance.numeric}>
-                      {money(quotation.total)}
-                    </td>
-                    <td className={finance.numeric}>
-                      {money(quotation.profit)}
-                    </td>
-                    <td>
-                      {quotation.job ? (
-                        <Link
-                          className={finance.link}
-                          href={`/jobs/${quotation.job.id}`}
-                        >
-                          {quotation.job.number}
-                        </Link>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td>
-                      <div className={finance.rowActions}>
-                        <PdfButton
-                          path={`/documents/quotations/${quotation.id}.pdf`}
-                          onError={setError}
-                        />
-                        {quotation.status === 'draft' ? (
-                          <>
-                            <button
-                              className={styles.ghost}
-                              onClick={() => startEdit(quotation)}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              className={styles.button}
-                              onClick={() =>
-                                void act(
-                                  quotation.id,
-                                  'approve',
-                                  'Approved — job created',
-                                )
-                              }
-                            >
-                              Approve
-                            </button>
-                            <button
-                              className={`${styles.ghost} ${styles.danger}`}
-                              onClick={() =>
-                                void act(
-                                  quotation.id,
-                                  'cancel',
-                                  'Quotation cancelled',
-                                )
-                              }
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              className={`${styles.ghost} ${styles.danger}`}
-                              onClick={() => void onDelete(quotation.id)}
-                            >
-                              Delete
-                            </button>
-                          </>
-                        ) : null}
-                      </div>
-                    </td>
+            <TableScroll>
+              <table className={finance.table}>
+                <thead>
+                  <tr>
+                    <th>Number</th>
+                    <th>Customer</th>
+                    <th>Subject</th>
+                    <th>Status</th>
+                    <th className={finance.numeric}>Total</th>
+                    <th className={finance.numeric}>Margin</th>
+                    <th>Job</th>
+                    <th className={finance.actions} aria-label="Actions" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {pager.paged.map((quotation) => (
+                    <tr key={quotation.id}>
+                      <td>
+                        <strong>{quotation.number}</strong>
+                        <div className={styles.cardMeta}>
+                          {day(quotation.createdAt)}
+                        </div>
+                      </td>
+                      <td>{quotation.customer?.name ?? '—'}</td>
+                      <td>{quotation.title ?? '—'}</td>
+                      <td>
+                        <StatusBadge status={quotation.status} />
+                      </td>
+                      <td className={finance.numeric}>
+                        {money(quotation.total)}
+                      </td>
+                      <td className={finance.numeric}>
+                        {money(quotation.profit)}
+                      </td>
+                      <td>
+                        {quotation.job ? (
+                          <Link
+                            className={finance.link}
+                            href={`/jobs/${quotation.job.id}`}
+                          >
+                            {quotation.job.number}
+                          </Link>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className={finance.actions}>
+                        <div className={finance.rowActions}>
+                          <PdfButton
+                            path={`/documents/quotations/${quotation.id}.pdf`}
+                            onError={setError}
+                          />
+                          {quotation.status === 'draft' ? (
+                            <>
+                              <button
+                                className={styles.ghost}
+                                onClick={() => startEdit(quotation)}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                className={styles.button}
+                                onClick={() =>
+                                  void act(
+                                    quotation.id,
+                                    'approve',
+                                    'Approved — job created',
+                                  )
+                                }
+                              >
+                                Approve
+                              </button>
+                              <button
+                                className={`${styles.ghost} ${styles.danger}`}
+                                onClick={() =>
+                                  void act(
+                                    quotation.id,
+                                    'cancel',
+                                    'Quotation cancelled',
+                                  )
+                                }
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                className={`${styles.ghost} ${styles.danger}`}
+                                onClick={() => void onDelete(quotation.id)}
+                              >
+                                Delete
+                              </button>
+                            </>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableScroll>
           )}
 
           <Pagination

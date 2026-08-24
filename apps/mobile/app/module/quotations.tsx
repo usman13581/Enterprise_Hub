@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
@@ -17,6 +16,7 @@ import {
   usePolledList,
 } from '../../lib/useCollection';
 import { Pagination, SearchBox, Toast } from '../../components/ListControls';
+import { ScreenScroll } from '../../components/ScreenScroll';
 import {
   ActionButton,
   FilterChips,
@@ -41,6 +41,7 @@ type LineDraft = {
 type Draft = {
   customerId: string;
   title: string;
+  validUntil: string;
   notes: string;
   lines: LineDraft[];
 };
@@ -57,6 +58,7 @@ const EMPTY_LINE: LineDraft = {
 const EMPTY: Draft = {
   customerId: '',
   title: '',
+  validUntil: '',
   notes: '',
   lines: [{ ...EMPTY_LINE }],
 };
@@ -106,6 +108,7 @@ export default function QuotationsScreen() {
     setDraft({
       customerId: quotation.customerId,
       title: quotation.title ?? '',
+      validUntil: quotation.validUntil ? quotation.validUntil.slice(0, 10) : '',
       notes: quotation.notes ?? '',
       lines: quotation.lines.map((line) => ({
         productId: line.productId ?? '',
@@ -127,6 +130,7 @@ export default function QuotationsScreen() {
       const body = {
         customerId: draft.customerId,
         title: draft.title,
+        validUntil: draft.validUntil || null,
         notes: draft.notes,
         lines: payloadLines,
       };
@@ -186,7 +190,7 @@ export default function QuotationsScreen() {
 
   return (
     <View style={ui.screen}>
-      <ScrollView contentContainerStyle={ui.content}>
+      <ScreenScroll>
         <Text style={ui.title}>Quotations</Text>
         <Text style={ui.lede}>
           Adjust line purchase and sell. Approve opens a job.
@@ -231,6 +235,14 @@ export default function QuotationsScreen() {
               placeholder="Villa flooring…"
               placeholderTextColor={colors.soft}
             />
+            <Text style={ui.label}>Valid until (YYYY-MM-DD)</Text>
+            <TextInput
+              style={ui.input}
+              value={draft.validUntil}
+              onChangeText={(validUntil) => setDraft({ ...draft, validUntil })}
+              placeholder="Optional"
+              placeholderTextColor={colors.soft}
+            />
 
             {draft.lines.map((line, index) => (
               <View key={index} style={styles.lineBox}>
@@ -246,7 +258,16 @@ export default function QuotationsScreen() {
                 />
                 {products.length > 0 ? (
                   <View style={styles.picker}>
-                    {products.slice(0, 8).map((product) => (
+                    <Pressable
+                      style={[
+                        styles.option,
+                        !line.productId && styles.optionActive,
+                      ]}
+                      onPress={() => pickProduct(index, '')}
+                    >
+                      <Text style={styles.optionText}>No catalog product</Text>
+                    </Pressable>
+                    {products.map((product) => (
                       <Pressable
                         key={product.id}
                         style={[
@@ -415,6 +436,7 @@ export default function QuotationsScreen() {
                     quotation.customer?.name,
                     quotation.title || 'No subject',
                     money(quotation.total),
+                    `margin ${money(quotation.profit)}`,
                     quotation.job ? `Job ${quotation.job.number}` : null,
                     day(quotation.createdAt),
                   ]
@@ -481,7 +503,7 @@ export default function QuotationsScreen() {
             />
           </>
         )}
-      </ScrollView>
+      </ScreenScroll>
       <Toast flash={flash} />
     </View>
   );

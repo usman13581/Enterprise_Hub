@@ -2,12 +2,10 @@ import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   Text,
-  TextInput,
   View,
 } from 'react-native';
-import { apiDelete, apiPost } from '../../lib/api';
+import { apiDelete } from '../../lib/api';
 import { day, label, money } from '../../lib/format';
 import {
   searchItems,
@@ -16,13 +14,13 @@ import {
   usePolledList,
 } from '../../lib/useCollection';
 import { Pagination, SearchBox, Toast } from '../../components/ListControls';
+import { ScreenScroll } from '../../components/ScreenScroll';
 import {
-  ActionButton,
   LinkAction,
   RecordRow,
-  RowActions,
   StatCard,
 } from '../../components/Finance';
+import { AdvanceForm } from '../../components/MoneyForms';
 import type { AdvancePayment, Customer } from '../../lib/types';
 import { colors, ui } from '../../lib/ui';
 
@@ -33,13 +31,6 @@ export default function AdvancesScreen() {
   const { flash, notify } = useFlash();
   const [query, setQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [draft, setDraft] = useState({
-    customerId: '',
-    amount: '',
-    method: 'cash',
-    notes: '',
-  });
 
   const filtered = useMemo(() => searchItems(items, query), [items, query]);
   const pager = usePagination(filtered);
@@ -55,27 +46,6 @@ export default function AdvancesScreen() {
     [items],
   );
 
-  async function save() {
-    if (saving || !draft.customerId) return;
-    setSaving(true);
-    try {
-      await apiPost('/advances', {
-        customerId: draft.customerId,
-        amount: Number(draft.amount),
-        method: draft.method,
-        notes: draft.notes,
-      });
-      setShowForm(false);
-      setDraft({ customerId: '', amount: '', method: 'cash', notes: '' });
-      await reload();
-      notify('Advance recorded');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save');
-    } finally {
-      setSaving(false);
-    }
-  }
-
   if (loading && items.length === 0) {
     return (
       <View style={[ui.screen, { justifyContent: 'center' }]}>
@@ -86,7 +56,7 @@ export default function AdvancesScreen() {
 
   return (
     <View style={ui.screen}>
-      <ScrollView contentContainerStyle={ui.content}>
+      <ScreenScroll>
         <Text style={ui.title}>Advances</Text>
         <Text style={ui.lede}>
           Money received before invoicing. Recording credits the customer
@@ -100,48 +70,16 @@ export default function AdvancesScreen() {
         </View>
 
         {showForm ? (
-          <View style={ui.card}>
-            <Text style={ui.cardTitle}>Record advance</Text>
-            <Text style={ui.label}>Customer *</Text>
-            <View style={styles.picker}>
-              {customers.map((customer) => (
-                <Pressable
-                  key={customer.id}
-                  style={[
-                    styles.option,
-                    draft.customerId === customer.id && styles.optionActive,
-                  ]}
-                  onPress={() =>
-                    setDraft({ ...draft, customerId: customer.id })
-                  }
-                >
-                  <Text style={styles.optionText}>{customer.name}</Text>
-                </Pressable>
-              ))}
-            </View>
-            <Text style={ui.label}>Amount *</Text>
-            <TextInput
-              style={ui.input}
-              value={draft.amount}
-              onChangeText={(amount) => setDraft({ ...draft, amount })}
-              keyboardType="decimal-pad"
-            />
-            <Text style={ui.label}>Notes</Text>
-            <TextInput
-              style={ui.input}
-              value={draft.notes}
-              onChangeText={(notes) => setDraft({ ...draft, notes })}
-            />
-            <RowActions>
-              <ActionButton
-                label={saving ? 'Saving…' : 'Record'}
-                tone="primary"
-                disabled={saving}
-                onPress={() => void save()}
-              />
-              <ActionButton label="Cancel" onPress={() => setShowForm(false)} />
-            </RowActions>
-          </View>
+          <AdvanceForm
+            customers={customers}
+            onSaved={async (message) => {
+              setShowForm(false);
+              await reload();
+              notify(message);
+            }}
+            onError={setError}
+            onCancel={() => setShowForm(false)}
+          />
         ) : (
           <>
             <View style={ui.toolbar}>
@@ -219,7 +157,7 @@ export default function AdvancesScreen() {
             />
           </>
         )}
-      </ScrollView>
+      </ScreenScroll>
       <Toast flash={flash} />
     </View>
   );
@@ -231,23 +169,4 @@ const styles = {
     flexWrap: 'wrap' as const,
     gap: 8,
   },
-  picker: {
-    flexDirection: 'row' as const,
-    flexWrap: 'wrap' as const,
-    gap: 8,
-    marginTop: 6,
-  },
-  option: {
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(20,32,43,0.14)',
-    backgroundColor: colors.surface,
-  },
-  optionActive: {
-    backgroundColor: colors.accentSoft,
-    borderColor: colors.accent,
-  },
-  optionText: { color: colors.muted, fontSize: 13 },
 };

@@ -1,6 +1,10 @@
 import { PrismaClient } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
+
+/** Pilot login for Binhaj Marble (change after go-live). */
+const PILOT_PASSWORD = process.env.SEED_OWNER_PASSWORD || 'binhaj123';
 
 /**
  * Seeds the Binhaj Marble pilot tenant with catalog data and one completed
@@ -78,6 +82,8 @@ async function main() {
     },
   });
 
+  const passwordHash = await bcrypt.hash(PILOT_PASSWORD, 10);
+
   await prisma.user.upsert({
     where: {
       companyId_email: {
@@ -88,11 +94,13 @@ async function main() {
     update: {
       name: 'Binhaj Owner',
       active: true,
+      passwordHash,
     },
     create: {
       companyId: company.id,
       email: 'owner@binhajmarble.ae',
       name: 'Binhaj Owner',
+      passwordHash,
     },
   });
 

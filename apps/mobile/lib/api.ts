@@ -1,8 +1,8 @@
-import Constants from 'expo-constants';
 import { File, Paths } from 'expo-file-system';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { Platform } from 'react-native';
+import { getApiBaseUrl } from './apiBase';
+import { clearAuthToken, getAuthToken } from './auth';
 import { listEntities, getEntity, upsertEntity } from './offline/db';
 import { isOnline } from './offline/net';
 import {
@@ -12,24 +12,7 @@ import {
 } from './offline/syncEngine';
 import { prepareUploadImage } from './prepareUploadImage';
 
-const PORT = 3001;
-const TOKEN = process.env.EXPO_PUBLIC_BOOTSTRAP_TOKEN || 'binhaj-dev-token';
-
-export function getApiBaseUrl(): string {
-  const fromEnv = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '');
-  if (fromEnv) return fromEnv;
-
-  const hostUri = Constants.expoConfig?.hostUri;
-  if (typeof hostUri === 'string' && hostUri.length > 0) {
-    const host = hostUri.split(':')[0];
-    if (host && host !== 'localhost') {
-      return `http://${host}:${PORT}`;
-    }
-  }
-
-  if (Platform.OS === 'android') return `http://10.0.2.2:${PORT}`;
-  return `http://localhost:${PORT}`;
-}
+export { getApiBaseUrl } from './apiBase';
 
 async function cacheListFromPath<T>(path: string): Promise<T[] | null> {
   const base = path.split('?')[0];
@@ -58,26 +41,47 @@ async function rememberList(path: string, data: unknown) {
   }
 }
 
+async function authHeaders(): Promise<Record<string, string>> {
+  const token = await getAuthToken();
+  return token ? { 'x-marble-token': token } : {};
+}
+
+function parseApiError(detail: string, fallback: string) {
+  try {
+    const parsed = JSON.parse(detail) as { message?: string | string[] };
+    if (typeof parsed.message === 'string') return parsed.message;
+    if (Array.isArray(parsed.message)) return parsed.message.join(', ');
+  } catch {
+    // keep raw
+  }
+  return detail || fallback;
+}
+
 async function request<T>(
   path: string,
   init?: RequestInit & { json?: unknown },
 ): Promise<T> {
   const { json, ...rest } = init ?? {};
   const method = (rest.method ?? 'GET').toUpperCase();
+  const isLogin = path === '/auth/login';
 
   try {
     const res = await fetch(`${getApiBaseUrl()}${path}`, {
       ...rest,
       headers: {
-        'x-marble-token': TOKEN,
+        ...(isLogin ? {} : await authHeaders()),
         ...(json !== undefined ? { 'Content-Type': 'application/json' } : {}),
         ...(rest.headers ?? {}),
       },
       body: json !== undefined ? JSON.stringify(json) : rest.body,
     });
+    if (res.status === 401 && !isLogin) {
+      await clearAuthToken();
+      throw new Error('Session expired. Please sign in again.');
+    }
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
-      throw new Error(detail || `API ${res.status}`);
+      throw new Error(parseApiError(detail, `API ${res.status}`));
     }
     if (res.status === 204) return undefined as T;
     const data = (await res.json()) as T;
@@ -102,7 +106,7 @@ async function request<T>(
       }
     }
 
-    if (method !== 'GET' && !(await isOnline())) {
+    if (method !== 'GET' && path !== '/auth/login' && !(await isOnline())) {
       await queueRestMutation({ method, path, body: json });
       return {
         queued: true,
@@ -158,7 +162,7 @@ export async function apiUploadImage(
 
   const res = await fetch(`${getApiBaseUrl()}/uploads`, {
     method: 'POST',
-    headers: { 'x-marble-token': TOKEN },
+    headers: { ...(await authHeaders()) },
     body: form,
   });
   if (!res.ok) throw new Error(`Upload failed (${res.status})`);
@@ -172,9 +176,8 @@ export function assetUrl(url?: string | null) {
 }
 
 /**
- * Downloads a PDF with the bootstrap header, then opens the iOS/Android print
- * dialog. Falls back to the share sheet (AirPrint / Save to Files) if print is
- * cancelled or unavailable.
+ * Downloads a PDF with the session header, then opens the iOS/Android print
+ * dialog. Falls back to the share sheet if print is cancelled or unavailable.
  */
 export async function openPdf(path: string): Promise<void> {
   if (!(await isOnline())) {
@@ -182,7 +185,7 @@ export async function openPdf(path: string): Promise<void> {
   }
 
   const res = await fetch(`${getApiBaseUrl()}${path}`, {
-    headers: { 'x-marble-token': TOKEN },
+    headers: { ...(await authHeaders()) },
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
@@ -217,4 +220,20 @@ export async function openPdf(path: string): Promise<void> {
   }
 
   throw new Error('Printing and sharing are unavailable on this device');
+}
+
+export async function apiLogin(input: {
+  email: string;
+  password: string;
+  companySlug?: string;
+}) {
+  return request<{
+    token: string;
+    session: {
+      companyId: string;
+      userId: string;
+      email: string;
+      companyName: string;
+    };
+  }>('/auth/login', { method: 'POST', json: input });
 }

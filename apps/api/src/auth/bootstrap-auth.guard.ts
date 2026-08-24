@@ -4,12 +4,16 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { AuthService } from './auth.service';
 import { SESSION_HEADER, SessionContext } from './session.types';
 
+/**
+ * Accepts a user JWT (from login) or the legacy bootstrap token (tests/dev).
+ * Controllers keep importing this under the historical BootstrapAuthGuard name.
+ */
 @Injectable()
 export class BootstrapAuthGuard implements CanActivate {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly auth: AuthService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<{
@@ -21,38 +25,20 @@ export class BootstrapAuthGuard implements CanActivate {
       req.headers[SESSION_HEADER] ||
       req.headers['authorization']?.replace(/^Bearer\s+/i, '');
 
-    const expected = process.env.BOOTSTRAP_TOKEN ?? 'binhaj-dev-token';
-    if (!token || token !== expected) {
+    if (!token) {
       throw new UnauthorizedException(
-        'Missing or invalid bootstrap token. Send header x-marble-token.',
+        'Missing session. Sign in, or send x-marble-token / Authorization Bearer.',
       );
     }
 
-    const slug = process.env.BOOTSTRAP_COMPANY_SLUG ?? 'binhaj-marble';
-    const company = await this.prisma.company.findUnique({
-      where: { slug },
-      include: {
-        users: {
-          where: { active: true },
-          orderBy: { createdAt: 'asc' },
-          take: 1,
-        },
-      },
-    });
-
-    if (!company || company.users.length === 0) {
-      throw new UnauthorizedException(
-        'Bootstrap company not seeded. Run pnpm db:seed.',
-      );
+    const bootstrap = process.env.BOOTSTRAP_TOKEN ?? 'binhaj-dev-token';
+    if (token === bootstrap) {
+      req.session = await this.auth.sessionFromBootstrap();
+      return true;
     }
 
-    req.session = {
-      companyId: company.id,
-      userId: company.users[0].id,
-      email: company.users[0].email,
-      companyName: company.name,
-    };
-
+    // Prefer verifying JWT without a DB hit; refresh name/active on session endpoint.
+    req.session = this.auth.verifyToken(token);
     return true;
   }
 }

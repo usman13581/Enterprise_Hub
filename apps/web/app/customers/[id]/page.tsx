@@ -13,6 +13,7 @@ import {
   PdfButton,
   Stat,
   StatusBadge,
+  TableScroll,
   Tabs,
 } from '@/components/Finance';
 import { AdvanceForm } from '@/components/MoneyForms';
@@ -122,44 +123,46 @@ export default function CustomerHubPage() {
           No jobs yet. Approve a quotation to open the first one.
         </EmptyState>
       ) : (
-        <table className={finance.table}>
-          <thead>
-            <tr>
-              <th>Job</th>
-              <th>Quotation</th>
-              <th>Status</th>
-              <th className={finance.numeric}>Job value</th>
-              <th className={finance.numeric}>Invoiced</th>
-              <th className={finance.numeric}>Advances</th>
-              <th className={finance.numeric}>Balance</th>
-            </tr>
-          </thead>
-          <tbody>
-            {byJob.map((row) => (
-              <tr key={row.jobId}>
-                <td>
-                  <Link className={finance.link} href={`/jobs/${row.jobId}`}>
-                    {row.jobNumber}
-                  </Link>
-                </td>
-                <td>{row.quotationNumber ?? '—'}</td>
-                <td>
-                  <StatusBadge status={row.status} />
-                </td>
-                <td className={finance.numeric}>{money(row.jobValue)}</td>
-                <td className={finance.numeric}>{money(row.invoiced)}</td>
-                <td className={finance.numeric}>{money(row.advances)}</td>
-                <td
-                  className={`${finance.numeric} ${
-                    row.balance > 0 ? finance.due : finance.clear
-                  }`}
-                >
-                  {money(row.balance)}
-                </td>
+        <TableScroll>
+          <table className={finance.table}>
+            <thead>
+              <tr>
+                <th>Job</th>
+                <th>Quotation</th>
+                <th>Status</th>
+                <th className={finance.numeric}>Job value</th>
+                <th className={finance.numeric}>Invoiced</th>
+                <th className={finance.numeric}>Advances</th>
+                <th className={finance.numeric}>Balance</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {byJob.map((row) => (
+                <tr key={row.jobId}>
+                  <td>
+                    <Link className={finance.link} href={`/jobs/${row.jobId}`}>
+                      {row.jobNumber}
+                    </Link>
+                  </td>
+                  <td>{row.quotationNumber ?? '—'}</td>
+                  <td>
+                    <StatusBadge status={row.status} />
+                  </td>
+                  <td className={finance.numeric}>{money(row.jobValue)}</td>
+                  <td className={finance.numeric}>{money(row.invoiced)}</td>
+                  <td className={finance.numeric}>{money(row.advances)}</td>
+                  <td
+                    className={`${finance.numeric} ${
+                      row.balance > 0 ? finance.due : finance.clear
+                    }`}
+                  >
+                    {money(row.balance)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
 
       <Tabs
@@ -178,34 +181,36 @@ export default function CustomerHubPage() {
         jobs.length === 0 ? (
           <EmptyState>No jobs for this customer.</EmptyState>
         ) : (
-          <table className={finance.table}>
-            <thead>
-              <tr>
-                <th>Job</th>
-                <th>Subject</th>
-                <th>Status</th>
-                <th>Opened</th>
-                <th className={finance.numeric}>Job value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {jobs.map((job) => (
-                <tr key={job.id}>
-                  <td>
-                    <Link className={finance.link} href={`/jobs/${job.id}`}>
-                      {job.number}
-                    </Link>
-                  </td>
-                  <td>{job.title ?? '—'}</td>
-                  <td>
-                    <StatusBadge status={job.status} />
-                  </td>
-                  <td>{day(job.createdAt)}</td>
-                  <td className={finance.numeric}>{money(job.jobValue)}</td>
+          <TableScroll>
+            <table className={finance.table}>
+              <thead>
+                <tr>
+                  <th>Job</th>
+                  <th>Subject</th>
+                  <th>Status</th>
+                  <th>Opened</th>
+                  <th className={finance.numeric}>Job value</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {jobs.map((job) => (
+                  <tr key={job.id}>
+                    <td>
+                      <Link className={finance.link} href={`/jobs/${job.id}`}>
+                        {job.number}
+                      </Link>
+                    </td>
+                    <td>{job.title ?? '—'}</td>
+                    <td>
+                      <StatusBadge status={job.status} />
+                    </td>
+                    <td>{day(job.createdAt)}</td>
+                    <td className={finance.numeric}>{money(job.jobValue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScroll>
         )
       ) : null}
 
@@ -213,52 +218,54 @@ export default function CustomerHubPage() {
         quotations.length === 0 ? (
           <EmptyState>No quotations for this customer.</EmptyState>
         ) : (
-          <table className={finance.table}>
-            <thead>
-              <tr>
-                <th>Number</th>
-                <th>Subject</th>
-                <th>Status</th>
-                <th className={finance.numeric}>Total</th>
-                <th>Job</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {quotations.map((quotation) => (
-                <tr key={quotation.id}>
-                  <td>
-                    <strong>{quotation.number}</strong>
-                  </td>
-                  <td>{quotation.title ?? '—'}</td>
-                  <td>
-                    <StatusBadge status={quotation.status} />
-                  </td>
-                  <td className={finance.numeric}>{money(quotation.total)}</td>
-                  <td>
-                    {quotation.job ? (
-                      <Link
-                        className={finance.link}
-                        href={`/jobs/${quotation.job.id}`}
-                      >
-                        {quotation.job.number}
-                      </Link>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td>
-                    <div className={finance.rowActions}>
-                      <PdfButton
-                        path={`/documents/quotations/${quotation.id}.pdf`}
-                        onError={setError}
-                      />
-                    </div>
-                  </td>
+          <TableScroll>
+            <table className={finance.table}>
+              <thead>
+                <tr>
+                  <th>Number</th>
+                  <th>Subject</th>
+                  <th>Status</th>
+                  <th className={finance.numeric}>Total</th>
+                  <th>Job</th>
+                  <th className={finance.actions} aria-label="Actions" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {quotations.map((quotation) => (
+                  <tr key={quotation.id}>
+                    <td>
+                      <strong>{quotation.number}</strong>
+                    </td>
+                    <td>{quotation.title ?? '—'}</td>
+                    <td>
+                      <StatusBadge status={quotation.status} />
+                    </td>
+                    <td className={finance.numeric}>{money(quotation.total)}</td>
+                    <td>
+                      {quotation.job ? (
+                        <Link
+                          className={finance.link}
+                          href={`/jobs/${quotation.job.id}`}
+                        >
+                          {quotation.job.number}
+                        </Link>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td className={finance.actions}>
+                      <div className={finance.rowActions}>
+                        <PdfButton
+                          path={`/documents/quotations/${quotation.id}.pdf`}
+                          onError={setError}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScroll>
         )
       ) : null}
 
@@ -266,58 +273,60 @@ export default function CustomerHubPage() {
         invoices.length === 0 ? (
           <EmptyState>No invoices for this customer.</EmptyState>
         ) : (
-          <table className={finance.table}>
-            <thead>
-              <tr>
-                <th>Number</th>
-                <th>Kind</th>
-                <th>Job</th>
-                <th>Issued</th>
-                <th>Status</th>
-                <th className={finance.numeric}>Total</th>
-                <th className={finance.numeric}>Net payable</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.map((invoice) => (
-                <tr key={invoice.id}>
-                  <td>
-                    <strong>{invoice.number}</strong>
-                  </td>
-                  <td>{label(invoice.kind)}</td>
-                  <td>
-                    {invoice.job ? (
-                      <Link
-                        className={finance.link}
-                        href={`/jobs/${invoice.job.id}`}
-                      >
-                        {invoice.job.number}
-                      </Link>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td>{day(invoice.issueDate)}</td>
-                  <td>
-                    <StatusBadge status={invoice.status} />
-                  </td>
-                  <td className={finance.numeric}>{money(invoice.total)}</td>
-                  <td className={finance.numeric}>
-                    {money(invoice.netPayable)}
-                  </td>
-                  <td>
-                    <div className={finance.rowActions}>
-                      <PdfButton
-                        path={`/documents/invoices/${invoice.id}.pdf`}
-                        onError={setError}
-                      />
-                    </div>
-                  </td>
+          <TableScroll>
+            <table className={finance.table}>
+              <thead>
+                <tr>
+                  <th>Number</th>
+                  <th>Kind</th>
+                  <th>Job</th>
+                  <th>Issued</th>
+                  <th>Status</th>
+                  <th className={finance.numeric}>Total</th>
+                  <th className={finance.numeric}>Net payable</th>
+                  <th className={finance.actions} aria-label="Actions" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {invoices.map((invoice) => (
+                  <tr key={invoice.id}>
+                    <td>
+                      <strong>{invoice.number}</strong>
+                    </td>
+                    <td>{label(invoice.kind)}</td>
+                    <td>
+                      {invoice.job ? (
+                        <Link
+                          className={finance.link}
+                          href={`/jobs/${invoice.job.id}`}
+                        >
+                          {invoice.job.number}
+                        </Link>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td>{day(invoice.issueDate)}</td>
+                    <td>
+                      <StatusBadge status={invoice.status} />
+                    </td>
+                    <td className={finance.numeric}>{money(invoice.total)}</td>
+                    <td className={finance.numeric}>
+                      {money(invoice.netPayable)}
+                    </td>
+                    <td className={finance.actions}>
+                      <div className={finance.rowActions}>
+                        <PdfButton
+                          path={`/documents/invoices/${invoice.id}.pdf`}
+                          onError={setError}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScroll>
         )
       ) : null}
 
@@ -325,56 +334,58 @@ export default function CustomerHubPage() {
         advances.length === 0 ? (
           <EmptyState>No advances from this customer.</EmptyState>
         ) : (
-          <table className={finance.table}>
-            <thead>
-              <tr>
-                <th>Receipt</th>
-                <th>Job</th>
-                <th>Received</th>
-                <th>Method</th>
-                <th className={finance.numeric}>Amount</th>
-                <th className={finance.numeric}>Spare</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {advances.map((advance) => (
-                <tr key={advance.id}>
-                  <td>
-                    <strong>{advance.number}</strong>
-                  </td>
-                  <td>
-                    {advance.job ? (
-                      <Link
-                        className={finance.link}
-                        href={`/jobs/${advance.job.id}`}
-                      >
-                        {advance.job.number}
-                      </Link>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td>{day(advance.receivedAt)}</td>
-                  <td>{label(advance.method)}</td>
-                  <td className={finance.numeric}>{money(advance.amount)}</td>
-                  <td className={finance.numeric}>
-                    {money(advance.unallocatedAmount)}
-                  </td>
-                  <td>
-                    <div className={finance.rowActions}>
-                      <PdfButton
-                        path={`/documents/advances/${advance.id}.pdf`}
-                        onError={setError}
-                      >
-                        Receipt
-                      </PdfButton>
-                    </div>
-                  </td>
+          <TableScroll>
+            <table className={finance.table}>
+              <thead>
+                <tr>
+                  <th>Receipt</th>
+                  <th>Job</th>
+                  <th>Received</th>
+                  <th>Method</th>
+                  <th className={finance.numeric}>Amount</th>
+                  <th className={finance.numeric}>Spare</th>
+                  <th className={finance.actions} aria-label="Actions" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {advances.map((advance) => (
+                  <tr key={advance.id}>
+                    <td>
+                      <strong>{advance.number}</strong>
+                    </td>
+                    <td>
+                      {advance.job ? (
+                        <Link
+                          className={finance.link}
+                          href={`/jobs/${advance.job.id}`}
+                        >
+                          {advance.job.number}
+                        </Link>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td>{day(advance.receivedAt)}</td>
+                    <td>{label(advance.method)}</td>
+                    <td className={finance.numeric}>{money(advance.amount)}</td>
+                    <td className={finance.numeric}>
+                      {money(advance.unallocatedAmount)}
+                    </td>
+                    <td className={finance.actions}>
+                      <div className={finance.rowActions}>
+                        <PdfButton
+                          path={`/documents/advances/${advance.id}.pdf`}
+                          onError={setError}
+                        >
+                          Receipt
+                        </PdfButton>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScroll>
         )
       ) : null}
 

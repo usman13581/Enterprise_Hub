@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { ActivityIndicator, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Text, View } from "react-native";
 import {
   searchItems,
   usePagination,
   usePolledList,
 } from "../../lib/useCollection";
 import { Pagination, SearchBox } from "../../components/ListControls";
+import { ScreenScroll } from "../../components/ScreenScroll";
 import { RecordRow } from "../../components/Finance";
 import { colors, ui } from "../../lib/ui";
 
@@ -18,13 +19,13 @@ type AuditRow = {
 };
 
 export default function AuditScreen() {
-  const { items, loading, error } = usePolledList<AuditRow>("/audit");
+  const { items, loading, error } = usePolledList<AuditRow>("/audit?limit=200");
   const [query, setQuery] = useState("");
   const filtered = searchItems(items, query);
   const pager = usePagination(filtered);
 
   return (
-    <ScrollView style={ui.screen} contentContainerStyle={ui.content}>
+    <ScreenScroll>
       <Text style={ui.title}>Audit</Text>
       <Text style={ui.lede}>
         History of creates, updates, and status changes.
@@ -51,7 +52,7 @@ export default function AuditScreen() {
           <RecordRow
             key={row.id}
             title={`${row.action} · ${row.entityType}`}
-            meta={new Date(row.createdAt).toLocaleString()}
+            meta={`${row.entityId} · ${new Date(row.createdAt).toLocaleString()}`}
           />
         ))
       )}
@@ -64,6 +65,6 @@ export default function AuditScreen() {
         pageCount={pager.pageCount}
         total={pager.total}
       />
-    </ScrollView>
+    </ScreenScroll>
   );
 }

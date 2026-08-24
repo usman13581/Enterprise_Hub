@@ -1,8 +1,10 @@
 import { MODULE_NAV } from '@marble/types';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { apiFetch, getApiBaseUrl } from '../lib/api';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ScreenScroll } from '../components/ScreenScroll';
+import { apiFetch, apiPost, getApiBaseUrl } from '../lib/api';
+import { clearAuthToken } from '../lib/auth';
 import {
   runSync,
   subscribeSyncStatus,
@@ -58,7 +60,7 @@ export default function HomeScreen() {
     (sync?.pendingMutations ?? 0) + (sync?.pendingImages ?? 0);
 
   return (
-    <ScrollView style={ui.screen} contentContainerStyle={ui.content}>
+    <ScreenScroll>
       <Text style={styles.brand}>Marble with Nuage</Text>
       <Text style={ui.lede}>Same modules and data as the web app.</Text>
       <Text style={styles.api}>API {getApiBaseUrl()}</Text>
@@ -128,7 +130,29 @@ export default function HomeScreen() {
           <Text style={styles.chevron}>›</Text>
         </Pressable>
       ))}
-    </ScrollView>
+
+      {session ? (
+        <Pressable
+          style={({ pressed }) => [
+            styles.signOutBtn,
+            pressed && styles.rowPressed,
+          ]}
+          onPress={() =>
+            void (async () => {
+              try {
+                await apiPost('/auth/logout', {});
+              } catch {
+                // still clear local session
+              }
+              await clearAuthToken();
+              router.replace('/login' as never);
+            })()
+          }
+        >
+          <Text style={styles.signOutText}>Sign out</Text>
+        </Pressable>
+      ) : null}
+    </ScreenScroll>
   );
 }
 
@@ -168,6 +192,18 @@ const styles = StyleSheet.create({
   profileBtnText: {
     color: colors.ink,
     fontSize: 13,
+    fontWeight: '600',
+  },
+  signOutBtn: {
+    alignSelf: 'center',
+    marginTop: 28,
+    marginBottom: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  signOutText: {
+    color: colors.danger,
+    fontSize: 15,
     fontWeight: '600',
   },
   syncCard: {

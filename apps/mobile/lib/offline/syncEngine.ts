@@ -13,15 +13,18 @@ import {
   upsertEntity,
 } from './db';
 import { isOnline } from './net';
+import { getApiBaseUrl } from '../apiBase';
+import { getAuthToken } from '../auth';
 import { prepareUploadImage } from '../prepareUploadImage';
 
-const PORT = 3001;
-const TOKEN = process.env.EXPO_PUBLIC_BOOTSTRAP_TOKEN || 'binhaj-dev-token';
-
-function apiBase(): string {
-  const fromEnv = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '');
-  if (fromEnv) return fromEnv;
-  return `http://localhost:${PORT}`;
+function syncErrorMessage(error: unknown): string {
+  if (!(error instanceof Error)) return 'Sync failed';
+  const message = error.message.trim();
+  // RN fetch uses this when the host is unreachable (wrong base URL, API down).
+  if (/network request failed/i.test(message)) {
+    return `Cannot reach API at ${getApiBaseUrl()}`;
+  }
+  return message || 'Sync failed';
 }
 
 async function syncFetch<T>(
@@ -29,10 +32,12 @@ async function syncFetch<T>(
   init?: RequestInit & { json?: unknown },
 ): Promise<T> {
   const { json, ...rest } = init ?? {};
-  const res = await fetch(`${apiBase()}${path}`, {
+  const token = await getAuthToken();
+  if (!token) throw new Error('Sign in required before sync');
+  const res = await fetch(`${getApiBaseUrl()}${path}`, {
     ...rest,
     headers: {
-      'x-marble-token': TOKEN,
+      'x-marble-token': token,
       ...(json !== undefined ? { 'Content-Type': 'application/json' } : {}),
       ...(rest.headers ?? {}),
     },
@@ -144,8 +149,9 @@ export async function runSync(): Promise<SyncStatus> {
     await flushSyncMutationQueue();
 
     await setMeta('lastSyncAt', new Date().toISOString());
+    lastError = null;
   } catch (error) {
-    lastError = error instanceof Error ? error.message : 'Sync failed';
+    lastError = syncErrorMessage(error);
   } finally {
     syncing = false;
     await emit();
@@ -194,9 +200,11 @@ async function flushImageQueue() {
         name: prepared.name,
         type: prepared.type,
       } as unknown as Blob);
-      const res = await fetch(`${apiBase()}/uploads`, {
+      const token = await getAuthToken();
+      if (!token) throw new Error('Sign in required before sync');
+      const res = await fetch(`${getApiBaseUrl()}/uploads`, {
         method: 'POST',
-        headers: { 'x-marble-token': TOKEN },
+        headers: { 'x-marble-token': token },
         body: form,
       });
       if (!res.ok) throw new Error(`Upload failed (${res.status})`);
@@ -214,7 +222,7 @@ async function flushImageQueue() {
         item.id,
         'pending',
         undefined,
-        error instanceof Error ? error.message : 'Upload failed',
+        syncErrorMessage(error),
       );
       throw error;
     }
@@ -235,7 +243,7 @@ async function flushRestMutationQueue() {
       await markMutation(
         item.id,
         'pending',
-        error instanceof Error ? error.message : 'Flush failed',
+        syncErrorMessage(error),
       );
       throw error;
     }

@@ -1,0 +1,36 @@
+.screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at top left, rgba(26, 107, 122, 0.12), transparent 40%),
+    radial-gradient(circle at bottom right, rgba(20, 32, 43, 0.06), transparent 45%),
+    var(--bg, #f4f6f8);
+}
+
+.card {
+  width: min(100%, 420px);
+  padding: 1.75rem 1.6rem 1.4rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius, 14px);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow);
+}
+
+.brand {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-display), Fraunces, Georgia, serif;
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+
+.hint {
+  margin: 1rem 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.45;
+}

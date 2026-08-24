@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Fraunces, Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
-import { AppShell } from '@/components/AppShell';
+import { RootChrome } from '@/components/RootChrome';
 
 const display = Fraunces({
   subsets: ['latin'],
@@ -26,7 +26,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${display.variable} ${sans.variable}`}>
       <body>
-        <AppShell>{children}</AppShell>
+        <RootChrome>{children}</RootChrome>
       </body>
     </html>
   );

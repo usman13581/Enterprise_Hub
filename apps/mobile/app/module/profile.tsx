@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -12,6 +11,7 @@ import {
 import { apiFetch, apiPut, apiUploadImage, assetUrl } from "../../lib/api";
 import { useFlash } from "../../lib/useCollection";
 import { Toast } from "../../components/ListControls";
+import { ScreenScroll } from "../../components/ScreenScroll";
 import type { Company } from "../../lib/types";
 import { colors, ui } from "../../lib/ui";
 import { UploadChip } from "../../components/Finance";
@@ -125,7 +125,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={ui.screen}>
-      <ScrollView contentContainerStyle={ui.content}>
+      <ScreenScroll>
         <Text style={ui.title}>Company profile</Text>
         <Text style={ui.lede}>
           Branding and legal details printed on quotations and tax invoices.
@@ -239,7 +239,7 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
         </View>
-      </ScrollView>
+      </ScreenScroll>
 
       <Toast flash={flash} />
     </View>

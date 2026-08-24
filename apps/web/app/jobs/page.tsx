@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { day, money } from '@/lib/format';
 import { searchItems, usePagination, usePolledList } from '@/lib/useCollection';
 import { Pagination, SearchBox } from '@/components/ListControls';
-import { EmptyState, FilterBar, StatusBadge } from '@/components/Finance';
+import { EmptyState, FilterBar, StatusBadge, TableScroll } from '@/components/Finance';
 import type { JobListItem } from '@/lib/types';
 import page from '../page.module.css';
 import styles from '@/components/crud.module.css';
@@ -59,44 +59,46 @@ export default function JobsPage() {
             : 'No jobs match this filter.'}
         </EmptyState>
       ) : (
-        <table className={finance.table}>
-          <thead>
-            <tr>
-              <th>Job</th>
-              <th>Customer</th>
-              <th>Quotation</th>
-              <th>Status</th>
-              <th className={finance.numeric}>Job value</th>
-              <th className={finance.numeric}>Planned margin</th>
-              <th className={finance.numeric}>Docs</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pager.paged.map((job) => (
-              <tr key={job.id}>
-                <td>
-                  <Link className={finance.link} href={`/jobs/${job.id}`}>
-                    {job.number}
-                  </Link>
-                  <div className={styles.cardMeta}>{day(job.createdAt)}</div>
-                </td>
-                <td>{job.customer?.name ?? '—'}</td>
-                <td>{job.quotation?.number ?? '—'}</td>
-                <td>
-                  <StatusBadge status={job.status} />
-                </td>
-                <td className={finance.numeric}>{money(job.jobValue)}</td>
-                <td className={finance.numeric}>
-                  {money(job.jobNet - job.purchaseTotal)}
-                </td>
-                <td className={finance.numeric}>
-                  {job._count?.invoices ?? 0} inv · {job._count?.advances ?? 0}{' '}
-                  adv
-                </td>
+        <TableScroll>
+          <table className={finance.table}>
+            <thead>
+              <tr>
+                <th>Job</th>
+                <th>Customer</th>
+                <th>Quotation</th>
+                <th>Status</th>
+                <th className={finance.numeric}>Job value</th>
+                <th className={finance.numeric}>Planned margin</th>
+                <th className={finance.numeric}>Docs</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {pager.paged.map((job) => (
+                <tr key={job.id}>
+                  <td>
+                    <Link className={finance.link} href={`/jobs/${job.id}`}>
+                      {job.number}
+                    </Link>
+                    <div className={styles.cardMeta}>{day(job.createdAt)}</div>
+                  </td>
+                  <td>{job.customer?.name ?? '—'}</td>
+                  <td>{job.quotation?.number ?? '—'}</td>
+                  <td>
+                    <StatusBadge status={job.status} />
+                  </td>
+                  <td className={finance.numeric}>{money(job.jobValue)}</td>
+                  <td className={finance.numeric}>
+                    {money(job.jobNet - job.purchaseTotal)}
+                  </td>
+                  <td className={finance.numeric}>
+                    {job._count?.invoices ?? 0} inv · {job._count?.advances ?? 0}{' '}
+                    adv
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
 
       <Pagination

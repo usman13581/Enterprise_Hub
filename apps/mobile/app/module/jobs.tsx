@@ -1,12 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   Text,
-  TextInput,
   View,
 } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { apiPost } from '../../lib/api';
 import { day, label, money } from '../../lib/format';
 import {
@@ -17,25 +16,40 @@ import {
   usePolledList,
 } from '../../lib/useCollection';
 import { Pagination, SearchBox, Toast } from '../../components/ListControls';
+import { ScreenScroll } from '../../components/ScreenScroll';
 import {
   ActionButton,
   BalanceCard,
   FilterChips,
+  LinkAction,
   RecordRow,
   RowActions,
   StatCard,
   StatusPill,
 } from '../../components/Finance';
+import { AdvanceForm, JobInvoiceForm } from '../../components/MoneyForms';
 import type { JobHub, JobListItem } from '../../lib/types';
 import { colors, ui } from '../../lib/ui';
 
 type Filter = 'all' | 'open' | 'completed' | 'closed';
+type Panel = 'progressive' | 'custom' | 'final' | 'advance' | null;
+type Tab = 'invoices' | 'advances' | 'ledger' | 'quotation';
 
 export default function JobsScreen() {
   const { items, loading, error } = usePolledList<JobListItem>('/jobs');
+  const params = useLocalSearchParams<{ open?: string }>();
+  const router = useRouter();
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    typeof params.open === 'string' && params.open ? params.open : null,
+  );
+
+  useEffect(() => {
+    if (typeof params.open === 'string' && params.open) {
+      setSelectedId(params.open);
+    }
+  }, [params.open]);
 
   const filtered = useMemo(() => {
     const byStatus =
@@ -48,7 +62,10 @@ export default function JobsScreen() {
     return (
       <JobHubScreen
         jobId={selectedId}
-        onBack={() => setSelectedId(null)}
+        onBack={() => {
+          setSelectedId(null);
+          if (params.open) router.setParams({ open: '' });
+        }}
       />
     );
   }
@@ -63,7 +80,7 @@ export default function JobsScreen() {
 
   return (
     <View style={ui.screen}>
-      <ScrollView contentContainerStyle={ui.content}>
+      <ScreenScroll>
         <Text style={ui.title}>Jobs</Text>
         <Text style={ui.lede}>
           Open a job to invoice it, record advances, and see its ledger.
@@ -102,7 +119,8 @@ export default function JobsScreen() {
                 job.customer?.name,
                 job.quotation?.number,
                 money(job.jobValue),
-                `${job._count?.invoices ?? 0} inv`,
+                `margin ${money(job.jobNet - job.purchaseTotal)}`,
+                `${job._count?.invoices ?? 0} inv · ${job._count?.advances ?? 0} adv`,
                 day(job.createdAt),
               ]
                 .filter(Boolean)
@@ -119,7 +137,7 @@ export default function JobsScreen() {
           pageCount={pager.pageCount}
           total={pager.total}
         />
-      </ScrollView>
+      </ScreenScroll>
     </View>
   );
 }
@@ -135,27 +153,29 @@ function JobHubScreen({
     `/jobs/${jobId}/hub`,
   );
   const { flash, notify } = useFlash();
-  const [tab, setTab] = useState<'invoices' | 'advances' | 'ledger'>('invoices');
-  const [panel, setPanel] = useState<'progressive' | 'advance' | null>(null);
-  const [percentage, setPercentage] = useState('30');
-  const [advanceAmount, setAdvanceAmount] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [tab, setTab] = useState<Tab>('invoices');
+  const [panel, setPanel] = useState<Panel>(null);
 
   if (!item) {
     return (
       <View style={ui.screen}>
-        <ScrollView contentContainerStyle={ui.content}>
+        <ScreenScroll>
           <Pressable onPress={onBack}>
             <Text style={styles.back}>← Jobs</Text>
           </Pressable>
-          {error ? <Text style={ui.error}>{error}</Text> : <ActivityIndicator color={colors.accent} />}
-        </ScrollView>
+          {error ? (
+            <Text style={ui.error}>{error}</Text>
+          ) : (
+            <ActivityIndicator color={colors.accent} />
+          )}
+        </ScreenScroll>
       </View>
     );
   }
 
   const { job, financials, invoices, advances, ledger } = item;
   const canInvoice = job.status !== 'closed';
+  const quoteLines = job.quotation?.lines ?? [];
 
   async function transition(action: 'complete' | 'close', message: string) {
     try {
@@ -167,57 +187,19 @@ function JobHubScreen({
     }
   }
 
-  async function issueProgressive() {
-    if (saving) return;
-    setSaving(true);
+  async function cancelInvoice(id: string) {
     try {
-      await apiPost(`/invoices/jobs/${job.id}/progressive`, {
-        percentage: Number(percentage),
-      });
-      setPanel(null);
+      await apiPost(`/invoices/${id}/cancel`, {});
       await reload();
-      notify('Invoice issued');
+      notify('Invoice cancelled', 'danger');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not issue');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function recordAdvance() {
-    if (saving) return;
-    setSaving(true);
-    try {
-      await apiPost('/advances', {
-        customerId: job.customerId,
-        jobId: job.id,
-        amount: Number(advanceAmount),
-        method: 'cash',
-      });
-      setPanel(null);
-      setAdvanceAmount('');
-      await reload();
-      notify('Advance recorded');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function issueFinal() {
-    try {
-      await apiPost(`/invoices/jobs/${job.id}/final`, {});
-      await reload();
-      notify('Final invoice issued');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not issue');
+      setError(e instanceof Error ? e.message : 'Could not cancel');
     }
   }
 
   return (
     <View style={ui.screen}>
-      <ScrollView contentContainerStyle={ui.content}>
+      <ScreenScroll>
         <Pressable onPress={onBack}>
           <Text style={styles.back}>← Jobs</Text>
         </Pressable>
@@ -240,7 +222,15 @@ function JobHubScreen({
             title="Left to invoice"
             amount={financials.balanceRemaining}
           />
-          <StatCard title="Margin" value={money(financials.profit)} />
+          <StatCard
+            title="Advances applied"
+            value={money(financials.advancesApplied)}
+          />
+          <StatCard
+            title="Planned margin"
+            value={money(financials.profit)}
+            hint={`Cost ${money(financials.purchaseTotal)}`}
+          />
         </View>
 
         <RowActions>
@@ -251,9 +241,14 @@ function JobHubScreen({
             onPress={() => setPanel('progressive')}
           />
           <ActionButton
+            label="Custom invoice"
+            disabled={!canInvoice}
+            onPress={() => setPanel('custom')}
+          />
+          <ActionButton
             label="Final invoice"
             disabled={!canInvoice || financials.balanceRemaining <= 0}
-            onPress={() => void issueFinal()}
+            onPress={() => setPanel('final')}
           />
           <ActionButton
             label="Record advance"
@@ -275,48 +270,41 @@ function JobHubScreen({
           ) : null}
         </RowActions>
 
-        {panel === 'progressive' ? (
-          <View style={ui.card}>
-            <Text style={ui.cardTitle}>Progressive invoice</Text>
-            <Text style={ui.label}>Percentage of job value</Text>
-            <TextInput
-              style={ui.input}
-              value={percentage}
-              onChangeText={setPercentage}
-              keyboardType="decimal-pad"
-            />
-            <RowActions>
-              <ActionButton
-                label={saving ? 'Issuing…' : 'Issue'}
-                tone="primary"
-                disabled={saving}
-                onPress={() => void issueProgressive()}
-              />
-              <ActionButton label="Cancel" onPress={() => setPanel(null)} />
-            </RowActions>
-          </View>
+        {panel && panel !== 'advance' ? (
+          <JobInvoiceForm
+            jobId={job.id}
+            customerId={job.customerId}
+            kind={panel}
+            jobValue={financials.jobValue}
+            balanceRemaining={financials.balanceRemaining}
+            onSaved={async (message) => {
+              setPanel(null);
+              await reload();
+              notify(message);
+            }}
+            onError={setError}
+            onCancel={() => setPanel(null)}
+          />
         ) : null}
 
         {panel === 'advance' ? (
-          <View style={ui.card}>
-            <Text style={ui.cardTitle}>Record advance</Text>
-            <Text style={ui.label}>Amount *</Text>
-            <TextInput
-              style={ui.input}
-              value={advanceAmount}
-              onChangeText={setAdvanceAmount}
-              keyboardType="decimal-pad"
-            />
-            <RowActions>
-              <ActionButton
-                label={saving ? 'Saving…' : 'Record'}
-                tone="primary"
-                disabled={saving}
-                onPress={() => void recordAdvance()}
-              />
-              <ActionButton label="Cancel" onPress={() => setPanel(null)} />
-            </RowActions>
-          </View>
+          <AdvanceForm
+            customerId={job.customerId}
+            jobId={job.id}
+            onSaved={async (message) => {
+              setPanel(null);
+              await reload();
+              notify(message);
+            }}
+            onError={setError}
+            onCancel={() => setPanel(null)}
+          />
+        ) : null}
+
+        {!canInvoice ? (
+          <Text style={[ui.cardMeta, { marginTop: 10 }]}>
+            This job is closed. No further invoices or advances can be recorded.
+          </Text>
         ) : null}
 
         <FilterChips
@@ -326,6 +314,7 @@ function JobHubScreen({
             { key: 'invoices', label: `Invoices (${invoices.length})` },
             { key: 'advances', label: `Advances (${advances.length})` },
             { key: 'ledger', label: `Ledger (${ledger.length})` },
+            { key: 'quotation', label: `Quotation lines (${quoteLines.length})` },
           ]}
         />
 
@@ -342,7 +331,16 @@ function JobHubScreen({
                   money(invoice.netPayable),
                   day(invoice.issueDate),
                 ].join(' · ')}
-              />
+              >
+                {invoice.status === 'issued' &&
+                invoice.kind !== 'credit_note' ? (
+                  <LinkAction
+                    label="Cancel"
+                    tone="danger"
+                    onPress={() => void cancelInvoice(invoice.id)}
+                  />
+                ) : null}
+              </RecordRow>
             ))
           : null}
 
@@ -354,7 +352,9 @@ function JobHubScreen({
                 pdfPath={`/documents/advances/${advance.id}.pdf`}
                 onPdfError={setError}
                 meta={[
+                  label(advance.method),
                   money(advance.amount),
+                  `applied ${money(advance.allocatedAmount)}`,
                   `spare ${money(advance.unallocatedAmount)}`,
                   day(advance.receivedAt),
                 ].join(' · ')}
@@ -367,11 +367,39 @@ function JobHubScreen({
               <RecordRow
                 key={row.id}
                 title={label(row.entryType)}
-                meta={`${day(row.occurredAt)} · ${row.direction} ${money(row.amount)} · bal ${money(row.runningBalance)}`}
+                meta={[
+                  day(row.occurredAt),
+                  `${row.direction} ${money(row.amount)}`,
+                  `bal ${money(row.runningBalance)}`,
+                  row.memo,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
               />
             ))
           : null}
-      </ScrollView>
+
+        {tab === 'quotation'
+          ? quoteLines.length === 0
+            ? (
+                <View style={ui.empty}>
+                  <Text style={ui.emptyText}>No quotation lines on this job.</Text>
+                </View>
+              )
+            : quoteLines.map((line) => (
+                <RecordRow
+                  key={line.id}
+                  title={line.description}
+                  meta={[
+                    `${line.qty} ${line.unit}`,
+                    `buy ${money(line.purchasePrice)}`,
+                    `sell ${money(line.sellPrice)}`,
+                    money(line.lineTotal),
+                  ].join(' · ')}
+                />
+              ))
+          : null}
+      </ScreenScroll>
       <Toast flash={flash} />
     </View>
   );

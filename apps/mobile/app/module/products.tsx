@@ -24,6 +24,7 @@ import {
   usePolledList,
 } from "../../lib/useCollection";
 import { Pagination, SearchBox, Toast } from "../../components/ListControls";
+import { ScreenScroll } from "../../components/ScreenScroll";
 import { LinkAction, RecordRow, UploadChip } from "../../components/Finance";
 import type { Product, Supplier } from "../../lib/types";
 import { colors, ui } from "../../lib/ui";
@@ -140,7 +141,7 @@ export default function ProductsScreen() {
 
   return (
     <View style={ui.screen}>
-      <ScrollView contentContainerStyle={ui.content}>
+      <ScreenScroll>
         <Text style={ui.title}>Products</Text>
         <Text style={ui.lede}>
           Purchase and sell defaults, optional supplier, and multiple photos.
@@ -382,7 +383,7 @@ export default function ProductsScreen() {
             />
           </>
         )}
-      </ScrollView>
+      </ScreenScroll>
 
       <Toast flash={flash} />
     </View>

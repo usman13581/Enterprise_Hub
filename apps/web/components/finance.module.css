@@ -87,16 +87,29 @@
   opacity: 0.7;
 }
 
-.table {
+/* Scroll shell so wide reports stay usable on tablet / small laptop. */
+.tableWrap {
   width: 100%;
+  max-width: 100%;
   margin-top: 0.9rem;
-  border-collapse: collapse;
-  font-size: 0.88rem;
-  background: var(--bg-elevated);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  overflow: hidden;
+  background: var(--bg-elevated);
   box-shadow: var(--shadow);
+}
+
+.table {
+  width: 100%;
+  min-width: 36rem;
+  margin: 0;
+  border-collapse: collapse;
+  table-layout: auto;
+  font-size: 0.88rem;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .table th {
@@ -110,22 +123,40 @@
   background: rgba(20, 32, 43, 0.025);
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
+  vertical-align: bottom;
 }
 
 .table td {
   padding: 0.7rem 0.85rem;
   border-bottom: 1px solid var(--line);
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .table tbody tr:last-child td {
   border-bottom: none;
 }
 
+/*
+ * Must beat `.table th { text-align: left }` (higher specificity) so money
+ * headers sit on the same right edge as their values.
+ */
+.table th.numeric,
+.table td.numeric,
 .numeric {
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+  vertical-align: middle;
+}
+
+.table td.actions {
+  vertical-align: middle;
 }
 
 .rowActions {
@@ -226,6 +257,10 @@
   color: var(--muted);
 }
 
+.lineHead .numeric {
+  text-align: right;
+}
+
 .lineRemove {
   width: 30px;
   height: 30px;
@@ -281,8 +316,7 @@
 
 .sectionTitle {
   margin: 1.6rem 0 0;
-  font-size: 0.76rem
-;
+  font-size: 0.76rem;
   font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -364,4 +398,50 @@
   text-align: center;
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+@media (max-width: 960px) {
+  .statGrid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+
+  .table {
+    min-width: 40rem;
+    font-size: 0.84rem;
+  }
+
+  .table th,
+  .table td {
+    padding: 0.6rem 0.7rem;
+  }
+
+  .lineHead,
+  .lineRow {
+    grid-template-columns: minmax(140px, 2fr) 70px 72px 96px 96px 96px 36px;
+    min-width: 40rem;
+  }
+
+  .lineEditor {
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 720px) {
+  .statGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .actionBar {
+    gap: 0.35rem;
+  }
+
+  .totalsStack {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .lineFooter {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }

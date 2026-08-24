@@ -1,27 +1,52 @@
-export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://localhost:3001';
+import { API_URL } from './apiBase';
+import { clearAuthToken, getAuthToken } from './auth';
 
-export const BOOTSTRAP_TOKEN =
-  process.env.NEXT_PUBLIC_BOOTSTRAP_TOKEN || 'binhaj-dev-token';
+export { API_URL } from './apiBase';
+
+function authHeaders(): Record<string, string> {
+  const token = getAuthToken();
+  return token ? { 'x-marble-token': token } : {};
+}
+
+function redirectToLogin() {
+  if (typeof window === 'undefined') return;
+  clearAuthToken();
+  if (window.location.pathname !== '/login') {
+    window.location.href = '/login';
+  }
+}
 
 async function request<T>(
   path: string,
   init?: RequestInit & { json?: unknown },
 ): Promise<T> {
   const { json, ...rest } = init ?? {};
+  const isLogin = path === '/auth/login';
   const res = await fetch(`${API_URL}${path}`, {
     ...rest,
     headers: {
-      'x-marble-token': BOOTSTRAP_TOKEN,
+      ...(isLogin ? {} : authHeaders()),
       ...(json !== undefined ? { 'Content-Type': 'application/json' } : {}),
       ...(rest.headers ?? {}),
     },
     body: json !== undefined ? JSON.stringify(json) : rest.body,
     cache: 'no-store',
   });
+  if (res.status === 401 && !isLogin) {
+    redirectToLogin();
+    throw new Error('Session expired. Please sign in again.');
+  }
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
-    throw new Error(detail || `API ${res.status} for ${path}`);
+    let message = detail || `API ${res.status} for ${path}`;
+    try {
+      const parsed = JSON.parse(detail) as { message?: string | string[] };
+      if (typeof parsed.message === 'string') message = parsed.message;
+      else if (Array.isArray(parsed.message)) message = parsed.message.join(', ');
+    } catch {
+      // keep raw text
+    }
+    throw new Error(message);
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
@@ -43,9 +68,13 @@ export async function apiUpload(file: File): Promise<{ url: string }> {
   form.append('file', file);
   const res = await fetch(`${API_URL}/uploads`, {
     method: 'POST',
-    headers: { 'x-marble-token': BOOTSTRAP_TOKEN },
+    headers: { ...authHeaders() },
     body: form,
   });
+  if (res.status === 401) {
+    redirectToLogin();
+    throw new Error('Session expired. Please sign in again.');
+  }
   if (!res.ok) throw new Error(`Upload failed (${res.status})`);
   return res.json() as Promise<{ url: string }>;
 }
@@ -57,14 +86,16 @@ export function assetUrl(url?: string | null) {
 }
 
 /**
- * Fetches a PDF with the bootstrap header and opens it from a blob URL. A plain
- * anchor cannot send the header, and putting the token in the query string
- * would leak it into browser history and server logs.
+ * Fetches a PDF with the session header and opens it from a blob URL.
  */
 export async function openPdf(path: string): Promise<void> {
   const res = await fetch(`${API_URL}${path}`, {
-    headers: { 'x-marble-token': BOOTSTRAP_TOKEN },
+    headers: { ...authHeaders() },
   });
+  if (res.status === 401) {
+    redirectToLogin();
+    throw new Error('Session expired. Please sign in again.');
+  }
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
     throw new Error(detail || `Could not generate the document (${res.status})`);
@@ -73,11 +104,26 @@ export async function openPdf(path: string): Promise<void> {
   const url = URL.createObjectURL(await res.blob());
   const opened = window.open(url, '_blank');
   if (!opened) {
-    // Popup blocked: fall back to a download so the document is still reachable.
     const link = document.createElement('a');
     link.href = url;
     link.download = path.split('/').pop() ?? 'document.pdf';
     link.click();
   }
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+export async function apiLogin(input: {
+  email: string;
+  password: string;
+  companySlug?: string;
+}) {
+  return request<{
+    token: string;
+    session: {
+      companyId: string;
+      userId: string;
+      email: string;
+      companyName: string;
+    };
+  }>('/auth/login', { method: 'POST', json: input });
 }

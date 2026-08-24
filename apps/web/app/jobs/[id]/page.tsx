@@ -14,6 +14,7 @@ import {
   PdfButton,
   Stat,
   StatusBadge,
+  TableScroll,
   Tabs,
 } from '@/components/Finance';
 import { AdvanceForm, JobInvoiceForm } from '@/components/MoneyForms';
@@ -222,57 +223,59 @@ export default function JobHubPage() {
         invoices.length === 0 ? (
           <EmptyState>No invoices raised against this job yet.</EmptyState>
         ) : (
-          <table className={finance.table}>
-            <thead>
-              <tr>
-                <th>Number</th>
-                <th>Kind</th>
-                <th>Issued</th>
-                <th>Status</th>
-                <th className={finance.numeric}>Total</th>
-                <th className={finance.numeric}>Advance</th>
-                <th className={finance.numeric}>Net payable</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.map((invoice) => (
-                <tr key={invoice.id}>
-                  <td>
-                    <strong>{invoice.number}</strong>
-                  </td>
-                  <td>{label(invoice.kind)}</td>
-                  <td>{day(invoice.issueDate)}</td>
-                  <td>
-                    <StatusBadge status={invoice.status} />
-                  </td>
-                  <td className={finance.numeric}>{money(invoice.total)}</td>
-                  <td className={finance.numeric}>
-                    {money(invoice.advanceApplied)}
-                  </td>
-                  <td className={finance.numeric}>
-                    {money(invoice.netPayable)}
-                  </td>
-                  <td>
-                    <div className={finance.rowActions}>
-                      <PdfButton
-                        path={`/documents/invoices/${invoice.id}.pdf`}
-                        onError={setError}
-                      />
-                      {invoice.status === 'issued' ? (
-                        <button
-                          className={`${styles.ghost} ${styles.danger}`}
-                          onClick={() => void cancelInvoice(invoice.id)}
-                        >
-                          Cancel
-                        </button>
-                      ) : null}
-                    </div>
-                  </td>
+          <TableScroll>
+            <table className={finance.table}>
+              <thead>
+                <tr>
+                  <th>Number</th>
+                  <th>Kind</th>
+                  <th>Issued</th>
+                  <th>Status</th>
+                  <th className={finance.numeric}>Total</th>
+                  <th className={finance.numeric}>Advance</th>
+                  <th className={finance.numeric}>Net payable</th>
+                  <th className={finance.actions} aria-label="Actions" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {invoices.map((invoice) => (
+                  <tr key={invoice.id}>
+                    <td>
+                      <strong>{invoice.number}</strong>
+                    </td>
+                    <td>{label(invoice.kind)}</td>
+                    <td>{day(invoice.issueDate)}</td>
+                    <td>
+                      <StatusBadge status={invoice.status} />
+                    </td>
+                    <td className={finance.numeric}>{money(invoice.total)}</td>
+                    <td className={finance.numeric}>
+                      {money(invoice.advanceApplied)}
+                    </td>
+                    <td className={finance.numeric}>
+                      {money(invoice.netPayable)}
+                    </td>
+                    <td className={finance.actions}>
+                      <div className={finance.rowActions}>
+                        <PdfButton
+                          path={`/documents/invoices/${invoice.id}.pdf`}
+                          onError={setError}
+                        />
+                        {invoice.status === 'issued' ? (
+                          <button
+                            className={`${styles.ghost} ${styles.danger}`}
+                            onClick={() => void cancelInvoice(invoice.id)}
+                          >
+                            Cancel
+                          </button>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScroll>
         )
       ) : null}
 
@@ -280,47 +283,49 @@ export default function JobHubPage() {
         advances.length === 0 ? (
           <EmptyState>No advances recorded against this job.</EmptyState>
         ) : (
-          <table className={finance.table}>
-            <thead>
-              <tr>
-                <th>Receipt</th>
-                <th>Received</th>
-                <th>Method</th>
-                <th className={finance.numeric}>Amount</th>
-                <th className={finance.numeric}>Applied</th>
-                <th className={finance.numeric}>Spare</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {advances.map((advance) => (
-                <tr key={advance.id}>
-                  <td>
-                    <strong>{advance.number}</strong>
-                  </td>
-                  <td>{day(advance.receivedAt)}</td>
-                  <td>{label(advance.method)}</td>
-                  <td className={finance.numeric}>{money(advance.amount)}</td>
-                  <td className={finance.numeric}>
-                    {money(advance.allocatedAmount)}
-                  </td>
-                  <td className={finance.numeric}>
-                    {money(advance.unallocatedAmount)}
-                  </td>
-                  <td>
-                    <div className={finance.rowActions}>
-                      <PdfButton
-                        path={`/documents/advances/${advance.id}.pdf`}
-                        onError={setError}
-                      >
-                        Receipt
-                      </PdfButton>
-                    </div>
-                  </td>
+          <TableScroll>
+            <table className={finance.table}>
+              <thead>
+                <tr>
+                  <th>Receipt</th>
+                  <th>Received</th>
+                  <th>Method</th>
+                  <th className={finance.numeric}>Amount</th>
+                  <th className={finance.numeric}>Applied</th>
+                  <th className={finance.numeric}>Spare</th>
+                  <th className={finance.actions} aria-label="Actions" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {advances.map((advance) => (
+                  <tr key={advance.id}>
+                    <td>
+                      <strong>{advance.number}</strong>
+                    </td>
+                    <td>{day(advance.receivedAt)}</td>
+                    <td>{label(advance.method)}</td>
+                    <td className={finance.numeric}>{money(advance.amount)}</td>
+                    <td className={finance.numeric}>
+                      {money(advance.allocatedAmount)}
+                    </td>
+                    <td className={finance.numeric}>
+                      {money(advance.unallocatedAmount)}
+                    </td>
+                    <td className={finance.actions}>
+                      <div className={finance.rowActions}>
+                        <PdfButton
+                          path={`/documents/advances/${advance.id}.pdf`}
+                          onError={setError}
+                        >
+                          Receipt
+                        </PdfButton>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScroll>
         )
       ) : null}
 
@@ -330,36 +335,38 @@ export default function JobHubPage() {
         quotationLines.length === 0 ? (
           <EmptyState>The source quotation has no lines.</EmptyState>
         ) : (
-          <table className={finance.table}>
-            <thead>
-              <tr>
-                <th>Description</th>
-                <th>Unit</th>
-                <th className={finance.numeric}>Qty</th>
-                <th className={finance.numeric}>Purchase</th>
-                <th className={finance.numeric}>Sell</th>
-                <th className={finance.numeric}>Amount</th>
-                <th className={finance.numeric}>Margin</th>
-              </tr>
-            </thead>
-            <tbody>
-              {quotationLines.map((line) => (
-                <tr key={line.id}>
-                  <td>{line.description}</td>
-                  <td>{line.unit}</td>
-                  <td className={finance.numeric}>{qty(line.qty)}</td>
-                  <td className={finance.numeric}>
-                    {money(line.purchasePrice)}
-                  </td>
-                  <td className={finance.numeric}>{money(line.sellPrice)}</td>
-                  <td className={finance.numeric}>{money(line.lineTotal)}</td>
-                  <td className={finance.numeric}>
-                    {money((line.sellPrice - line.purchasePrice) * line.qty)}
-                  </td>
+          <TableScroll>
+            <table className={finance.table}>
+              <thead>
+                <tr>
+                  <th>Description</th>
+                  <th>Unit</th>
+                  <th className={finance.numeric}>Qty</th>
+                  <th className={finance.numeric}>Purchase</th>
+                  <th className={finance.numeric}>Sell</th>
+                  <th className={finance.numeric}>Amount</th>
+                  <th className={finance.numeric}>Margin</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {quotationLines.map((line) => (
+                  <tr key={line.id}>
+                    <td>{line.description}</td>
+                    <td>{line.unit}</td>
+                    <td className={finance.numeric}>{qty(line.qty)}</td>
+                    <td className={finance.numeric}>
+                      {money(line.purchasePrice)}
+                    </td>
+                    <td className={finance.numeric}>{money(line.sellPrice)}</td>
+                    <td className={finance.numeric}>{money(line.lineTotal)}</td>
+                    <td className={finance.numeric}>
+                      {money((line.sellPrice - line.purchasePrice) * line.qty)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScroll>
         )
       ) : null}
 

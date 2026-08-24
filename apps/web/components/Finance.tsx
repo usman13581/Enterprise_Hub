@@ -159,6 +159,11 @@ export function EmptyState({ children }: { children: React.ReactNode }) {
   return <div className={styles.empty}>{children}</div>;
 }
 
+/** Keeps report tables aligned and scrollable on tablet / narrow viewports. */
+export function TableScroll({ children }: { children: React.ReactNode }) {
+  return <div className={styles.tableWrap}>{children}</div>;
+}
+
 /** Chronological statement with the running balance the ledger API computes. */
 export function LedgerTable({ rows }: { rows: LedgerEntry[] }) {
   if (rows.length === 0) {
@@ -166,34 +171,36 @@ export function LedgerTable({ rows }: { rows: LedgerEntry[] }) {
   }
 
   return (
-    <table className={styles.table}>
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Entry</th>
-          <th>Memo</th>
-          <th className={styles.numeric}>Debit</th>
-          <th className={styles.numeric}>Credit</th>
-          <th className={styles.numeric}>Balance</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={row.id}>
-            <td>{day(row.occurredAt)}</td>
-            <td>{label(row.entryType)}</td>
-            <td>{row.memo ?? '—'}</td>
-            <td className={styles.numeric}>
-              {row.direction === 'debit' ? money(row.amount) : '—'}
-            </td>
-            <td className={styles.numeric}>
-              {row.direction === 'credit' ? money(row.amount) : '—'}
-            </td>
-            <td className={styles.numeric}>{money(row.runningBalance)}</td>
+    <TableScroll>
+      <table className={styles.table}>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Entry</th>
+            <th>Memo</th>
+            <th className={styles.numeric}>Debit</th>
+            <th className={styles.numeric}>Credit</th>
+            <th className={styles.numeric}>Balance</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id}>
+              <td>{day(row.occurredAt)}</td>
+              <td>{label(row.entryType)}</td>
+              <td>{row.memo ?? '—'}</td>
+              <td className={styles.numeric}>
+                {row.direction === 'debit' ? money(row.amount) : '—'}
+              </td>
+              <td className={styles.numeric}>
+                {row.direction === 'credit' ? money(row.amount) : '—'}
+              </td>
+              <td className={styles.numeric}>{money(row.runningBalance)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </TableScroll>
   );
 }
 

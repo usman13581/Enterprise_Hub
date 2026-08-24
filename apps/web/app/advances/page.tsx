@@ -11,7 +11,7 @@ import {
   usePolledList,
 } from '@/lib/useCollection';
 import { Pagination, SearchBox, Toast } from '@/components/ListControls';
-import { EmptyState, PdfButton, Stat } from '@/components/Finance';
+import { EmptyState, PdfButton, Stat, TableScroll } from '@/components/Finance';
 import { AdvanceForm } from '@/components/MoneyForms';
 import type { AdvancePayment, Customer } from '@/lib/types';
 import page from '../page.module.css';
@@ -108,73 +108,75 @@ export default function AdvancesPage() {
                 : 'No advances match your search.'}
             </EmptyState>
           ) : (
-            <table className={finance.table}>
-              <thead>
-                <tr>
-                  <th>Receipt</th>
-                  <th>Customer</th>
-                  <th>Job</th>
-                  <th>Received</th>
-                  <th>Method</th>
-                  <th className={finance.numeric}>Amount</th>
-                  <th className={finance.numeric}>Spare</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {pager.paged.map((advance) => (
-                  <tr key={advance.id}>
-                    <td>
-                      <strong>{advance.number}</strong>
-                    </td>
-                    <td>
-                      <Link
-                        className={finance.link}
-                        href={`/customers/${advance.customerId}`}
-                      >
-                        {advance.customer?.name ?? '—'}
-                      </Link>
-                    </td>
-                    <td>
-                      {advance.job ? (
+            <TableScroll>
+              <table className={finance.table}>
+                <thead>
+                  <tr>
+                    <th>Receipt</th>
+                    <th>Customer</th>
+                    <th>Job</th>
+                    <th>Received</th>
+                    <th>Method</th>
+                    <th className={finance.numeric}>Amount</th>
+                    <th className={finance.numeric}>Spare</th>
+                    <th className={finance.actions} aria-label="Actions" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {pager.paged.map((advance) => (
+                    <tr key={advance.id}>
+                      <td>
+                        <strong>{advance.number}</strong>
+                      </td>
+                      <td>
                         <Link
                           className={finance.link}
-                          href={`/jobs/${advance.job.id}`}
+                          href={`/customers/${advance.customerId}`}
                         >
-                          {advance.job.number}
+                          {advance.customer?.name ?? '—'}
                         </Link>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td>{day(advance.receivedAt)}</td>
-                    <td>{label(advance.method)}</td>
-                    <td className={finance.numeric}>{money(advance.amount)}</td>
-                    <td className={finance.numeric}>
-                      {money(advance.unallocatedAmount)}
-                    </td>
-                    <td>
-                      <div className={finance.rowActions}>
-                        <PdfButton
-                          path={`/documents/advances/${advance.id}.pdf`}
-                          onError={setError}
-                        >
-                          Receipt
-                        </PdfButton>
-                        {advance.allocatedAmount === 0 ? (
-                          <button
-                            className={`${styles.ghost} ${styles.danger}`}
-                            onClick={() => void onDelete(advance.id)}
+                      </td>
+                      <td>
+                        {advance.job ? (
+                          <Link
+                            className={finance.link}
+                            href={`/jobs/${advance.job.id}`}
                           >
-                            Delete
-                          </button>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                            {advance.job.number}
+                          </Link>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td>{day(advance.receivedAt)}</td>
+                      <td>{label(advance.method)}</td>
+                      <td className={finance.numeric}>{money(advance.amount)}</td>
+                      <td className={finance.numeric}>
+                        {money(advance.unallocatedAmount)}
+                      </td>
+                      <td className={finance.actions}>
+                        <div className={finance.rowActions}>
+                          <PdfButton
+                            path={`/documents/advances/${advance.id}.pdf`}
+                            onError={setError}
+                          >
+                            Receipt
+                          </PdfButton>
+                          {advance.allocatedAmount === 0 ? (
+                            <button
+                              className={`${styles.ghost} ${styles.danger}`}
+                              onClick={() => void onDelete(advance.id)}
+                            >
+                              Delete
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableScroll>
           )}
 
           <Pagination

@@ -238,3 +238,11 @@ export const syncPushSchema = z.object({
   mutations: z.array(syncMutationSchema).max(200),
 });
 export type SyncPushInput = z.infer<typeof syncPushSchema>;
+
+export const loginSchema = z.object({
+  email: z.string().trim().email().max(200),
+  password: z.string().min(1).max(200),
+  /** Optional when the same email exists in more than one company. */
+  companySlug: optionalText(80),
+});
+export type LoginInput = z.infer<typeof loginSchema>;

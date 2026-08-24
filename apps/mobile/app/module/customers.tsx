@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { apiDelete, apiPost, apiPut } from "../../lib/api";
 import {
   searchItems,
@@ -16,6 +16,7 @@ import {
   usePolledList,
 } from "../../lib/useCollection";
 import { Pagination, SearchBox, Toast } from "../../components/ListControls";
+import { ScreenScroll } from "../../components/ScreenScroll";
 import {
   ActionButton,
   BalanceCard,
@@ -24,8 +25,8 @@ import {
   RecordRow,
   RowActions,
   StatCard,
-  StatusPill,
 } from "../../components/Finance";
+import { AdvanceForm } from "../../components/MoneyForms";
 import { day, label, money } from "../../lib/format";
 import type { Customer, CustomerHub } from "../../lib/types";
 import { colors, ui } from "../../lib/ui";
@@ -53,6 +54,8 @@ const EMPTY: Draft = {
 export default function CustomersScreen() {
   const { items, loading, error, setError, reload } =
     usePolledList<Customer>("/customers");
+  const params = useLocalSearchParams<{ open?: string }>();
+  const router = useRouter();
   const { flash, notify } = useFlash();
   const [query, setQuery] = useState("");
   const filtered = searchItems(items, query);
@@ -62,10 +65,26 @@ export default function CustomersScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [hubId, setHubId] = useState<string | null>(null);
+  const [hubId, setHubId] = useState<string | null>(
+    typeof params.open === "string" && params.open ? params.open : null,
+  );
+
+  useEffect(() => {
+    if (typeof params.open === "string" && params.open) {
+      setHubId(params.open);
+    }
+  }, [params.open]);
 
   if (hubId) {
-    return <CustomerHubScreen customerId={hubId} onBack={() => setHubId(null)} />;
+    return (
+      <CustomerHubScreen
+        customerId={hubId}
+        onBack={() => {
+          setHubId(null);
+          if (params.open) router.setParams({ open: "" });
+        }}
+      />
+    );
   }
 
   async function save() {
@@ -102,7 +121,7 @@ export default function CustomersScreen() {
 
   return (
     <View style={ui.screen}>
-      <ScrollView contentContainerStyle={ui.content}>
+      <ScreenScroll>
         <Text style={ui.title}>Customers</Text>
         <Text style={ui.lede}>
           Customer records for quotations, jobs, and invoices.
@@ -262,7 +281,7 @@ export default function CustomersScreen() {
             />
           </>
         )}
-      </ScrollView>
+      </ScreenScroll>
 
       <Toast flash={flash} />
     </View>
@@ -276,6 +295,7 @@ function CustomerHubScreen({
   customerId: string;
   onBack: () => void;
 }) {
+  const router = useRouter();
   const { item, error, setError, reload } = usePolledItem<CustomerHub>(
     `/customers/${customerId}/hub`,
   );
@@ -284,13 +304,11 @@ function CustomerHubScreen({
     "jobs",
   );
   const [showAdvance, setShowAdvance] = useState(false);
-  const [amount, setAmount] = useState("");
-  const [saving, setSaving] = useState(false);
 
   if (!item) {
     return (
       <View style={ui.screen}>
-        <ScrollView contentContainerStyle={ui.content}>
+        <ScreenScroll>
           <Pressable onPress={onBack}>
             <Text style={{ color: colors.muted, marginBottom: 8 }}>← Customers</Text>
           </Pressable>
@@ -299,7 +317,7 @@ function CustomerHubScreen({
           ) : (
             <ActivityIndicator color={colors.accent} />
           )}
-        </ScrollView>
+        </ScreenScroll>
       </View>
     );
   }
@@ -307,35 +325,15 @@ function CustomerHubScreen({
   const { customer, summary, byJob, quotations, jobs, invoices, advances, ledger } =
     item;
 
-  async function recordAdvance() {
-    if (saving) return;
-    setSaving(true);
-    try {
-      await apiPost("/advances", {
-        customerId: customer.id,
-        amount: Number(amount),
-        method: "cash",
-      });
-      setShowAdvance(false);
-      setAmount("");
-      await reload();
-      notify("Advance recorded");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save");
-    } finally {
-      setSaving(false);
-    }
-  }
-
   return (
     <View style={ui.screen}>
-      <ScrollView contentContainerStyle={ui.content}>
+      <ScreenScroll>
         <Pressable onPress={onBack}>
           <Text style={{ color: colors.muted, marginBottom: 8 }}>← Customers</Text>
         </Pressable>
         <Text style={ui.title}>{customer.name}</Text>
         <Text style={ui.lede}>
-          {[customer.contact, customer.phone, customer.email]
+          {[customer.trn ? `TRN ${customer.trn}` : null, customer.contact, customer.phone, customer.email]
             .filter(Boolean)
             .join(" · ") || "No contact details"}
         </Text>
@@ -352,39 +350,38 @@ function CustomerHubScreen({
             title="Unapplied"
             value={money(summary.unallocatedAdvances)}
           />
+          {summary.credited > 0 ? (
+            <StatCard title="Credit notes" value={money(summary.credited)} />
+          ) : null}
         </View>
 
         <RowActions>
           <ActionButton
-            label="Record advance"
+            label="New quotation"
             tone="primary"
+            onPress={() => router.push("/module/quotations" as never)}
+          />
+          <ActionButton
+            label="Record advance"
             onPress={() => setShowAdvance(true)}
+          />
+          <ActionButton
+            label="New invoice"
+            onPress={() => router.push("/module/invoices" as never)}
           />
         </RowActions>
 
         {showAdvance ? (
-          <View style={ui.card}>
-            <Text style={ui.cardTitle}>Record advance</Text>
-            <Text style={ui.label}>Amount *</Text>
-            <TextInput
-              style={ui.input}
-              value={amount}
-              onChangeText={setAmount}
-              keyboardType="decimal-pad"
-            />
-            <RowActions>
-              <ActionButton
-                label={saving ? "Saving…" : "Record"}
-                tone="primary"
-                disabled={saving}
-                onPress={() => void recordAdvance()}
-              />
-              <ActionButton
-                label="Cancel"
-                onPress={() => setShowAdvance(false)}
-              />
-            </RowActions>
-          </View>
+          <AdvanceForm
+            customerId={customer.id}
+            onSaved={async (message) => {
+              setShowAdvance(false);
+              await reload();
+              notify(message);
+            }}
+            onError={setError}
+            onCancel={() => setShowAdvance(false)}
+          />
         ) : null}
 
         <Text style={[ui.label, { marginTop: 18 }]}>Where the money sits</Text>
@@ -393,6 +390,9 @@ function CustomerHubScreen({
             key={row.jobId}
             title={row.jobNumber}
             status={row.status}
+            onPress={() =>
+              router.push(`/module/jobs?open=${row.jobId}` as never)
+            }
             meta={`Value ${money(row.jobValue)} · invoiced ${money(row.invoiced)} · advances ${money(row.advances)} · bal ${money(row.balance)}`}
           />
         ))}
@@ -415,6 +415,9 @@ function CustomerHubScreen({
                 key={job.id}
                 title={job.number}
                 status={job.status}
+                onPress={() =>
+                  router.push(`/module/jobs?open=${job.id}` as never)
+                }
                 meta={[job.title || "No subject", money(job.jobValue), day(job.createdAt)].join(" · ")}
               />
             ))
@@ -438,9 +441,17 @@ function CustomerHubScreen({
               <RecordRow
                 key={invoice.id}
                 title={invoice.number}
+                status={invoice.status}
                 pdfPath={`/documents/invoices/${invoice.id}.pdf`}
                 onPdfError={setError}
-                meta={[label(invoice.kind), day(invoice.issueDate), money(invoice.total)].join(" · ")}
+                meta={[
+                  label(invoice.kind),
+                  money(invoice.netPayable),
+                  invoice.job ? `Job ${invoice.job.number}` : null,
+                  day(invoice.issueDate),
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               />
             ))
           : null}
@@ -453,10 +464,14 @@ function CustomerHubScreen({
                 pdfPath={`/documents/advances/${advance.id}.pdf`}
                 onPdfError={setError}
                 meta={[
+                  label(advance.method),
+                  advance.job ? `Job ${advance.job.number}` : null,
                   day(advance.receivedAt),
                   money(advance.amount),
                   `spare ${money(advance.unallocatedAmount)}`,
-                ].join(" · ")}
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               />
             ))
           : null}
@@ -466,11 +481,18 @@ function CustomerHubScreen({
               <RecordRow
                 key={row.id}
                 title={label(row.entryType)}
-                meta={`${day(row.occurredAt)} · ${row.direction} ${money(row.amount)} · bal ${money(row.runningBalance)}`}
+                meta={[
+                  day(row.occurredAt),
+                  `${row.direction} ${money(row.amount)}`,
+                  `bal ${money(row.runningBalance)}`,
+                  row.memo,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               />
             ))
           : null}
-      </ScrollView>
+      </ScreenScroll>
       <Toast flash={flash} />
     </View>
   );

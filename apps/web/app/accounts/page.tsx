@@ -9,6 +9,7 @@ import {
   EmptyState,
   Stat,
   StatusBadge,
+  TableScroll,
   Tabs,
 } from '@/components/Finance';
 import type { AccountsOverview } from '@/lib/types';
@@ -91,39 +92,41 @@ export default function AccountsPage() {
         item.receivableByCustomer.length === 0 ? (
           <EmptyState>No customer activity yet.</EmptyState>
         ) : (
-          <table className={finance.table}>
-            <thead>
-              <tr>
-                <th>Customer</th>
-                <th className={finance.numeric}>Billed</th>
-                <th className={finance.numeric}>Received</th>
-                <th className={finance.numeric}>Balance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {item.receivableByCustomer.map((row) => (
-                <tr key={row.customerId}>
-                  <td>
-                    <Link
-                      className={finance.link}
-                      href={`/customers/${row.customerId}`}
-                    >
-                      {row.customerName}
-                    </Link>
-                  </td>
-                  <td className={finance.numeric}>{money(row.billed)}</td>
-                  <td className={finance.numeric}>{money(row.received)}</td>
-                  <td
-                    className={`${finance.numeric} ${
-                      row.balance > 0 ? finance.due : finance.clear
-                    }`}
-                  >
-                    {money(row.balance)}
-                  </td>
+          <TableScroll>
+            <table className={finance.table}>
+              <thead>
+                <tr>
+                  <th>Customer</th>
+                  <th className={finance.numeric}>Billed</th>
+                  <th className={finance.numeric}>Received</th>
+                  <th className={finance.numeric}>Balance</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {item.receivableByCustomer.map((row) => (
+                  <tr key={row.customerId}>
+                    <td>
+                      <Link
+                        className={finance.link}
+                        href={`/customers/${row.customerId}`}
+                      >
+                        {row.customerName}
+                      </Link>
+                    </td>
+                    <td className={finance.numeric}>{money(row.billed)}</td>
+                    <td className={finance.numeric}>{money(row.received)}</td>
+                    <td
+                      className={`${finance.numeric} ${
+                        row.balance > 0 ? finance.due : finance.clear
+                      }`}
+                    >
+                      {money(row.balance)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScroll>
         )
       ) : null}
 
@@ -131,42 +134,44 @@ export default function AccountsPage() {
         item.profitByJob.length === 0 ? (
           <EmptyState>No jobs yet.</EmptyState>
         ) : (
-          <table className={finance.table}>
-            <thead>
-              <tr>
-                <th>Job</th>
-                <th>Customer</th>
-                <th>Status</th>
-                <th className={finance.numeric}>Job value</th>
-                <th className={finance.numeric}>Cost</th>
-                <th className={finance.numeric}>Margin</th>
-              </tr>
-            </thead>
-            <tbody>
-              {item.profitByJob.map((row) => (
-                <tr key={row.jobId}>
-                  <td>
-                    <Link className={finance.link} href={`/jobs/${row.jobId}`}>
-                      {row.jobNumber}
-                    </Link>
-                  </td>
-                  <td>{row.customerName}</td>
-                  <td>
-                    <StatusBadge status={row.status} />
-                  </td>
-                  <td className={finance.numeric}>{money(row.jobValue)}</td>
-                  <td className={finance.numeric}>{money(row.purchaseTotal)}</td>
-                  <td
-                    className={`${finance.numeric} ${
-                      row.profit < 0 ? finance.due : ''
-                    }`}
-                  >
-                    {money(row.profit)}
-                  </td>
+          <TableScroll>
+            <table className={finance.table}>
+              <thead>
+                <tr>
+                  <th>Job</th>
+                  <th>Customer</th>
+                  <th>Status</th>
+                  <th className={finance.numeric}>Job value</th>
+                  <th className={finance.numeric}>Cost</th>
+                  <th className={finance.numeric}>Margin</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {item.profitByJob.map((row) => (
+                  <tr key={row.jobId}>
+                    <td>
+                      <Link className={finance.link} href={`/jobs/${row.jobId}`}>
+                        {row.jobNumber}
+                      </Link>
+                    </td>
+                    <td>{row.customerName}</td>
+                    <td>
+                      <StatusBadge status={row.status} />
+                    </td>
+                    <td className={finance.numeric}>{money(row.jobValue)}</td>
+                    <td className={finance.numeric}>{money(row.purchaseTotal)}</td>
+                    <td
+                      className={`${finance.numeric} ${
+                        row.profit < 0 ? finance.due : ''
+                      }`}
+                    >
+                      {money(row.profit)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScroll>
         )
       ) : null}
     </section>
