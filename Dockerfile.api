@@ -8,22 +8,10 @@ RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
 WORKDIR /app
 
-# pnpm workspace requires every apps/* package.json to exist
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY packages/types/package.json packages/types/
-COPY packages/domain/package.json packages/domain/
-COPY packages/pdf/package.json packages/pdf/
-COPY apps/api/package.json apps/api/
-COPY apps/web/package.json apps/web/
-COPY apps/mobile/package.json apps/mobile/
+COPY . .
 
+# prepare scripts expect full source; build explicitly after install
 RUN pnpm install --frozen-lockfile --ignore-scripts
-
-COPY packages/types packages/types
-COPY packages/domain packages/domain
-COPY packages/pdf packages/pdf
-COPY apps/api apps/api
-
 RUN pnpm railway:build:api
 
 ENV NODE_ENV=production

@@ -3,11 +3,11 @@ node_modules
 .next
 .git
 .expo
-apps/mobile
-apps/web
 apps/api/uploads
 **/*.db
 **/*.db-journal
 coverage
 *.log
 .DS_Store
+docs
+expo-qr.png
