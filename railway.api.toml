@@ -1,13 +1,11 @@
 # Railway config for the API service.
 # In Railway: Service → Settings → Config file path → railway.api.toml
-# deploy-trigger: 2026-08-24T19:55:00Z
 
 [build]
-builder = "NIXPACKS"
-buildCommand = "pnpm install && pnpm railway:build:api"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.api"
 
 [deploy]
-startCommand = "bash scripts/railway-start-api.sh"
 healthcheckPath = "/health"
-healthcheckTimeout = 600
+healthcheckTimeout = 180
 restartPolicyType = "ON_FAILURE"
