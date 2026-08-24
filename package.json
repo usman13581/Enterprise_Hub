@@ -14,7 +14,7 @@
     "build": "pnpm build:packages && pnpm -r --filter @marble/api --filter @marble/web build",
     "railway:build:api": "pnpm build:packages && pnpm db:generate && pnpm --filter @marble/api build",
     "railway:build:web": "pnpm build:packages && pnpm --filter @marble/web build",
-    "railway:deploy:api": "pnpm railway:build:api && pnpm --filter @marble/api db:push && pnpm --filter @marble/api start",
+    "railway:deploy:api": "pnpm --filter @marble/api db:push && pnpm --filter @marble/api start",
     "railway:start:web": "pnpm --filter @marble/web start",
     "typecheck": "pnpm build:packages && pnpm -r typecheck",
     "test": "pnpm build:packages && pnpm -r test",
