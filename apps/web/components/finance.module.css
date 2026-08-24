@@ -161,9 +161,40 @@
 
 .rowActions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.35rem;
   justify-content: flex-end;
+  align-items: center;
+}
+
+.rowLead {
+  width: 1%;
+  padding-right: 0.35rem;
+  vertical-align: middle;
+}
+
+.editIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.editIcon:hover {
+  color: var(--ink);
+  background: rgba(20, 32, 43, 0.04);
+}
+
+.editIcon svg {
+  width: 1rem;
+  height: 1rem;
 }
 
 .badge {
@@ -366,9 +397,11 @@
 
 .backLink {
   display: inline-block;
-  margin-bottom: 0.6rem;
+  margin-bottom: 0.35rem;
   font-size: 0.86rem;
+  font-weight: 500;
   color: var(--muted);
+  text-decoration: none;
 }
 
 .backLink:hover {

@@ -19,6 +19,7 @@ import { Pagination, SearchBox, Toast } from '../../components/ListControls';
 import { ScreenScroll } from '../../components/ScreenScroll';
 import {
   ActionButton,
+  BackLink,
   BalanceCard,
   FilterChips,
   LinkAction,
@@ -160,9 +161,7 @@ function JobHubScreen({
     return (
       <View style={ui.screen}>
         <ScreenScroll>
-          <Pressable onPress={onBack}>
-            <Text style={styles.back}>← Jobs</Text>
-          </Pressable>
+          <BackLink label="← Jobs" onPress={onBack} />
           {error ? (
             <Text style={ui.error}>{error}</Text>
           ) : (
@@ -200,9 +199,7 @@ function JobHubScreen({
   return (
     <View style={ui.screen}>
       <ScreenScroll>
-        <Pressable onPress={onBack}>
-          <Text style={styles.back}>← Jobs</Text>
-        </Pressable>
+        <BackLink label="← Jobs" onPress={onBack} />
         <View style={styles.head}>
           <Text style={ui.title}>Job {job.number}</Text>
           <StatusPill status={job.status} />

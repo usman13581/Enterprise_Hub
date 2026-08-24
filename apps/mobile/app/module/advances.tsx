@@ -5,7 +5,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { apiDelete } from '../../lib/api';
+import { apiPost } from '../../lib/api';
 import { day, label, money } from '../../lib/format';
 import {
   searchItems,
@@ -117,7 +117,7 @@ export default function AdvancesScreen() {
                   meta={[
                     advance.customer?.name,
                     money(advance.amount),
-                    `spare ${money(advance.unallocatedAmount)}`,
+                    advance.cancelledAt ? 'cancelled' : `spare ${money(advance.unallocatedAmount)}`,
                     advance.job ? `Job ${advance.job.number}` : null,
                     label(advance.method),
                     day(advance.receivedAt),
@@ -125,19 +125,18 @@ export default function AdvancesScreen() {
                     .filter(Boolean)
                     .join(' · ')}
                 >
-                  {advance.allocatedAmount === 0 ? (
+                  {advance.allocatedAmount === 0 && !advance.cancelledAt ? (
                     <LinkAction
-                      label="Delete"
-                      tone="danger"
+                      label="Cancel"
                       onPress={() =>
-                        void apiDelete(`/advances/${advance.id}`)
+                        void apiPost(`/advances/${advance.id}/cancel`, {})
                           .then(() => reload())
-                          .then(() => notify('Deleted', 'danger'))
+                          .then(() => notify('Advance cancelled'))
                           .catch((e) =>
                             setError(
                               e instanceof Error
                                 ? e.message
-                                : 'Delete failed',
+                                : 'Cancel failed',
                             ),
                           )
                       }

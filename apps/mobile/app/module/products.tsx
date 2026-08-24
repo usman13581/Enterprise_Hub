@@ -11,7 +11,6 @@ import {
   View,
 } from "react-native";
 import {
-  apiDelete,
   apiPost,
   apiPut,
   apiUploadImage,
@@ -37,6 +36,7 @@ type Draft = {
   sellPrice: string;
   supplierId: string;
   description: string;
+  active: boolean;
 };
 
 const EMPTY: Draft = {
@@ -47,6 +47,7 @@ const EMPTY: Draft = {
   sellPrice: "0",
   supplierId: "",
   description: "",
+  active: true,
 };
 
 export default function ProductsScreen() {
@@ -77,6 +78,7 @@ export default function ProductsScreen() {
         sellPrice: Number(draft.sellPrice) || 0,
         supplierId: draft.supplierId || null,
         description: draft.description || null,
+        active: draft.active,
       };
       if (editingId) {
         await apiPut(`/products/${editingId}`, payload);
@@ -95,13 +97,22 @@ export default function ProductsScreen() {
     }
   }
 
-  async function remove(id: string) {
+  async function setActive(item: Product, active: boolean) {
     try {
-      await apiDelete(`/products/${id}`);
+      await apiPut(`/products/${item.id}`, {
+        name: item.name,
+        sku: item.sku,
+        unit: item.unit,
+        purchasePrice: item.purchasePrice,
+        sellPrice: item.sellPrice,
+        supplierId: item.supplierId,
+        description: item.description,
+        active,
+      });
       await reload();
-      notify("Product deleted", "danger");
+      notify(active ? "Product activated" : "Product deactivated");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Delete failed");
+      setError(e instanceof Error ? e.message : "Update failed");
     }
   }
 
@@ -232,6 +243,16 @@ export default function ProductsScreen() {
               multiline
               onChangeText={(v) => setDraft({ ...draft, description: v })}
             />
+            <Pressable
+              style={ui.ghost}
+              onPress={() =>
+                setDraft({ ...draft, active: !draft.active })
+              }
+            >
+              <Text style={ui.ghostText}>
+                Active: {draft.active ? "Yes" : "No"}
+              </Text>
+            </Pressable>
             <View style={ui.cardActions}>
               <Pressable style={ui.button} onPress={() => void save()}>
                 <Text style={ui.buttonText}>
@@ -282,7 +303,21 @@ export default function ProductsScreen() {
               pager.paged.map((item) => (
                 <View key={item.id}>
                   <RecordRow
-                    title={item.name}
+                    title={`${item.name}${item.active === false ? " (inactive)" : ""}`}
+                    onEdit={() => {
+                      setDraft({
+                        name: item.name,
+                        sku: item.sku ?? "",
+                        unit: item.unit,
+                        purchasePrice: String(item.purchasePrice),
+                        sellPrice: String(item.sellPrice),
+                        supplierId: item.supplierId ?? "",
+                        description: item.description ?? "",
+                        active: item.active !== false,
+                      });
+                      setEditingId(item.id);
+                      setShowForm(true);
+                    }}
                     meta={[
                       item.sku,
                       `per ${item.unit}`,
@@ -299,25 +334,8 @@ export default function ProductsScreen() {
                       onPress={() => void pickImage(item.id)}
                     />
                     <LinkAction
-                      label="Edit"
-                      onPress={() => {
-                        setDraft({
-                          name: item.name,
-                          sku: item.sku ?? "",
-                          unit: item.unit,
-                          purchasePrice: String(item.purchasePrice),
-                          sellPrice: String(item.sellPrice),
-                          supplierId: item.supplierId ?? "",
-                          description: item.description ?? "",
-                        });
-                        setEditingId(item.id);
-                        setShowForm(true);
-                      }}
-                    />
-                    <LinkAction
-                      label="Delete"
-                      tone="danger"
-                      onPress={() => void remove(item.id)}
+                      label={item.active === false ? "Activate" : "Deactivate"}
+                      onPress={() => void setActive(item, !item.active)}
                     />
                   </RecordRow>
                   {item.images.length > 0 ? (
@@ -349,19 +367,6 @@ export default function ProductsScreen() {
                                 }}
                               >
                                 <Text style={styles.thumbBtn}>Set</Text>
-                              </Pressable>
-                              <Pressable
-                                onPress={async () => {
-                                  await apiDelete(
-                                    `/products/${item.id}/images/${img.id}`,
-                                  );
-                                  await reload();
-                                  notify("Image removed", "danger");
-                                }}
-                              >
-                                <Text style={[styles.thumbBtn, ui.dangerText]}>
-                                  ✕
-                                </Text>
                               </Pressable>
                             </View>
                           )}

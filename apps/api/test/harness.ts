@@ -1,6 +1,4 @@
 import { execFileSync } from 'child_process';
-import { mkdtempSync, rmSync } from 'fs';
-import { tmpdir } from 'os';
 import { join } from 'path';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -26,70 +24,66 @@ export type Harness = {
   close: () => Promise<void>;
 };
 
-let cachedDdl: string | null = null;
+const ADMIN_URL =
+  process.env.TEST_DATABASE_ADMIN_URL ??
+  'postgresql://marble:marble@localhost:5432/postgres';
 
-/**
- * Builds the tables in a brand-new SQLite file from the Prisma schema.
- *
- * `prisma migrate diff` only prints SQL, so it is safe to run unattended;
- * `prisma db push --force-reset` is not, because it is capable of dropping a
- * real database and is therefore blocked for automated callers.
- */
-async function applySchema(dbPath: string): Promise<void> {
-  cachedDdl ??= execFileSync(
-    'node',
-    [
-      require.resolve('prisma/build/index.js'),
-      'migrate',
-      'diff',
-      '--from-empty',
-      '--to-schema-datamodel',
-      join(__dirname, '..', 'prisma', 'schema.prisma'),
-      '--script',
-    ],
-    { cwd: join(__dirname, '..'), encoding: 'utf8', stdio: 'pipe' },
-  );
+function randomDbName() {
+  return `marble_test_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
 
-  const client = new PrismaClient({
-    datasources: { db: { url: `file:${dbPath}` } },
+async function createTestDatabase(): Promise<{
+  url: string;
+  cleanup: () => Promise<void>;
+}> {
+  const dbName = randomDbName();
+  const admin = new PrismaClient({
+    datasources: { db: { url: ADMIN_URL } },
   });
   try {
-    const statements = cachedDdl
-      .split(';')
-      .map((chunk) =>
-        chunk
-          .split('\n')
-          .filter((line) => !line.trim().startsWith('--'))
-          .join('\n')
-          .trim(),
-      )
-      .filter((statement) => statement.length > 0);
-
-    if (statements.length === 0) {
-      throw new Error('Prisma produced no DDL for the test database');
-    }
-    for (const statement of statements) {
-      await client.$executeRawUnsafe(statement);
-    }
+    await admin.$executeRawUnsafe(`CREATE DATABASE "${dbName}"`);
   } finally {
-    await client.$disconnect();
+    await admin.$disconnect();
   }
+
+  const url = ADMIN_URL.replace(/\/[^/]+$/, `/${dbName}`);
+  return {
+    url,
+    cleanup: async () => {
+      const drop = new PrismaClient({
+        datasources: { db: { url: ADMIN_URL } },
+      });
+      try {
+        await drop.$executeRawUnsafe(
+          `DROP DATABASE IF EXISTS "${dbName}" WITH (FORCE)`,
+        );
+      } finally {
+        await drop.$disconnect();
+      }
+    },
+  };
+}
+
+function applySchema(databaseUrl: string) {
+  execFileSync('pnpm', ['exec', 'prisma', 'db', 'push', '--skip-generate'], {
+    cwd: join(__dirname, '..'),
+    env: { ...process.env, DATABASE_URL: databaseUrl },
+    stdio: 'pipe',
+  });
 }
 
 /**
- * Boots the real Nest application against a throwaway SQLite file so tests
- * exercise the same guards, pipes, filters, and transactions as production
- * rather than mocked services.
+ * Boots the real Nest application against a throwaway Postgres database so
+ * tests exercise the same guards, pipes, filters, and transactions as production.
  */
 export async function createHarness(): Promise<Harness> {
-  const dir = mkdtempSync(join(tmpdir(), 'marble-api-test-'));
-  const dbPath = join(dir, 'test.db');
+  const { url, cleanup } = await createTestDatabase();
 
-  process.env.DATABASE_URL = `file:${dbPath}`;
+  process.env.DATABASE_URL = url;
   process.env.BOOTSTRAP_TOKEN = TOKEN;
   process.env.BOOTSTRAP_COMPANY_SLUG = COMPANY_SLUG;
 
-  await applySchema(dbPath);
+  applySchema(url);
 
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
@@ -138,7 +132,7 @@ export async function createHarness(): Promise<Harness> {
     anon: () => request(server),
     close: async () => {
       await app.close();
-      rmSync(dir, { recursive: true, force: true });
+      await cleanup();
     },
   };
 }
@@ -155,49 +149,49 @@ export async function seedProduct(
   const res = await h
     .post('/products')
     .send({
-      name: 'Calacatta Gold',
+      name: 'Calacatta',
       unit: 'sqm',
-      purchasePrice: 180,
-      sellPrice: 250,
+      purchasePrice: 100,
+      sellPrice: 180,
       ...overrides,
     })
     .expect(201);
-  return res.body as { id: string };
+  return res.body as { id: string; name: string; sellPrice: number };
 }
 
-/**
- * Approved quotation plus its job, which most invoicing tests need as a
- * starting point. Default totals: 10,000 net, 500 VAT, 10,500 gross.
- */
-export async function seedApprovedJob(
-  h: Harness,
-  options: { customerId?: string; sellPrice?: number; purchasePrice?: number } = {},
-) {
-  const customerId = options.customerId ?? (await seedCustomer(h)).id;
-  const quotationRes = await h
+export async function seedApprovedJob(h: Harness) {
+  const customer = await seedCustomer(h, 'Job Customer');
+  const product = await seedProduct(h);
+  const quotation = await h
     .post('/quotations')
     .send({
-      customerId,
-      title: 'Villa flooring',
+      customerId: customer.id,
       lines: [
         {
-          description: 'Calacatta Gold slabs',
+          productId: product.id,
+          description: product.name,
+          qty: 10,
           unit: 'sqm',
-          qty: 40,
-          purchasePrice: options.purchasePrice ?? 175,
-          sellPrice: options.sellPrice ?? 250,
+          purchasePrice: 100,
+          sellPrice: 180,
         },
       ],
     })
     .expect(201);
-
   const approved = await h
-    .post(`/quotations/${quotationRes.body.id}/approve`)
+    .post(`/quotations/${quotation.body.id}/approve`)
     .expect(201);
-
   return {
-    customerId,
-    quotation: approved.body,
-    job: approved.body.job as { id: string; number: string; jobValue: number },
+    customerId: customer.id,
+    job: approved.body.job as {
+      id: string;
+      number: string;
+      jobValue: number;
+    },
   };
+}
+
+export async function balance(h: Harness, customerId: string) {
+  const res = await h.get(`/customers/${customerId}/hub`).expect(200);
+  return res.body.summary.balanceDue as number;
 }

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { apiDelete } from '@/lib/api';
+import { apiPost } from '@/lib/api';
 import { day, label, money } from '@/lib/format';
 import {
   searchItems,
@@ -11,7 +11,7 @@ import {
   usePolledList,
 } from '@/lib/useCollection';
 import { Pagination, SearchBox, Toast } from '@/components/ListControls';
-import { EmptyState, PdfButton, Stat, TableScroll } from '@/components/Finance';
+import { EmptyState, PdfButton, RowActionsBar, Stat, TableScroll } from '@/components/Finance';
 import { AdvanceForm } from '@/components/MoneyForms';
 import type { AdvancePayment, Customer } from '@/lib/types';
 import page from '../page.module.css';
@@ -41,13 +41,13 @@ export default function AdvancesPage() {
     [items],
   );
 
-  async function onDelete(id: string) {
+  async function onCancel(id: string) {
     try {
-      await apiDelete(`/advances/${id}`);
+      await apiPost(`/advances/${id}/cancel`, {});
       await reload();
-      notify('Advance deleted', 'danger');
+      notify('Advance cancelled');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not delete');
+      setError(err instanceof Error ? err.message : 'Could not cancel');
     }
   }
 
@@ -127,6 +127,7 @@ export default function AdvancesPage() {
                     <tr key={advance.id}>
                       <td>
                         <strong>{advance.number}</strong>
+                        {advance.cancelledAt ? ' (cancelled)' : ''}
                       </td>
                       <td>
                         <Link
@@ -155,22 +156,22 @@ export default function AdvancesPage() {
                         {money(advance.unallocatedAmount)}
                       </td>
                       <td className={finance.actions}>
-                        <div className={finance.rowActions}>
+                        <RowActionsBar>
                           <PdfButton
                             path={`/documents/advances/${advance.id}.pdf`}
                             onError={setError}
                           >
                             Receipt
                           </PdfButton>
-                          {advance.allocatedAmount === 0 ? (
+                          {advance.allocatedAmount === 0 && !advance.cancelledAt ? (
                             <button
-                              className={`${styles.ghost} ${styles.danger}`}
-                              onClick={() => void onDelete(advance.id)}
+                              className={styles.ghost}
+                              onClick={() => void onCancel(advance.id)}
                             >
-                              Delete
+                              Cancel
                             </button>
                           ) : null}
-                        </div>
+                        </RowActionsBar>
                       </td>
                     </tr>
                   ))}

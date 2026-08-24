@@ -28,6 +28,12 @@ export type PdfLine = {
   imageUrl?: string | null;
 };
 
+export type CounterTopSectionPdf = {
+  productName: string;
+  amount: number;
+  items: Array<{ label: string; value: string }>;
+};
+
 export type QuotationPdfData = {
   company: PdfCompany;
   customer: PdfParty;
@@ -42,6 +48,17 @@ export type QuotationPdfData = {
   vatAmount: number;
   total: number;
   vatRate: number;
+  /** Counter Top layout — sections, contact block, and split lookup blocks. */
+  kind?: 'general' | 'counter_top';
+  contactName?: string | null;
+  contactPhone?: string | null;
+  location?: string | null;
+  discount?: number;
+  sections?: CounterTopSectionPdf[];
+  terms?: string | null;
+  bankDetails?: string | null;
+  /** General quotation — payment terms block (often split from terms lookup). */
+  paymentTerms?: string | null;
 };
 
 export type InvoicePdfData = {

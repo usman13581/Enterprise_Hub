@@ -77,7 +77,9 @@ export class LedgerService {
       this.prisma.advancePayment.findMany({ where: { companyId, customerId } }),
     ]);
 
-    const unallocated = advances.reduce(
+    const unallocated = advances
+      .filter((advance) => !advance.cancelledAt)
+      .reduce(
       (total, advance) =>
         total + Math.max(0, advance.amount - advance.allocatedAmount),
       0,
@@ -98,7 +100,9 @@ export class LedgerService {
       this.prisma.advancePayment.findMany({ where: { companyId } }),
     ]);
 
-    const unallocated = advances.reduce(
+    const unallocated = advances
+      .filter((advance) => !advance.cancelledAt)
+      .reduce(
       (total, advance) =>
         total + Math.max(0, advance.amount - advance.allocatedAmount),
       0,

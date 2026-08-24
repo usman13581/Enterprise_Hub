@@ -112,6 +112,7 @@ export function RecordRow({
   pdfPath,
   onPdfError,
   onPress,
+  onEdit,
   children,
 }: {
   title: string;
@@ -120,11 +121,13 @@ export function RecordRow({
   pdfPath?: string;
   onPdfError?: (message: string) => void;
   onPress?: () => void;
+  onEdit?: () => void;
   children?: React.ReactNode;
 }) {
   const body = (
     <>
       <View style={styles.rowMain}>
+        {onEdit ? <EditIconButton onPress={onEdit} /> : null}
         <View style={styles.rowBody}>
           <Text style={styles.rowTitle} numberOfLines={1}>
             {title}
@@ -157,8 +160,43 @@ export function RecordRow({
   return <View style={styles.row}>{body}</View>;
 }
 
+export function BackLink({
+  label,
+  onPress,
+}: {
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} hitSlop={8} style={styles.backLink}>
+      <Text style={styles.backLinkText}>{label}</Text>
+    </Pressable>
+  );
+}
+
 export function RowActions({ children }: { children: React.ReactNode }) {
   return <View style={styles.actions}>{children}</View>;
+}
+
+export function EditIconButton({
+  onPress,
+  label = 'Edit',
+}: {
+  onPress: () => void;
+  label?: string;
+}) {
+  return (
+    <Pressable
+      style={styles.editIcon}
+      onPress={onPress}
+      accessibilityLabel={label}
+      hitSlop={6}
+    >
+      <Text style={styles.editIconGlyph} accessibilityElementsHidden>
+        ✎
+      </Text>
+    </Pressable>
+  );
 }
 
 /** Slim text action for list footers — keeps rows short. */
@@ -372,11 +410,26 @@ const styles = StyleSheet.create({
   rowMain: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
+    gap: 8,
   },
   rowBody: {
     flex: 1,
     minWidth: 0,
+  },
+  editIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  editIconGlyph: {
+    color: colors.muted,
+    fontSize: 15,
+    lineHeight: 18,
   },
   rowTitle: {
     color: colors.ink,
@@ -396,13 +449,22 @@ const styles = StyleSheet.create({
   },
   rowFooter: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
     alignItems: 'center',
     gap: 14,
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.line,
+  },
+  backLink: {
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  backLinkText: {
+    color: colors.muted,
+    fontSize: 14,
+    fontWeight: '500',
   },
   link: {
     color: colors.muted,
@@ -417,7 +479,7 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
     gap: 8,
     marginTop: 12,
   },

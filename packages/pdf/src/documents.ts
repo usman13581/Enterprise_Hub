@@ -9,12 +9,22 @@ import { Document, Page, Text, View } from '@react-pdf/renderer';
 type PdfDocumentElement = ReactElement<ComponentProps<typeof Document>>;
 import { formatMoney } from '@marble/domain';
 import {
+  clientSignatureBlock,
   companyHeader,
+  compactSection,
+  counterTopIntro,
+  counterTopSectionBlock,
+  counterTopTotalsBlock,
   footer,
+  formatPdfDate,
+  generalIntro,
+  generalLineTable,
+  generalThankYouBlock,
   lineTable,
   partyBlock,
   section,
   signatureBlock,
+  splitQuotationTerms,
   text,
   totalsBlock,
 } from './elements';
@@ -28,25 +38,158 @@ import type {
 const el = createElement;
 
 function date(value?: string | null): string {
-  if (!value) return '—';
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime())
-    ? '—'
-    : parsed.toISOString().slice(0, 10);
+  return formatPdfDate(value);
 }
 
 function vatLabel(rate: number): string {
   return `VAT @ ${(rate * 100).toFixed(0)}%`;
 }
 
-const INVOICE_TITLE: Record<string, string> = {
-  progressive: 'Tax Invoice',
-  custom: 'Tax Invoice',
-  final: 'Tax Invoice',
-  credit_note: 'Credit Note',
-};
+function CounterTopQuotationDocument(
+  data: QuotationPdfData,
+): PdfDocumentElement {
+  const meta: Array<[string, string]> = [
+    ['Quotation Ref', data.number],
+    ['Date', date(data.createdAt)],
+  ];
+  if (data.validUntil) meta.push(['Valid until', date(data.validUntil)]);
+
+  const totalRows: Array<[string, number]> = [];
+  if ((data.discount ?? 0) > 0) {
+    totalRows.push(['Discount', data.discount ?? 0]);
+  }
+  totalRows.push(['Taxable Amount', data.subtotal]);
+  totalRows.push([vatLabel(data.vatRate), data.vatAmount]);
+
+  const termsBody = data.terms || data.bankDetails || null;
+
+  return el(
+    Document,
+    { title: `Quotation ${data.number}` },
+    el(
+      Page,
+      { size: 'A4', style: styles.page, wrap: true },
+      data.status === 'cancelled'
+        ? el(Text, { style: styles.watermark, fixed: true }, 'CANCELLED')
+        : null,
+      companyHeader(data.company, 'Quotation', data.number, meta),
+      counterTopIntro({
+        contactName: data.contactName,
+        contactPhone: data.contactPhone,
+        location: data.location,
+        customerName: data.customer.name,
+      }),
+      ...(data.sections ?? []).map((sectionRow, index) =>
+        counterTopSectionBlock(
+          sectionRow,
+          data.company.currency,
+          `sec${index}`,
+        ),
+      ),
+      data.notes
+        ? el(Text, { style: styles.ctNotes, wrap: true }, data.notes)
+        : null,
+      counterTopTotalsBlock(
+        totalRows,
+        ['Grand Total', data.total],
+        data.company.currency,
+      ),
+      termsBody
+        ? el(
+            View,
+            { key: 'terms-page', break: true },
+            compactSection('Terms & Conditions', termsBody, 'terms'),
+            el(
+              View,
+              { wrap: false },
+              signatureBlock(data.company),
+              clientSignatureBlock(),
+            ),
+          )
+        : el(
+            View,
+            { wrap: false },
+            signatureBlock(data.company),
+            clientSignatureBlock(),
+          ),
+      footer(data.company, 'This quotation is not a tax invoice'),
+    ),
+  );
+}
+
+function GeneralQuotationDocument(data: QuotationPdfData): PdfDocumentElement {
+  const meta: Array<[string, string]> = [
+    ['Quotation Ref', data.number],
+    ['Date', date(data.createdAt)],
+  ];
+  if (data.validUntil) meta.push(['Valid until', date(data.validUntil)]);
+
+  const termsSplit = data.terms
+    ? splitQuotationTerms(data.terms)
+    : { payment: null, conditions: null };
+  const paymentTerms = data.paymentTerms || termsSplit.payment;
+  const conditions = termsSplit.conditions;
+
+  const totalRows: Array<[string, number]> = [
+    ['Taxable Amount', data.subtotal],
+    ['Total without V.A.T.', data.subtotal],
+    [vatLabel(data.vatRate), data.vatAmount],
+  ];
+
+  return el(
+    Document,
+    { title: `Quotation ${data.number}` },
+    el(
+      Page,
+      { size: 'A4', style: styles.page, wrap: true },
+      data.status === 'cancelled'
+        ? el(Text, { style: styles.watermark, fixed: true }, 'CANCELLED')
+        : null,
+      companyHeader(data.company, 'Quotation', data.number, meta),
+      generalIntro({
+        customerName: data.customer.name,
+        contactPhone: data.contactPhone || data.customer.phone,
+        location: data.location || data.customer.address,
+        subject: data.title,
+      }),
+      generalLineTable(data.lines),
+      counterTopTotalsBlock(
+        totalRows,
+        ['Grand Total', data.total],
+        data.company.currency,
+      ),
+      paymentTerms
+        ? compactSection('Payment Terms', paymentTerms, 'pay')
+        : null,
+      data.notes ? compactSection('Notes', data.notes, 'notes') : null,
+      generalThankYouBlock(data.company),
+      el(
+        View,
+        { wrap: false },
+        signatureBlock(data.company),
+        clientSignatureBlock(),
+      ),
+      conditions
+        ? el(
+            View,
+            { key: 'terms-page', break: true },
+            compactSection('Terms and Conditions', conditions, 'terms'),
+          )
+        : null,
+      footer(data.company, 'This quotation is not a tax invoice'),
+    ),
+  );
+}
 
 export function QuotationDocument(data: QuotationPdfData): PdfDocumentElement {
+  if (data.kind === 'counter_top') {
+    return CounterTopQuotationDocument(data);
+  }
+
+  if (data.kind === 'general') {
+    return GeneralQuotationDocument(data);
+  }
+
   const meta: Array<[string, string]> = [
     ['Date', date(data.createdAt)],
     ['Valid until', date(data.validUntil)],
@@ -87,6 +230,13 @@ export function QuotationDocument(data: QuotationPdfData): PdfDocumentElement {
     ),
   );
 }
+
+const INVOICE_TITLE: Record<string, string> = {
+  progressive: 'Tax Invoice',
+  custom: 'Tax Invoice',
+  final: 'Tax Invoice',
+  credit_note: 'Credit Note',
+};
 
 export function InvoiceDocument(data: InvoicePdfData): PdfDocumentElement {
   const isCreditNote = data.kind === 'credit_note';

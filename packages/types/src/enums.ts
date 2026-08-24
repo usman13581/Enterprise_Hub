@@ -1,6 +1,53 @@
 export const QUOTATION_STATUSES = ['draft', 'approved', 'cancelled'] as const;
 export type QuotationStatus = (typeof QUOTATION_STATUSES)[number];
 
+/** UI / create-flow kinds. General is the existing line-item quotation. */
+export const QUOTATION_KINDS = ['general', 'counter_top'] as const;
+export type QuotationKind = (typeof QUOTATION_KINDS)[number];
+
+export const QUOTATION_KIND_LABELS: Record<QuotationKind, string> = {
+  general: 'General Quotation',
+  counter_top: 'Counter Top',
+};
+
+/** Reusable blocks attached to quotations (company-level lookups). */
+export const QUOTATION_LOOKUP_CATEGORIES = [
+  'terms',
+  'notes',
+  'bank',
+  /** Counter Top section row labels (Material, Fascia, …). */
+  'spec',
+] as const;
+export type QuotationLookupCategory =
+  (typeof QUOTATION_LOOKUP_CATEGORIES)[number];
+
+export const QUOTATION_LOOKUP_CATEGORY_LABELS: Record<
+  QuotationLookupCategory,
+  string
+> = {
+  terms: 'Terms & conditions',
+  notes: 'Notes',
+  bank: 'Bank / payment details',
+  spec: 'Spec items',
+};
+
+export const QUOTATION_LOOKUP_APPLIES_TO = [
+  'general',
+  'counter_top',
+  'both',
+] as const;
+export type QuotationLookupAppliesTo =
+  (typeof QUOTATION_LOOKUP_APPLIES_TO)[number];
+
+export const QUOTATION_LOOKUP_APPLIES_LABELS: Record<
+  QuotationLookupAppliesTo,
+  string
+> = {
+  general: 'General Quotation',
+  counter_top: 'Counter Top',
+  both: 'Both',
+};
+
 export const JOB_STATUSES = ['open', 'completed', 'closed'] as const;
 export type JobStatus = (typeof JOB_STATUSES)[number];
 

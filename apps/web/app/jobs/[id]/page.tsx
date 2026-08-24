@@ -9,9 +9,11 @@ import { useFlash, usePolledItem } from '@/lib/useCollection';
 import { Toast } from '@/components/ListControls';
 import {
   BalanceStat,
+  BackLink,
   EmptyState,
   LedgerTable,
   PdfButton,
+  RowActionsBar,
   Stat,
   StatusBadge,
   TableScroll,
@@ -39,9 +41,7 @@ export default function JobHubPage() {
   if (!item) {
     return (
       <section className={page.page}>
-        <Link className={finance.backLink} href="/jobs">
-          ← Jobs
-        </Link>
+        <BackLink href="/jobs">← Jobs</BackLink>
         <header className={page.header}>
           <h1 className={page.title}>Job</h1>
           {error ? (
@@ -86,9 +86,7 @@ export default function JobHubPage() {
 
   return (
     <section className={page.page}>
-      <Link className={finance.backLink} href="/jobs">
-        ← Jobs
-      </Link>
+      <BackLink href="/jobs">← Jobs</BackLink>
 
       <div className={finance.headerRow}>
         <header className={page.header}>
@@ -256,7 +254,7 @@ export default function JobHubPage() {
                       {money(invoice.netPayable)}
                     </td>
                     <td className={finance.actions}>
-                      <div className={finance.rowActions}>
+                      <RowActionsBar>
                         <PdfButton
                           path={`/documents/invoices/${invoice.id}.pdf`}
                           onError={setError}
@@ -269,7 +267,7 @@ export default function JobHubPage() {
                             Cancel
                           </button>
                         ) : null}
-                      </div>
+                      </RowActionsBar>
                     </td>
                   </tr>
                 ))}
@@ -312,14 +310,14 @@ export default function JobHubPage() {
                       {money(advance.unallocatedAmount)}
                     </td>
                     <td className={finance.actions}>
-                      <div className={finance.rowActions}>
+                      <RowActionsBar>
                         <PdfButton
                           path={`/documents/advances/${advance.id}.pdf`}
                           onError={setError}
                         >
                           Receipt
                         </PdfButton>
-                      </div>
+                      </RowActionsBar>
                     </td>
                   </tr>
                 ))}

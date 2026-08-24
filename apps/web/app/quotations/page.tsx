@@ -1,8 +1,15 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { FormEvent, useMemo, useState } from 'react';
-import { apiDelete, apiPost, apiPut } from '@/lib/api';
+import {
+  QUOTATION_KIND_LABELS,
+  QUOTATION_LOOKUP_CATEGORY_LABELS,
+  type QuotationKind,
+  type QuotationLookupCategory,
+} from '@marble/types';
+import { apiPost, apiPut } from '@/lib/api';
 import { day, money } from '@/lib/format';
 import {
   searchItems,
@@ -14,8 +21,9 @@ import { Pagination, SearchBox, Toast } from '@/components/ListControls';
 import {
   EmptyState,
   FilterBar,
+  EditIconButton,
   PdfButton,
-  StatusBadge,
+  RowActionsBar,
   TableScroll,
 } from '@/components/Finance';
 import {
@@ -24,12 +32,18 @@ import {
   quotationLinePayload,
   type QuotationLineDraft,
 } from '@/components/LineEditor';
+import {
+  LookupAttachPicker,
+  QuotationLookupsPanel,
+} from '@/components/QuotationLookups';
 import type { Customer, Product, Quotation } from '@/lib/types';
 import page from '../page.module.css';
 import styles from '@/components/crud.module.css';
 import finance from '@/components/finance.module.css';
 
 type Filter = 'all' | 'draft' | 'approved' | 'cancelled';
+type CreateStep = 'list' | 'pick-kind' | 'general-form';
+type PageTab = 'quotations' | QuotationLookupCategory;
 
 type Draft = {
   customerId: string;
@@ -37,6 +51,7 @@ type Draft = {
   notes: string;
   validUntil: string;
   lines: QuotationLineDraft[];
+  lookupIds: string[];
 };
 
 const EMPTY: Draft = {
@@ -45,9 +60,11 @@ const EMPTY: Draft = {
   notes: '',
   validUntil: '',
   lines: [{ ...EMPTY_QUOTATION_LINE }],
+  lookupIds: [],
 };
 
 export default function QuotationsPage() {
+  const router = useRouter();
   const { items, error, setError, reload } =
     usePolledList<Quotation>('/quotations');
   const { items: customers } = usePolledList<Customer>('/customers', 20000);
@@ -58,7 +75,9 @@ export default function QuotationsPage() {
   const [query, setQuery] = useState('');
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
+  const [step, setStep] = useState<CreateStep>('list');
+  const [kind, setKind] = useState<QuotationKind>('general');
+  const [pageTab, setPageTab] = useState<PageTab>('quotations');
   const [saving, setSaving] = useState(false);
 
   const filtered = useMemo(() => {
@@ -69,12 +88,25 @@ export default function QuotationsPage() {
   const pager = usePagination(filtered);
 
   function startCreate() {
-    setDraft({ ...EMPTY, lines: [{ ...EMPTY_QUOTATION_LINE }] });
     setEditingId(null);
-    setShowForm(true);
+    setKind('general');
+    setStep('pick-kind');
+  }
+
+  function continueWithKind() {
+    if (kind === 'counter_top') {
+      router.push('/quotations/counter-top');
+      return;
+    }
+    setDraft({ ...EMPTY, lines: [{ ...EMPTY_QUOTATION_LINE }], lookupIds: [] });
+    setStep('general-form');
   }
 
   function startEdit(quotation: Quotation) {
+    if (quotation.kind === 'counter_top') {
+      router.push(`/quotations/counter-top?edit=${quotation.id}`);
+      return;
+    }
     setDraft({
       customerId: quotation.customerId,
       title: quotation.title ?? '',
@@ -88,9 +120,10 @@ export default function QuotationsPage() {
         purchasePrice: String(line.purchasePrice),
         sellPrice: String(line.sellPrice),
       })),
+      lookupIds: (quotation.lookups ?? []).map((lookup) => lookup.id),
     });
     setEditingId(quotation.id);
-    setShowForm(true);
+    setStep('general-form');
   }
 
   async function onSubmit(event: FormEvent) {
@@ -104,17 +137,21 @@ export default function QuotationsPage() {
     setSaving(true);
     const wasEditing = Boolean(editingId);
     const payload = {
+      kind: 'general' as const,
       customerId: draft.customerId,
       title: draft.title,
       notes: draft.notes,
       validUntil: draft.validUntil || null,
+      discount: 0,
+      lookupIds: draft.lookupIds,
       lines: quotationLinePayload(draft.lines),
+      sections: [],
     };
 
     try {
       if (editingId) await apiPut(`/quotations/${editingId}`, payload);
       else await apiPost('/quotations', payload);
-      setShowForm(false);
+      setStep('list');
       setEditingId(null);
       await reload();
       notify(wasEditing ? 'Quotation saved' : 'Quotation created');
@@ -139,30 +176,81 @@ export default function QuotationsPage() {
     }
   }
 
-  async function onDelete(id: string) {
-    try {
-      await apiDelete(`/quotations/${id}`);
-      await reload();
-      notify('Quotation deleted', 'danger');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Delete failed');
-    }
-  }
-
   return (
     <section className={page.page}>
       <h1 className={page.title}>Quotations</h1>
       <p className={page.lede}>
-        Quote a customer with per-line purchase and sell prices. Approving a
-        quotation opens the job; cancelling leaves no job behind.
+        Quote a customer with per-line purchase and sell prices, or build a
+        Counter Top quotation. Approving opens the job.
       </p>
 
-      {error ? <p className={styles.error}>{error}</p> : null}
+      <FilterBar
+        active={pageTab}
+        onChange={(key) => {
+          setPageTab(key);
+          setStep('list');
+        }}
+        options={[
+          { key: 'quotations', label: 'Quotations' },
+          { key: 'terms', label: QUOTATION_LOOKUP_CATEGORY_LABELS.terms },
+          { key: 'notes', label: QUOTATION_LOOKUP_CATEGORY_LABELS.notes },
+          { key: 'bank', label: QUOTATION_LOOKUP_CATEGORY_LABELS.bank },
+          { key: 'spec', label: QUOTATION_LOOKUP_CATEGORY_LABELS.spec },
+        ]}
+      />
 
-      {showForm ? (
+      {pageTab !== 'quotations' ? (
+        <QuotationLookupsPanel category={pageTab} />
+      ) : null}
+
+      {pageTab === 'quotations' && error ? (
+        <p className={styles.error}>{error}</p>
+      ) : null}
+
+      {pageTab === 'quotations' && step === 'pick-kind' ? (
+        <div className={styles.form}>
+          <p className={styles.formTitle}>New quotation</p>
+          <p className={page.lede} style={{ marginTop: 0 }}>
+            Choose the quotation type to continue.
+          </p>
+          <div className={styles.field}>
+            <label className={styles.label}>Quotation type</label>
+            <select
+              className={styles.select}
+              value={kind}
+              onChange={(e) => setKind(e.target.value as QuotationKind)}
+            >
+              <option value="general">{QUOTATION_KIND_LABELS.general}</option>
+              <option value="counter_top">
+                {QUOTATION_KIND_LABELS.counter_top}
+              </option>
+            </select>
+          </div>
+          <div className={styles.actions}>
+            <button
+              className={styles.button}
+              type="button"
+              onClick={continueWithKind}
+            >
+              Continue
+            </button>
+            <button
+              className={styles.ghost}
+              type="button"
+              onClick={() => setStep('list')}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {pageTab === 'quotations' && step === 'general-form' ? (
         <form className={styles.form} onSubmit={onSubmit}>
           <p className={styles.formTitle}>
-            {editingId ? 'Edit quotation' : 'New quotation'}
+            {editingId
+              ? 'Edit quotation'
+              : QUOTATION_KIND_LABELS.general}
           </p>
           <div className={styles.grid}>
             <div className={styles.field}>
@@ -220,6 +308,15 @@ export default function QuotationsPage() {
             />
           </div>
 
+          <div style={{ marginTop: '1rem' }}>
+            <p className={styles.formTitle}>Attach lookups</p>
+            <LookupAttachPicker
+              kind="general"
+              selectedIds={draft.lookupIds}
+              onChange={(lookupIds) => setDraft({ ...draft, lookupIds })}
+            />
+          </div>
+
           <div className={styles.actions}>
             <button className={styles.button} type="submit" disabled={saving}>
               {saving ? 'Saving…' : editingId ? 'Save changes' : 'Create'}
@@ -227,13 +324,15 @@ export default function QuotationsPage() {
             <button
               className={styles.ghost}
               type="button"
-              onClick={() => setShowForm(false)}
+              onClick={() => setStep(editingId ? 'list' : 'pick-kind')}
             >
               Cancel
             </button>
           </div>
         </form>
-      ) : (
+      ) : null}
+
+      {pageTab === 'quotations' && step === 'list' ? (
         <>
           <div className={styles.toolbar}>
             <span className={styles.count}>{items.length} quotations</span>
@@ -279,12 +378,12 @@ export default function QuotationsPage() {
               <table className={finance.table}>
                 <thead>
                   <tr>
+                    <th className={finance.rowLead} aria-label="Edit" />
                     <th>Number</th>
                     <th>Customer</th>
+                    <th>Type</th>
                     <th>Subject</th>
-                    <th>Status</th>
                     <th className={finance.numeric}>Total</th>
-                    <th className={finance.numeric}>Margin</th>
                     <th>Job</th>
                     <th className={finance.actions} aria-label="Actions" />
                   </tr>
@@ -292,6 +391,14 @@ export default function QuotationsPage() {
                 <tbody>
                   {pager.paged.map((quotation) => (
                     <tr key={quotation.id}>
+                      <td className={finance.rowLead}>
+                        {quotation.status === 'draft' ? (
+                          <EditIconButton
+                            label="Edit quotation"
+                            onClick={() => startEdit(quotation)}
+                          />
+                        ) : null}
+                      </td>
                       <td>
                         <strong>{quotation.number}</strong>
                         <div className={styles.cardMeta}>
@@ -299,15 +406,16 @@ export default function QuotationsPage() {
                         </div>
                       </td>
                       <td>{quotation.customer?.name ?? '—'}</td>
-                      <td>{quotation.title ?? '—'}</td>
                       <td>
-                        <StatusBadge status={quotation.status} />
+                        {QUOTATION_KIND_LABELS[
+                          quotation.kind === 'counter_top'
+                            ? 'counter_top'
+                            : 'general'
+                        ] ?? 'General'}
                       </td>
+                      <td>{quotation.title ?? '—'}</td>
                       <td className={finance.numeric}>
                         {money(quotation.total)}
-                      </td>
-                      <td className={finance.numeric}>
-                        {money(quotation.profit)}
                       </td>
                       <td>
                         {quotation.job ? (
@@ -322,19 +430,13 @@ export default function QuotationsPage() {
                         )}
                       </td>
                       <td className={finance.actions}>
-                        <div className={finance.rowActions}>
+                        <RowActionsBar>
                           <PdfButton
                             path={`/documents/quotations/${quotation.id}.pdf`}
                             onError={setError}
                           />
                           {quotation.status === 'draft' ? (
                             <>
-                              <button
-                                className={styles.ghost}
-                                onClick={() => startEdit(quotation)}
-                              >
-                                Edit
-                              </button>
                               <button
                                 className={styles.button}
                                 onClick={() =>
@@ -359,15 +461,9 @@ export default function QuotationsPage() {
                               >
                                 Cancel
                               </button>
-                              <button
-                                className={`${styles.ghost} ${styles.danger}`}
-                                onClick={() => void onDelete(quotation.id)}
-                              >
-                                Delete
-                              </button>
                             </>
                           ) : null}
-                        </div>
+                        </RowActionsBar>
                       </td>
                     </tr>
                   ))}
@@ -385,7 +481,7 @@ export default function QuotationsPage() {
             total={pager.total}
           />
         </>
-      )}
+      ) : null}
 
       <Toast flash={flash} />
     </section>

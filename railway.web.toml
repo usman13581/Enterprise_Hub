@@ -1,0 +1,10 @@
+# Railway config for the Next.js web service.
+# In Railway: Service → Settings → Config file path → railway.web.toml
+
+[build]
+builder = "NIXPACKS"
+buildCommand = "pnpm install && pnpm railway:build:web"
+
+[deploy]
+startCommand = "pnpm railway:start:web"
+restartPolicyType = "ON_FAILURE"

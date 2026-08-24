@@ -37,7 +37,9 @@ export class AdvancesService {
     });
     return advances.map((advance) => ({
       ...advance,
-      unallocatedAmount: unallocatedAmount(advance),
+      unallocatedAmount: advance.cancelledAt
+        ? 0
+        : unallocatedAmount(advance),
     }));
   }
 
@@ -54,7 +56,10 @@ export class AdvancesService {
       },
     });
     if (!advance) throw new NotFoundException('Advance not found');
-    return { ...advance, unallocatedAmount: unallocatedAmount(advance) };
+    return {
+      ...advance,
+      unallocatedAmount: advance.cancelledAt ? 0 : unallocatedAmount(advance),
+    };
   }
 
   /**
@@ -194,23 +199,39 @@ export class AdvancesService {
     return { ...advance, unallocatedAmount: unallocatedAmount(advance) };
   }
 
-  async remove(session: SessionContext, id: string) {
+  async cancel(session: SessionContext, id: string) {
     const before = await this.prisma.advancePayment.findFirst({
       where: { id, companyId: session.companyId },
       include: { allocations: true },
     });
     if (!before) throw new NotFoundException('Advance not found');
+    if (before.cancelledAt) {
+      throw new ConflictException('This advance is already cancelled');
+    }
     if (before.allocations.length > 0) {
       throw new ConflictException(
-        'This advance is applied to an invoice and cannot be deleted',
+        'This advance is applied to an invoice and cannot be cancelled',
       );
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      // Ledger rows point at the advance with onDelete: SetNull, so they have to
-      // go explicitly or an orphaned credit would keep reducing the balance due.
-      await tx.ledgerEntry.deleteMany({ where: { advanceId: id } });
-      await tx.advancePayment.delete({ where: { id } });
+    const advance = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.advancePayment.update({
+        where: { id },
+        data: { cancelledAt: new Date() },
+        include: INCLUDE,
+      });
+
+      await this.ledger.record(tx, {
+        companyId: session.companyId,
+        customerId: updated.customerId,
+        jobId: updated.jobId,
+        advanceId: updated.id,
+        entryType: 'advance_refunded',
+        amount: updated.amount,
+        memo: `Cancelled advance ${updated.number}`,
+      });
+
+      return updated;
     });
 
     await this.audit.write({
@@ -218,11 +239,16 @@ export class AdvancesService {
       actorId: session.userId,
       entityType: 'AdvancePayment',
       entityId: id,
-      action: 'delete',
+      action: 'cancel',
       before,
+      after: advance,
     });
 
-    return { ok: true };
+    return { ...advance, unallocatedAmount: 0 };
+  }
+
+  async remove(session: SessionContext, id: string) {
+    return this.cancel(session, id);
   }
 
   private async assertCustomer(companyId: string, customerId: string) {

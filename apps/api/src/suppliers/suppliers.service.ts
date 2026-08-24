@@ -109,15 +109,19 @@ export class SuppliersService {
     });
     if (!before) throw new NotFoundException('Supplier not found');
 
-    await this.prisma.supplier.delete({ where: { id } });
+    const supplier = await this.prisma.supplier.update({
+      where: { id },
+      data: { active: false },
+    });
 
     await this.audit.write({
       companyId: session.companyId,
       actorId: session.userId,
       entityType: 'Supplier',
       entityId: id,
-      action: 'delete',
+      action: 'deactivate',
       before,
+      after: supplier,
     });
 
     return { ok: true };

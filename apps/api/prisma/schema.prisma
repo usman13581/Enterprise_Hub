@@ -2,9 +2,8 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Local Phase 0: SQLite. Switch provider to "postgresql" when Docker Postgres is available.
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -26,6 +25,7 @@ model Company {
   invoices   Invoice[]
   advances   AdvancePayment[]
   ledger     LedgerEntry[]
+  quotationLookups QuotationLookup[]
 }
 
 model CompanyProfile {
@@ -111,6 +111,7 @@ model Product {
   supplier       Supplier?       @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   images         ProductImage[]
   quotationLines QuotationLine[]
+  quotationSections QuotationSection[]
 
   @@index([companyId, name])
   @@index([companyId, updatedAt])
@@ -162,10 +163,17 @@ model Quotation {
   companyId     String
   customerId    String
   number        String
+  /// general | counter_top
+  kind          String    @default("general")
   status        String    @default("draft")
   title         String?
   notes         String?
+  contactName   String?
+  contactPhone  String?
+  location      String?
   validUntil    DateTime?
+  /// Quote-level discount (mainly Counter Top); applied before VAT.
+  discount      Float     @default(0)
   // Totals are denormalised so list screens and ledgers never re-derive money
   // from lines that a later product re-pricing could have changed.
   subtotal      Float     @default(0)
@@ -178,13 +186,16 @@ model Quotation {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  company  Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customer Customer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  lines    QuotationLine[]
-  job      Job?
+  company     Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer    Customer               @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  lines       QuotationLine[]
+  sections    QuotationSection[]
+  lookupLinks QuotationLookupLink[]
+  job         Job?
 
   @@unique([companyId, number])
   @@index([companyId, status])
+  @@index([companyId, kind])
   @@index([companyId, customerId])
   @@index([companyId, updatedAt])
 }
@@ -206,6 +217,71 @@ model QuotationLine {
   product   Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@index([quotationId])
+}
+
+/// One vanity / counter block on a Counter Top quotation.
+model QuotationSection {
+  id          String @id @default(cuid())
+  quotationId String
+  productId   String?
+  /// Catalog name or free-text product label shown at the top of the section.
+  productName String
+  amount      Float  @default(0)
+  sortOrder   Int    @default(0)
+
+  quotation Quotation              @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  product   Product?               @relation(fields: [productId], references: [id], onDelete: SetNull)
+  items     QuotationSectionItem[]
+
+  @@index([quotationId])
+}
+
+/// Flexible label/value rows inside a Counter Top section (count varies).
+model QuotationSectionItem {
+  id        String @id @default(cuid())
+  sectionId String
+  label     String
+  value     String @default("")
+  /// Line amount for internal costing; summed into section.amount (not shown on PDF).
+  amount    Float  @default(0)
+  sortOrder Int    @default(0)
+
+  section QuotationSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@index([sectionId])
+}
+
+/// Company library of reusable T&Cs / notes / bank blocks for quotations.
+model QuotationLookup {
+  id        String   @id @default(cuid())
+  companyId String
+  /// terms | notes | bank
+  category  String
+  /// general | counter_top | both
+  appliesTo String   @default("both")
+  title     String
+  body      String
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  links   QuotationLookupLink[]
+
+  @@index([companyId, category])
+  @@index([companyId, appliesTo])
+}
+
+model QuotationLookupLink {
+  quotationId String
+  lookupId    String
+
+  quotation Quotation       @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  lookup    QuotationLookup @relation(fields: [lookupId], references: [id], onDelete: Cascade)
+
+  @@id([quotationId, lookupId])
+  @@index([lookupId])
 }
 
 model Job {
@@ -313,6 +389,7 @@ model AdvancePayment {
   reference       String?
   receivedAt      DateTime @default(now())
   notes           String?
+  cancelledAt     DateTime?
   version         Int      @default(1)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

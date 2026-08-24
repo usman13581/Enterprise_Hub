@@ -41,6 +41,7 @@ export class SyncService {
       productImages,
       customers,
       quotations,
+      quotationLookups,
       jobs,
       invoices,
       advances,
@@ -86,7 +87,21 @@ export class SyncService {
           companyId,
           ...(since ? { updatedAt: { gt: since } } : {}),
         },
-        include: { lines: { orderBy: { sortOrder: 'asc' } } },
+        include: {
+          lines: { orderBy: { sortOrder: 'asc' } },
+          sections: {
+            orderBy: { sortOrder: 'asc' },
+            include: { items: { orderBy: { sortOrder: 'asc' } } },
+          },
+          lookupLinks: { include: { lookup: true } },
+        },
+        orderBy: { updatedAt: 'asc' },
+      }),
+      this.prisma.quotationLookup.findMany({
+        where: {
+          companyId,
+          ...(since ? { updatedAt: { gt: since } } : {}),
+        },
         orderBy: { updatedAt: 'asc' },
       }),
       this.prisma.job.findMany({
@@ -143,6 +158,7 @@ export class SyncService {
         productImages,
         customers,
         quotations,
+        quotationLookups,
         jobs,
         invoices,
         advances,
@@ -223,15 +239,18 @@ export class SyncService {
           where: { id: mutation.id, companyId },
         });
         if (!existing) return { ...base, decision: 'applied' };
-        await this.prisma.supplier.delete({ where: { id: existing.id } });
+        const after = await this.prisma.supplier.update({
+          where: { id: existing.id },
+          data: { active: false },
+        });
         await this.audit.write({
           companyId,
           actorId: session.userId,
           entityType: 'supplier',
           entityId: existing.id,
-          action: 'sync_delete',
+          action: 'sync_deactivate',
           before: existing,
-          after: null,
+          after,
         });
         return { ...base, decision: 'applied' };
       }
@@ -240,15 +259,18 @@ export class SyncService {
           where: { id: mutation.id, companyId },
         });
         if (!existing) return { ...base, decision: 'applied' };
-        await this.prisma.customer.delete({ where: { id: existing.id } });
+        const after = await this.prisma.customer.update({
+          where: { id: existing.id },
+          data: { active: false },
+        });
         await this.audit.write({
           companyId,
           actorId: session.userId,
           entityType: 'customer',
           entityId: existing.id,
-          action: 'sync_delete',
+          action: 'sync_deactivate',
           before: existing,
-          after: null,
+          after,
         });
         return { ...base, decision: 'applied' };
       }
@@ -257,25 +279,27 @@ export class SyncService {
           where: { id: mutation.id, companyId },
         });
         if (!existing) return { ...base, decision: 'applied' };
-        await this.prisma.product.delete({ where: { id: existing.id } });
+        const after = await this.prisma.product.update({
+          where: { id: existing.id },
+          data: { active: false },
+        });
         await this.audit.write({
           companyId,
           actorId: session.userId,
           entityType: 'product',
           entityId: existing.id,
-          action: 'sync_delete',
+          action: 'sync_deactivate',
           before: existing,
-          after: null,
+          after,
         });
         return { ...base, decision: 'applied' };
       }
       case 'productImage': {
-        const existing = await this.prisma.productImage.findFirst({
-          where: { id: mutation.id, product: { companyId } },
-        });
-        if (!existing) return { ...base, decision: 'applied' };
-        await this.prisma.productImage.delete({ where: { id: existing.id } });
-        return { ...base, decision: 'applied' };
+        return {
+          ...base,
+          decision: 'reject_server_wins',
+          message: 'Product images cannot be removed',
+        };
       }
       case 'quotation': {
         const existing = await this.prisma.quotation.findFirst({
@@ -286,11 +310,14 @@ export class SyncService {
           return {
             ...base,
             decision: 'reject_server_wins',
-            message: 'Only draft quotations can be deleted offline',
+            message: 'Only draft quotations can be cancelled offline',
             record: existing,
           };
         }
-        await this.prisma.quotation.delete({ where: { id: existing.id } });
+        await this.prisma.quotation.update({
+          where: { id: existing.id },
+          data: { status: 'cancelled', cancelledAt: new Date() },
+        });
         return { ...base, decision: 'applied' };
       }
       default:

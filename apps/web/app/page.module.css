@@ -33,8 +33,14 @@
 }
 
 .page > .header,
+.page > .backNav,
 .page > :not(.title):not(.lede) {
   grid-column: 1 / -1;
+}
+
+.backNav {
+  justify-self: start;
+  margin-bottom: 0.15rem;
 }
 
 /** Explicit one-line header (detail pages, ModulePage). */

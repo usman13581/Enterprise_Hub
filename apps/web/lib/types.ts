@@ -25,7 +25,10 @@ export type {
   Product,
   ProductImage,
   Quotation,
+  QuotationKind,
   QuotationLine,
+  QuotationLookup,
+  QuotationSection,
   QuotationStatus,
   Supplier,
 } from '@marble/types';

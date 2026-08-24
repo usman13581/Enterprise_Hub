@@ -48,6 +48,36 @@ export function computeQuotationTotals(
   };
 }
 
+/** Counter Top: sum section amounts, subtract discount, then VAT. */
+export function computeCounterTopTotals(
+  sectionAmounts: number[],
+  discount = 0,
+  vatRate = UAE_VAT_RATE,
+): Omit<QuotationTotals, 'lineTotals'> & { discount: number } {
+  const grossFils = sumFils(sectionAmounts.map((amount) => toFils(amount)));
+  const discountFils = Math.min(Math.max(0, toFils(discount)), grossFils);
+  const subtotalFils = grossFils - discountFils;
+  const vatFils = vatOnFils(subtotalFils, vatRate);
+
+  return {
+    discount: fromFils(discountFils),
+    subtotal: fromFils(subtotalFils),
+    vatAmount: fromFils(vatFils),
+    total: fromFils(subtotalFils + vatFils),
+    purchaseTotal: 0,
+    profit: fromFils(subtotalFils),
+  };
+}
+
+/** Item line amounts drive the section total when any are set. */
+export function resolveCounterTopSectionAmount(
+  items: Array<{ amount?: number }>,
+  storedSectionAmount = 0,
+): number {
+  const itemSum = items.reduce((sum, item) => sum + (item.amount ?? 0), 0);
+  return itemSum > 0 ? itemSum : storedSectionAmount;
+}
+
 export type InvoiceLineLike = {
   qty: number;
   unitPrice: number;

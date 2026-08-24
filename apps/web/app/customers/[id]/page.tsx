@@ -8,9 +8,11 @@ import { useFlash, usePolledItem } from '@/lib/useCollection';
 import { Toast } from '@/components/ListControls';
 import {
   BalanceStat,
+  BackLink,
   EmptyState,
   LedgerTable,
   PdfButton,
+  RowActionsBar,
   Stat,
   StatusBadge,
   TableScroll,
@@ -37,9 +39,7 @@ export default function CustomerHubPage() {
   if (!item) {
     return (
       <section className={page.page}>
-        <Link className={finance.backLink} href="/customers">
-          ← Customers
-        </Link>
+        <BackLink href="/customers">← Customers</BackLink>
         <header className={page.header}>
           <h1 className={page.title}>Customer</h1>
           {error ? (
@@ -57,9 +57,7 @@ export default function CustomerHubPage() {
 
   return (
     <section className={page.page}>
-      <Link className={finance.backLink} href="/customers">
-        ← Customers
-      </Link>
+      <BackLink href="/customers">← Customers</BackLink>
 
       <div className={finance.headerRow}>
         <header className={page.header}>
@@ -254,12 +252,12 @@ export default function CustomerHubPage() {
                       )}
                     </td>
                     <td className={finance.actions}>
-                      <div className={finance.rowActions}>
+                      <RowActionsBar>
                         <PdfButton
                           path={`/documents/quotations/${quotation.id}.pdf`}
                           onError={setError}
                         />
-                      </div>
+                      </RowActionsBar>
                     </td>
                   </tr>
                 ))}
@@ -315,12 +313,12 @@ export default function CustomerHubPage() {
                       {money(invoice.netPayable)}
                     </td>
                     <td className={finance.actions}>
-                      <div className={finance.rowActions}>
+                      <RowActionsBar>
                         <PdfButton
                           path={`/documents/invoices/${invoice.id}.pdf`}
                           onError={setError}
                         />
-                      </div>
+                      </RowActionsBar>
                     </td>
                   </tr>
                 ))}
@@ -372,14 +370,14 @@ export default function CustomerHubPage() {
                       {money(advance.unallocatedAmount)}
                     </td>
                     <td className={finance.actions}>
-                      <div className={finance.rowActions}>
+                      <RowActionsBar>
                         <PdfButton
                           path={`/documents/advances/${advance.id}.pdf`}
                           onError={setError}
                         >
                           Receipt
                         </PdfButton>
-                      </div>
+                      </RowActionsBar>
                     </td>
                   </tr>
                 ))}

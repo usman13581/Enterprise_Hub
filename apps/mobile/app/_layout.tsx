@@ -54,6 +54,10 @@ export default function RootLayout() {
         <Stack.Screen name="module/suppliers" options={{ title: 'Suppliers' }} />
         <Stack.Screen name="module/products" options={{ title: 'Products' }} />
         <Stack.Screen name="module/quotations" options={{ title: 'Quotations' }} />
+        <Stack.Screen
+          name="module/quotations-counter-top"
+          options={{ title: 'Counter Top' }}
+        />
         <Stack.Screen name="module/jobs" options={{ title: 'Jobs' }} />
         <Stack.Screen name="module/invoices" options={{ title: 'Invoices' }} />
         <Stack.Screen name="module/advances" options={{ title: 'Advances' }} />

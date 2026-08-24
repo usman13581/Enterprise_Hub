@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { SessionContext } from '../auth/session.types';
@@ -133,15 +133,20 @@ export class ProductsService {
     });
     if (!before) throw new NotFoundException('Product not found');
 
-    await this.prisma.product.delete({ where: { id } });
+    const product = await this.prisma.product.update({
+      where: { id },
+      data: { active: false },
+      include: withImages,
+    });
 
     await this.audit.write({
       companyId: session.companyId,
       actorId: session.userId,
       entityType: 'Product',
       entityId: id,
-      action: 'delete',
+      action: 'deactivate',
       before,
+      after: product,
     });
 
     return { ok: true };
@@ -213,36 +218,8 @@ export class ProductsService {
     productId: string,
     imageId: string,
   ) {
-    const product = await this.prisma.product.findFirst({
-      where: { id: productId, companyId: session.companyId },
-      include: { images: true },
-    });
-    if (!product) throw new NotFoundException('Product not found');
-
-    const target = product.images.find((i) => i.id === imageId);
-    if (!target) throw new NotFoundException('Image not found');
-
-    await this.prisma.productImage.delete({ where: { id: imageId } });
-
-    if (target.isDefault) {
-      const next = product.images.find((i) => i.id !== imageId);
-      if (next) {
-        await this.prisma.productImage.update({
-          where: { id: next.id },
-          data: { isDefault: true },
-        });
-      }
-    }
-
-    await this.audit.write({
-      companyId: session.companyId,
-      actorId: session.userId,
-      entityType: 'ProductImage',
-      entityId: imageId,
-      action: 'delete',
-      before: target,
-    });
-
-    return this.get(session.companyId, productId);
+    throw new ConflictException(
+      'Product images cannot be removed. Set another image as default instead.',
+    );
   }
 }

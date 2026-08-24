@@ -213,3 +213,253 @@ export function footer(company: PdfCompany, extra?: string): ReactElement {
   ].filter(Boolean);
   return el(Text, { style: styles.footer, fixed: true }, parts.join('   ·   '));
 }
+
+function formatPdfDate(value?: string | null): string {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '—';
+  const day = String(parsed.getUTCDate()).padStart(2, '0');
+  const month = parsed
+    .toLocaleString('en-GB', { month: 'short', timeZone: 'UTC' })
+    .toUpperCase();
+  const year = parsed.getUTCFullYear();
+  return `${day}-${month}-${year}`;
+}
+
+export function counterTopIntro(
+  data: {
+    contactName?: string | null;
+    contactPhone?: string | null;
+    location?: string | null;
+    customerName: string;
+  },
+): ReactElement {
+  const addressee = data.contactName?.trim() || data.customerName;
+  return el(
+    View,
+    { style: styles.ctIntro },
+    text(styles.ctIntroLine, `To ${addressee}`, 'to'),
+    data.contactPhone
+      ? text(styles.ctIntroLine, `Contact ${data.contactPhone}`, 'phone')
+      : null,
+    data.location
+      ? text(styles.ctIntroLine, `Location ${data.location}`, 'loc')
+      : null,
+    text(styles.ctIntroLine, 'Dear Sir/Madam,', 'salutation'),
+    text(
+      styles.bodyText,
+      'With reference to your enquiry, we are pleased to offer our best prices for the following items as listed below.',
+      'intro',
+    ),
+  );
+}
+
+function formatSectionAmount(amount: number): string {
+  return amount.toLocaleString('en-AE', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+export function counterTopSectionBlock(
+  section: {
+    productName: string;
+    amount: number;
+    items: Array<{ label: string; value: string }>;
+  },
+  currency: string,
+  key: string,
+): ReactElement {
+  const specRows = section.items
+    .filter((item) => item.label.trim())
+    .map((item, index) =>
+      el(
+        View,
+        { style: styles.ctSpecRow, key: `${key}-i${index}`, wrap: false },
+        text(styles.ctSpecLabelText, item.label, `${key}-l${index}`),
+        text(
+          styles.ctSpecValueText,
+          item.value || '—',
+          `${key}-v${index}`,
+        ),
+      ),
+    );
+
+  return el(
+    View,
+    { style: styles.ctSection, key, wrap: false },
+    text(styles.ctSectionTitle, section.productName.toUpperCase(), `${key}-t`),
+    ...specRows,
+    el(
+      View,
+      { style: styles.ctAmountRow, key: `${key}-amt`, wrap: false },
+      text(
+        [styles.ctSpecLabelText, styles.ctAmountText],
+        'Amount (AED)',
+        `${key}-al`,
+      ),
+      text(
+        [styles.ctSpecValueText, styles.ctAmountText, styles.ctAmountNumber],
+        formatSectionAmount(section.amount),
+        `${key}-av`,
+      ),
+    ),
+  );
+}
+
+export function counterTopTotalsBlock(
+  rows: Array<[string, number]>,
+  grand: [string, number],
+  currency: string,
+): ReactElement {
+  return el(
+    View,
+    { style: styles.ctTotalsWrap, wrap: false },
+    el(
+      View,
+      { style: styles.ctTotalsBox },
+      ...rows.map(([label, value], index) =>
+        el(
+          View,
+          { style: styles.totalRow, key: `ctr${index}` },
+          text(styles.totalLabel, label, `ctrl${index}`),
+          text(styles.totalValue, formatMoney(value, currency), `ctrv${index}`),
+        ),
+      ),
+      el(
+        View,
+        { style: styles.grandRow, key: 'ctgrand' },
+        text(styles.grandLabel, grand[0], 'ctgl'),
+        text(styles.grandValue, formatMoney(grand[1], currency), 'ctgv'),
+      ),
+    ),
+  );
+}
+
+export function compactSection(
+  title: string,
+  body: string,
+  key: string,
+): ReactElement {
+  const normalized = body.replace(/●/g, '- ').replace(/•/g, '- ');
+  return el(
+    View,
+    { style: styles.ctCompactSection, key },
+    text(styles.sectionTitle, title.toUpperCase(), `${key}-t`),
+    text(styles.ctTermsBody, normalized, `${key}-b`),
+  );
+}
+
+export function clientSignatureBlock(): ReactElement {
+  return el(
+    View,
+    { style: { marginTop: 12 }, wrap: false },
+    text(styles.ctClientSig, 'Client:_______________________', 'cs1'),
+    text(styles.ctClientSig, 'Name:_______________________', 'cs2'),
+    text(styles.ctClientSig, 'Date:_______________________', 'cs3'),
+  );
+}
+
+export function generalIntro(data: {
+  customerName: string;
+  contactPhone?: string | null;
+  location?: string | null;
+  subject?: string | null;
+}): ReactElement {
+  return el(
+    View,
+    { style: styles.genIntro },
+    text(styles.genIntroLine, `Customer: ${data.customerName}`, 'cust'),
+    data.contactPhone
+      ? text(styles.genIntroLine, `Contact No: ${data.contactPhone}`, 'phone')
+      : null,
+    data.location
+      ? text(styles.genIntroLine, `Location: ${data.location}`, 'loc')
+      : null,
+    data.subject?.trim()
+      ? text(styles.genIntroLine, `Subject: ${data.subject.trim()}`, 'subj')
+      : null,
+  );
+}
+
+/** Split standard terms lookup into payment block (page 1) and conditions (page 2). */
+export function splitQuotationTerms(body: string): {
+  payment: string | null;
+  conditions: string | null;
+} {
+  const normalized = body.replace(/●/g, '- ').replace(/•/g, '- ');
+  const splitAt = normalized.search(/\n\nB\)\s/);
+  if (splitAt > 0) {
+    const payment = normalized
+      .slice(0, splitAt)
+      .trim()
+      .replace(/^A\)\s*Payment:\s*/i, '');
+    return {
+      payment: payment || null,
+      conditions: normalized.slice(splitAt).trim(),
+    };
+  }
+  return { payment: null, conditions: normalized.trim() || null };
+}
+
+export function generalLineTable(lines: PdfLine[]): ReactElement {
+  const head = el(
+    View,
+    { style: styles.genTableHead, key: 'ghead' },
+    text([styles.headCell, styles.genCellSn], 'S/N', 'gh0'),
+    text([styles.headCell, styles.thumbHolder], 'PICTURE', 'gh1'),
+    text([styles.headCell, styles.cellDescription], 'DESCRIPTION', 'gh2'),
+    text([styles.headCell, styles.genCellQty], 'QTY', 'gh3'),
+    text([styles.headCell, styles.genCellRate], 'RATE', 'gh4'),
+    text([styles.headCell, styles.genCellTotal], 'TOTAL', 'gh5'),
+  );
+
+  const rows = lines.map((row, index) =>
+    el(
+      View,
+      { style: styles.genRow, key: `gr${index}`, wrap: false },
+      text(styles.genCellSn, String(index + 1), `gsn${index}`),
+      el(
+        View,
+        { style: styles.thumbHolder, key: `gt${index}` },
+        row.imageUrl
+          ? el(Image, { style: styles.cellThumb, src: row.imageUrl })
+          : null,
+      ),
+      text(
+        [styles.cellDescription, styles.lineDescription],
+        row.description,
+        `gd${index}`,
+      ),
+      text(
+        styles.genCellQty,
+        `${formatQty(row.qty)} ${row.unit}`.trim(),
+        `gq${index}`,
+      ),
+      text(styles.genCellRate, formatSectionAmount(row.unitPrice), `gp${index}`),
+      text(styles.genCellTotal, formatSectionAmount(row.lineTotal), `ga${index}`),
+    ),
+  );
+
+  return el(View, null, head, ...rows);
+}
+
+export function generalThankYouBlock(company: PdfCompany): ReactElement {
+  const companyName = company.tradeName || company.legalName;
+  return el(
+    View,
+    { style: { marginTop: 8 }, wrap: false },
+    text(
+      styles.genThankYou,
+      'Thank you and we hope the above is in line with your requirement',
+      'ty',
+    ),
+    text(
+      styles.genDisclaimer,
+      `${companyName} has the right to cease all the execution activities if payment is NOT done on time or as per agreed payment terms.`,
+      'disc',
+    ),
+  );
+}
+
+export { formatPdfDate };

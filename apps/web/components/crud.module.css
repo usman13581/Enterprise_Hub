@@ -142,8 +142,12 @@
 .cardHead {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
+  gap: 0.65rem;
+}
+
+.cardContent {
+  flex: 1;
+  min-width: 0;
 }
 
 .cardTitle {
@@ -161,8 +165,10 @@
 
 .cardActions {
   display: flex;
+  flex-wrap: nowrap;
   gap: 0.45rem;
   flex-shrink: 0;
+  align-items: center;
 }
 
 .tag {

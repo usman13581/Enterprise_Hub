@@ -26,13 +26,104 @@ export class DocumentsService {
             },
           },
         },
+        sections: {
+          orderBy: { sortOrder: 'asc' },
+          include: { items: { orderBy: { sortOrder: 'asc' } } },
+        },
+        lookupLinks: { include: { lookup: true } },
       },
     });
     if (!quotation) throw new NotFoundException('Quotation not found');
 
     const company = await this.company(companyId);
+    const vatRate = await this.vatRate(companyId);
+
+    if (quotation.kind === 'counter_top') {
+      const activeLookups = quotation.lookupLinks
+        .map((link) => link.lookup)
+        .filter((lookup) => lookup.active);
+
+      const noteBodies = activeLookups
+        .filter((lookup) => lookup.category === 'notes')
+        .map((lookup) => lookup.body);
+      const notes =
+        [quotation.notes, ...noteBodies].filter(Boolean).join('\n\n') || null;
+
+      const terms = activeLookups
+        .filter((lookup) => lookup.category === 'terms')
+        .map((lookup) => lookup.body)
+        .join('\n\n') || null;
+
+      const bankFromLookup = activeLookups
+        .filter((lookup) => lookup.category === 'bank')
+        .map((lookup) => lookup.body)
+        .join('\n\n');
+
+      const bankDetails = terms
+        ? null
+        : bankFromLookup || company.bankDetails || null;
+
+      const buffer = await renderQuotationPdf({
+        kind: 'counter_top',
+        company,
+        customer: this.party(quotation.customer),
+        number: quotation.number,
+        status: quotation.status,
+        createdAt: quotation.createdAt.toISOString(),
+        validUntil: quotation.validUntil?.toISOString() ?? null,
+        title: quotation.title,
+        contactName: quotation.contactName,
+        contactPhone: quotation.contactPhone,
+        location: quotation.location,
+        notes,
+        terms,
+        bankDetails,
+        discount: quotation.discount,
+        vatRate,
+        subtotal: quotation.subtotal,
+        vatAmount: quotation.vatAmount,
+        total: quotation.total,
+        lines: [],
+        sections: quotation.sections.map((section) => ({
+          productName: section.productName,
+          amount: section.amount,
+          items: section.items.map((item) => ({
+            label: item.label,
+            value: item.value,
+          })),
+        })),
+      });
+
+      return { buffer, filename: `quotation-${quotation.number}.pdf` };
+    }
+
+    const activeLookups = quotation.lookupLinks
+      .map((link) => link.lookup)
+      .filter((lookup) => lookup.active);
+
+    const noteBodies = activeLookups
+      .filter((lookup) => lookup.category === 'notes')
+      .map((lookup) => lookup.body);
+    const notes =
+      [quotation.notes, ...noteBodies].filter(Boolean).join('\n\n') || null;
+
+    const terms =
+      activeLookups
+        .filter((lookup) => lookup.category === 'terms')
+        .map((lookup) => lookup.body)
+        .join('\n\n') || null;
+
+    const lines = quotation.lines.map((line) => ({
+      description: line.description,
+      unit: line.unit,
+      qty: line.qty,
+      unitPrice: line.sellPrice,
+      lineTotal: line.lineTotal,
+      imageUrl: this.absolute(line.product?.images?.[0]?.url),
+    }));
 
     const buffer = await renderQuotationPdf({
+      kind: 'general',
       company,
       customer: this.party(quotation.customer),
       number: quotation.number,
@@ -40,19 +131,16 @@ export class DocumentsService {
       createdAt: quotation.createdAt.toISOString(),
       validUntil: quotation.validUntil?.toISOString() ?? null,
       title: quotation.title,
-      notes: quotation.notes,
-      vatRate: await this.vatRate(companyId),
+      contactName: quotation.contactName,
+      contactPhone: quotation.contactPhone,
+      location: quotation.location,
+      notes,
+      terms,
+      vatRate,
       subtotal: quotation.subtotal,
       vatAmount: quotation.vatAmount,
       total: quotation.total,
-      lines: quotation.lines.map((line) => ({
-        description: line.description,
-        unit: line.unit,
-        qty: line.qty,
-        unitPrice: line.sellPrice,
-        lineTotal: line.lineTotal,
-        imageUrl: this.absolute(line.product?.images?.[0]?.url),
-      })),
+      lines,
     });
 
     return { buffer, filename: `quotation-${quotation.number}.pdf` };

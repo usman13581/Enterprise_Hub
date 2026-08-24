@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -6,8 +6,19 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { computeQuotationTotals } from '@marble/domain';
-import { apiDelete, apiPost, apiPut } from '../../lib/api';
+import {
+  QUOTATION_KIND_LABELS,
+  QUOTATION_LOOKUP_APPLIES_LABELS,
+  QUOTATION_LOOKUP_APPLIES_TO,
+  QUOTATION_LOOKUP_CATEGORY_LABELS,
+  type QuotationKind,
+  type QuotationLookup,
+  type QuotationLookupAppliesTo,
+  type QuotationLookupCategory,
+} from '@marble/types';
+import { apiFetch, apiPost, apiPut } from '../../lib/api';
 import { day, money } from '../../lib/format';
 import {
   searchItems,
@@ -17,17 +28,21 @@ import {
 } from '../../lib/useCollection';
 import { Pagination, SearchBox, Toast } from '../../components/ListControls';
 import { ScreenScroll } from '../../components/ScreenScroll';
+import { LookupAttachPicker } from '../../components/LookupAttachPicker';
 import {
   ActionButton,
   FilterChips,
   LinkAction,
   RecordRow,
   RowActions,
+  EditIconButton,
 } from '../../components/Finance';
 import type { Customer, Product, Quotation } from '../../lib/types';
 import { colors, ui } from '../../lib/ui';
 
 type Filter = 'all' | 'draft' | 'approved' | 'cancelled';
+type CreateStep = 'list' | 'pick-kind' | 'general-form';
+type PageTab = 'quotations' | QuotationLookupCategory;
 
 type LineDraft = {
   description: string;
@@ -44,6 +59,7 @@ type Draft = {
   validUntil: string;
   notes: string;
   lines: LineDraft[];
+  lookupIds: string[];
 };
 
 const EMPTY_LINE: LineDraft = {
@@ -61,6 +77,7 @@ const EMPTY: Draft = {
   validUntil: '',
   notes: '',
   lines: [{ ...EMPTY_LINE }],
+  lookupIds: [],
 };
 
 const num = (value: string) => {
@@ -69,6 +86,7 @@ const num = (value: string) => {
 };
 
 export default function QuotationsScreen() {
+  const router = useRouter();
   const { items, loading, error, setError, reload } =
     usePolledList<Quotation>('/quotations');
   const { items: customers } = usePolledList<Customer>('/customers', 20000);
@@ -76,10 +94,72 @@ export default function QuotationsScreen() {
   const { flash, notify } = useFlash();
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
-  const [showForm, setShowForm] = useState(false);
+  const [step, setStep] = useState<CreateStep>('list');
+  const [kind, setKind] = useState<QuotationKind>('general');
+  const [pageTab, setPageTab] = useState<PageTab>('quotations');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [lookups, setLookups] = useState<QuotationLookup[]>([]);
+  const [lookupDraft, setLookupDraft] = useState({
+    title: '',
+    body: '',
+    appliesTo: 'both' as QuotationLookupAppliesTo,
+    active: true,
+  });
+  const [lookupEditingId, setLookupEditingId] = useState<string | null>(null);
+  const [attachable, setAttachable] = useState<QuotationLookup[]>([]);
+
+  function resetLookupDraft() {
+    setLookupEditingId(null);
+    setLookupDraft({
+      title: '',
+      body: pageTab === 'spec' ? '—' : '',
+      appliesTo: pageTab === 'spec' ? 'counter_top' : 'both',
+      active: true,
+    });
+  }
+
+  async function saveLookup() {
+    if (!lookupDraft.title.trim() || !lookupDraft.body.trim()) return;
+    const payload = {
+      category: pageTab,
+      title: lookupDraft.title,
+      body: lookupDraft.body,
+      appliesTo:
+        pageTab === 'spec' ? 'counter_top' : lookupDraft.appliesTo,
+      active: lookupDraft.active,
+      sortOrder: 0,
+    };
+    try {
+      if (lookupEditingId) {
+        await apiPut(`/quotation-lookups/${lookupEditingId}`, payload);
+      } else {
+        await apiPost('/quotation-lookups', payload);
+      }
+      const rows = await apiFetch<QuotationLookup[]>(
+        `/quotation-lookups?category=${pageTab}`,
+      );
+      setLookups(rows);
+      resetLookupDraft();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed');
+    }
+  }
+
+  useEffect(() => {
+    if (pageTab === 'quotations') return;
+    void apiFetch<QuotationLookup[]>(
+      `/quotation-lookups?category=${pageTab}`,
+    ).then(setLookups);
+  }, [pageTab]);
+
+  useEffect(() => {
+    if (step !== 'general-form') return;
+    void apiFetch<QuotationLookup[]>(
+      '/quotation-lookups?appliesTo=general&activeOnly=1',
+    ).then(setAttachable);
+  }, [step]);
 
   const filtered = useMemo(() => {
     const byStatus =
@@ -99,12 +179,27 @@ export default function QuotationsScreen() {
   const totals = computeQuotationTotals(payloadLines);
 
   function startCreate() {
-    setDraft({ ...EMPTY, lines: [{ ...EMPTY_LINE }] });
     setEditingId(null);
-    setShowForm(true);
+    setKind('general');
+    setStep('pick-kind');
+  }
+
+  function continueWithKind() {
+    if (kind === 'counter_top') {
+      router.push('/module/quotations-counter-top' as never);
+      return;
+    }
+    setDraft({ ...EMPTY, lines: [{ ...EMPTY_LINE }], lookupIds: [] });
+    setStep('general-form');
   }
 
   function startEdit(quotation: Quotation) {
+    if (quotation.kind === 'counter_top') {
+      router.push(
+        `/module/quotations-counter-top?edit=${quotation.id}` as never,
+      );
+      return;
+    }
     setDraft({
       customerId: quotation.customerId,
       title: quotation.title ?? '',
@@ -118,9 +213,10 @@ export default function QuotationsScreen() {
         purchasePrice: String(line.purchasePrice),
         sellPrice: String(line.sellPrice),
       })),
+      lookupIds: (quotation.lookups ?? []).map((l) => l.id),
     });
     setEditingId(quotation.id);
-    setShowForm(true);
+    setStep('general-form');
   }
 
   async function save() {
@@ -128,15 +224,19 @@ export default function QuotationsScreen() {
     setSaving(true);
     try {
       const body = {
+        kind: 'general' as const,
         customerId: draft.customerId,
         title: draft.title,
         validUntil: draft.validUntil || null,
         notes: draft.notes,
+        discount: 0,
+        lookupIds: draft.lookupIds,
         lines: payloadLines,
+        sections: [],
       };
       if (editingId) await apiPut(`/quotations/${editingId}`, body);
       else await apiPost('/quotations', body);
-      setShowForm(false);
+      setStep('list');
       await reload();
       notify(editingId ? 'Quotation saved' : 'Quotation created');
     } catch (e) {
@@ -193,14 +293,200 @@ export default function QuotationsScreen() {
       <ScreenScroll>
         <Text style={ui.title}>Quotations</Text>
         <Text style={ui.lede}>
-          Adjust line purchase and sell. Approve opens a job.
+          General lines or Counter Top sections. Approve opens a job.
         </Text>
         {error ? <Text style={ui.error}>{error}</Text> : null}
 
-        {showForm ? (
+        <FilterChips
+          active={pageTab}
+          onChange={(key) => {
+            setPageTab(key);
+            setStep('list');
+          }}
+          options={[
+            { key: 'quotations', label: 'Quotations' },
+            { key: 'terms', label: 'Terms' },
+            { key: 'notes', label: 'Notes' },
+            { key: 'bank', label: 'Bank' },
+            { key: 'spec', label: 'Spec items' },
+          ]}
+        />
+
+        {pageTab !== 'quotations' ? (
           <View style={ui.card}>
             <Text style={ui.cardTitle}>
-              {editingId ? 'Edit quotation' : 'New quotation'}
+              {QUOTATION_LOOKUP_CATEGORY_LABELS[pageTab]}
+            </Text>
+            <Text style={ui.label}>
+              {pageTab === 'spec' ? 'Spec label' : 'Title'}
+            </Text>
+            <TextInput
+              style={ui.input}
+              value={lookupDraft.title}
+              onChangeText={(title) =>
+                setLookupDraft({ ...lookupDraft, title })
+              }
+            />
+            <Text style={ui.label}>
+              {pageTab === 'spec' ? 'Default value hint' : 'Body'}
+            </Text>
+            <TextInput
+              style={ui.input}
+              value={lookupDraft.body}
+              onChangeText={(body) => setLookupDraft({ ...lookupDraft, body })}
+              multiline
+            />
+            {pageTab !== 'spec' ? (
+              <>
+                <Text style={ui.label}>Applies to</Text>
+                <View style={styles.picker}>
+                  {QUOTATION_LOOKUP_APPLIES_TO.map((value) => (
+                    <Pressable
+                      key={value}
+                      style={[
+                        styles.option,
+                        lookupDraft.appliesTo === value && styles.optionActive,
+                      ]}
+                      onPress={() =>
+                        setLookupDraft({ ...lookupDraft, appliesTo: value })
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.optionText,
+                          lookupDraft.appliesTo === value &&
+                            styles.optionTextActive,
+                        ]}
+                      >
+                        {QUOTATION_LOOKUP_APPLIES_LABELS[value]}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
+            ) : null}
+            <Pressable
+              style={[styles.option, { marginTop: 10, alignSelf: 'flex-start' }]}
+              onPress={() =>
+                setLookupDraft({ ...lookupDraft, active: !lookupDraft.active })
+              }
+            >
+              <Text style={styles.optionText}>
+                Active: {lookupDraft.active ? 'Yes' : 'No'}
+              </Text>
+            </Pressable>
+            <RowActions>
+              <ActionButton
+                label={
+                  lookupEditingId
+                    ? 'Save lookup'
+                    : pageTab === 'spec'
+                      ? 'Add spec label'
+                      : 'Add lookup'
+                }
+                tone="primary"
+                onPress={() => void saveLookup()}
+              />
+              {lookupEditingId ? (
+                <ActionButton label="Cancel edit" onPress={resetLookupDraft} />
+              ) : null}
+            </RowActions>
+            {lookups.map((row) => (
+              <View key={row.id} style={{ marginTop: 14, flexDirection: 'row', gap: 8 }}>
+                <EditIconButton
+                  onPress={() => {
+                    setLookupEditingId(row.id);
+                    setLookupDraft({
+                      title: row.title,
+                      body: row.body,
+                      appliesTo: row.appliesTo,
+                      active: row.active,
+                    });
+                  }}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={ui.cardTitle}>
+                    {row.title}
+                    {!row.active ? ' (inactive)' : ''}
+                  </Text>
+                  <Text style={ui.cardMeta}>
+                    {QUOTATION_LOOKUP_APPLIES_LABELS[row.appliesTo]}
+                  </Text>
+                  <Text style={ui.cardMeta}>{row.body}</Text>
+                  <View style={{ flexDirection: 'row', marginTop: 8 }}>
+                    <LinkAction
+                      label={row.active ? 'Deactivate' : 'Activate'}
+                      onPress={() =>
+                        void apiPut(`/quotation-lookups/${row.id}`, {
+                          title: row.title,
+                          body: row.body,
+                          category: row.category,
+                          appliesTo: row.appliesTo,
+                          active: !row.active,
+                        })
+                          .then(() =>
+                            apiFetch<QuotationLookup[]>(
+                              `/quotation-lookups?category=${pageTab}`,
+                            ),
+                          )
+                          .then(setLookups)
+                      }
+                    />
+                  </View>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        {pageTab === 'quotations' && step === 'pick-kind' ? (
+          <View style={ui.card}>
+            <Text style={ui.cardTitle}>New quotation</Text>
+            <Text style={ui.lede}>Choose the quotation type to continue.</Text>
+            <Text style={ui.label}>Quotation type</Text>
+            <View style={styles.picker}>
+              {(
+                [
+                  ['general', QUOTATION_KIND_LABELS.general],
+                  ['counter_top', QUOTATION_KIND_LABELS.counter_top],
+                ] as const
+              ).map(([value, label]) => (
+                <Pressable
+                  key={value}
+                  style={[
+                    styles.option,
+                    kind === value && styles.optionActive,
+                  ]}
+                  onPress={() => setKind(value)}
+                >
+                  <Text
+                    style={[
+                      styles.optionText,
+                      kind === value && styles.optionTextActive,
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <RowActions>
+              <ActionButton
+                label="Continue"
+                tone="primary"
+                onPress={continueWithKind}
+              />
+              <ActionButton label="Cancel" onPress={() => setStep('list')} />
+            </RowActions>
+          </View>
+        ) : null}
+
+        {pageTab === 'quotations' && step === 'general-form' ? (
+          <View style={ui.card}>
+            <Text style={ui.cardTitle}>
+              {editingId
+                ? 'Edit quotation'
+                : QUOTATION_KIND_LABELS.general}
             </Text>
             <Text style={ui.label}>Customer *</Text>
             <View style={styles.picker}>
@@ -373,6 +659,13 @@ export default function QuotationsScreen() {
               multiline
             />
 
+            <Text style={[ui.cardTitle, { marginTop: 14 }]}>Attach lookups</Text>
+            <LookupAttachPicker
+              items={attachable}
+              selectedIds={draft.lookupIds}
+              onChange={(lookupIds) => setDraft({ ...draft, lookupIds })}
+            />
+
             <RowActions>
               <ActionButton
                 label={saving ? 'Saving…' : editingId ? 'Save' : 'Create'}
@@ -382,11 +675,13 @@ export default function QuotationsScreen() {
               />
               <ActionButton
                 label="Cancel"
-                onPress={() => setShowForm(false)}
+                onPress={() => setStep(editingId ? 'list' : 'pick-kind')}
               />
             </RowActions>
           </View>
-        ) : (
+        ) : null}
+
+        {pageTab === 'quotations' && step === 'list' ? (
           <>
             <View style={ui.toolbar}>
               <Text style={ui.count}>{items.length} quotations</Text>
@@ -429,26 +724,38 @@ export default function QuotationsScreen() {
                 <RecordRow
                   key={quotation.id}
                   title={quotation.number}
-                  status={quotation.status}
                   pdfPath={`/documents/quotations/${quotation.id}.pdf`}
                   onPdfError={setError}
+                  onEdit={
+                    quotation.status === 'draft'
+                      ? () => startEdit(quotation)
+                      : undefined
+                  }
                   meta={[
+                    quotation.kind === 'counter_top'
+                      ? QUOTATION_KIND_LABELS.counter_top
+                      : QUOTATION_KIND_LABELS.general,
                     quotation.customer?.name,
                     quotation.title || 'No subject',
                     money(quotation.total),
                     `margin ${money(quotation.profit)}`,
-                    quotation.job ? `Job ${quotation.job.number}` : null,
                     day(quotation.createdAt),
                   ]
                     .filter(Boolean)
                     .join(' · ')}
                 >
+                  {quotation.job ? (
+                    <LinkAction
+                      label={`Open job ${quotation.job.number}`}
+                      onPress={() =>
+                        router.push(
+                          `/module/jobs?open=${quotation.job!.id}` as never,
+                        )
+                      }
+                    />
+                  ) : null}
                   {quotation.status === 'draft' ? (
                     <>
-                      <LinkAction
-                        label="Edit"
-                        onPress={() => startEdit(quotation)}
-                      />
                       <LinkAction
                         label="Approve"
                         tone="primary"
@@ -471,22 +778,6 @@ export default function QuotationsScreen() {
                           )
                         }
                       />
-                      <LinkAction
-                        label="Delete"
-                        tone="danger"
-                        onPress={() =>
-                          void apiDelete(`/quotations/${quotation.id}`)
-                            .then(() => reload())
-                            .then(() => notify('Deleted', 'danger'))
-                            .catch((e) =>
-                              setError(
-                                e instanceof Error
-                                  ? e.message
-                                  : 'Delete failed',
-                              ),
-                            )
-                        }
-                      />
                     </>
                   ) : null}
                 </RecordRow>
@@ -502,7 +793,7 @@ export default function QuotationsScreen() {
               total={pager.total}
             />
           </>
-        )}
+        ) : null}
       </ScreenScroll>
       <Toast flash={flash} />
     </View>

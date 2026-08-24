@@ -1,0 +1,12 @@
+# Railway config for the API service.
+# In Railway: Service → Settings → Config file path → railway.api.toml
+
+[build]
+builder = "NIXPACKS"
+buildCommand = "pnpm install && pnpm railway:build:api"
+
+[deploy]
+startCommand = "pnpm railway:deploy:api"
+healthcheckPath = "/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"

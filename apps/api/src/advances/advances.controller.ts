@@ -52,6 +52,11 @@ export class AdvancesController {
     return this.service.update(session, id, body);
   }
 
+  @Post(':id/cancel')
+  cancel(@CurrentSession() session: SessionContext, @Param('id') id: string) {
+    return this.service.cancel(session, id);
+  }
+
   @Delete(':id')
   remove(@CurrentSession() session: SessionContext, @Param('id') id: string) {
     return this.service.remove(session, id);

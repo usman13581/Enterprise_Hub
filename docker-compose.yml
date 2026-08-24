@@ -1,0 +1,20 @@
+# Local Postgres for development and API tests (Railway uses managed Postgres).
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: marble
+      POSTGRES_PASSWORD: marble
+      POSTGRES_DB: marble
+    ports:
+      - "5432:5432"
+    volumes:
+      - marble_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marble -d marble"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  marble_pg_data:

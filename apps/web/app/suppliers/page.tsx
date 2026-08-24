@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { apiDelete, apiPost, apiPut } from "@/lib/api";
+import { apiPost, apiPut } from "@/lib/api";
 import {
   searchItems,
   useFlash,
@@ -9,6 +9,7 @@ import {
   usePolledList,
 } from "@/lib/useCollection";
 import { Pagination, SearchBox, Toast } from "@/components/ListControls";
+import { EditIconButton } from "@/components/Finance";
 import type { Supplier } from "@/lib/types";
 import page from "../page.module.css";
 import styles from "@/components/crud.module.css";
@@ -21,6 +22,7 @@ type Draft = {
   address: string;
   trn: string;
   notes: string;
+  active: boolean;
 };
 
 const EMPTY: Draft = {
@@ -31,6 +33,7 @@ const EMPTY: Draft = {
   address: "",
   trn: "",
   notes: "",
+  active: true,
 };
 
 export default function SuppliersPage() {
@@ -61,6 +64,7 @@ export default function SuppliersPage() {
       address: item.address ?? "",
       trn: item.trn ?? "",
       notes: item.notes ?? "",
+      active: item.active !== false,
     });
     setEditingId(item.id);
     setShowForm(true);
@@ -89,13 +93,22 @@ export default function SuppliersPage() {
     }
   }
 
-  async function onDelete(id: string) {
+  async function setActive(item: Supplier, active: boolean) {
     try {
-      await apiDelete(`/suppliers/${id}`);
+      await apiPut(`/suppliers/${item.id}`, {
+        name: item.name,
+        contact: item.contact,
+        phone: item.phone,
+        email: item.email,
+        address: item.address,
+        trn: item.trn,
+        notes: item.notes,
+        active,
+      });
       await reload();
-      notify("Supplier deleted", "danger");
+      notify(active ? "Supplier activated" : "Supplier deactivated");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Delete failed");
+      setError(err instanceof Error ? err.message : "Update failed");
     }
   }
 
@@ -177,6 +190,18 @@ export default function SuppliersPage() {
               onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
             />
           </div>
+          <div className={styles.field} style={{ marginTop: "0.9rem" }}>
+            <label className={styles.label} style={{ display: "flex", gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={draft.active}
+                onChange={(e) =>
+                  setDraft({ ...draft, active: e.target.checked })
+                }
+              />
+              Active
+            </label>
+          </div>
           <div className={styles.actions}>
             <button className={styles.button} type="submit" disabled={saving}>
               {saving ? "Saving…" : editingId ? "Save changes" : "Create"}
@@ -216,8 +241,12 @@ export default function SuppliersPage() {
               {pager.paged.map((item) => (
                 <li key={item.id} className={styles.card}>
                   <div className={styles.cardHead}>
-                    <div>
-                      <h2 className={styles.cardTitle}>{item.name}</h2>
+                    <EditIconButton onClick={() => startEdit(item)} />
+                    <div className={styles.cardContent}>
+                      <h2 className={styles.cardTitle}>
+                        {item.name}
+                        {item.active === false ? " (inactive)" : ""}
+                      </h2>
                       <p className={styles.cardMeta}>
                         {[item.contact, item.phone, item.email]
                           .filter(Boolean)
@@ -233,15 +262,9 @@ export default function SuppliersPage() {
                     <div className={styles.cardActions}>
                       <button
                         className={styles.ghost}
-                        onClick={() => startEdit(item)}
+                        onClick={() => void setActive(item, !item.active)}
                       >
-                        Edit
-                      </button>
-                      <button
-                        className={`${styles.ghost} ${styles.danger}`}
-                        onClick={() => void onDelete(item.id)}
-                      >
-                        Delete
+                        {item.active === false ? "Activate" : "Deactivate"}
                       </button>
                     </div>
                   </div>

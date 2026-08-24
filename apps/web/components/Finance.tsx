@@ -1,9 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { openPdf } from '@/lib/api';
 import { balanceTone, day, label, money } from '@/lib/format';
 import type { LedgerEntry } from '@/lib/types';
+import page from '../app/page.module.css';
 import crud from './crud.module.css';
 import styles from './finance.module.css';
 
@@ -204,6 +206,20 @@ export function LedgerTable({ rows }: { rows: LedgerEntry[] }) {
   );
 }
 
+export function BackLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link href={href} className={`${page.backNav} ${styles.backLink}`}>
+      {children}
+    </Link>
+  );
+}
+
 export function PdfButton({
   path,
   onError,
@@ -236,4 +252,39 @@ export function PdfButton({
       {busy ? '…' : children}
     </button>
   );
+}
+
+export function EditIconButton({
+  onClick,
+  label = 'Edit',
+}: {
+  onClick: () => void;
+  label?: string;
+}) {
+  return (
+    <button
+      type="button"
+      className={styles.editIcon}
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+      </svg>
+    </button>
+  );
+}
+
+export function RowActionsBar({ children }: { children: React.ReactNode }) {
+  return <div className={styles.rowActions}>{children}</div>;
 }

@@ -71,6 +71,7 @@ const COLLECTION_MAP: Record<string, string> = {
   productImages: 'productImages',
   customers: 'customers',
   quotations: 'quotations',
+  quotationLookups: 'quotationLookups',
   jobs: 'jobs',
   invoices: 'invoices',
   advances: 'advances',

@@ -5,6 +5,9 @@ import type {
   LedgerDirection,
   LedgerEntryType,
   PaymentMethod,
+  QuotationKind,
+  QuotationLookupAppliesTo,
+  QuotationLookupCategory,
   QuotationStatus,
 } from './enums';
 
@@ -104,15 +107,49 @@ export type QuotationLine = {
   sortOrder: number;
 };
 
+export type QuotationSectionItem = {
+  id: string;
+  label: string;
+  value: string;
+  amount: number;
+  sortOrder: number;
+};
+
+export type QuotationSection = {
+  id: string;
+  productId: string | null;
+  productName: string;
+  amount: number;
+  sortOrder: number;
+  items: QuotationSectionItem[];
+};
+
+export type QuotationLookup = {
+  id: string;
+  category: QuotationLookupCategory;
+  appliesTo: QuotationLookupAppliesTo;
+  title: string;
+  body: string;
+  active: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type Quotation = {
   id: string;
   number: string;
+  kind: QuotationKind;
   status: QuotationStatus;
   customerId: string;
   customer: { id: string; name: string; trn: string | null } | null;
   title: string | null;
   notes: string | null;
+  contactName: string | null;
+  contactPhone: string | null;
+  location: string | null;
   validUntil: string | null;
+  discount: number;
   subtotal: number;
   vatAmount: number;
   total: number;
@@ -122,6 +159,8 @@ export type Quotation = {
   cancelledAt: string | null;
   createdAt: string;
   lines: QuotationLine[];
+  sections: QuotationSection[];
+  lookups: QuotationLookup[];
   job: { id: string; number: string; status: JobStatus } | null;
 };
 
@@ -197,6 +236,7 @@ export type AdvancePayment = {
   reference: string | null;
   receivedAt: string;
   notes: string | null;
+  cancelledAt: string | null;
 };
 
 export type LedgerEntry = {

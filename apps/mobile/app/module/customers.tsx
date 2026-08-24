@@ -7,7 +7,7 @@ import {
   View,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { apiDelete, apiPost, apiPut } from "../../lib/api";
+import { apiPost, apiPut } from "../../lib/api";
 import {
   searchItems,
   useFlash,
@@ -19,6 +19,7 @@ import { Pagination, SearchBox, Toast } from "../../components/ListControls";
 import { ScreenScroll } from "../../components/ScreenScroll";
 import {
   ActionButton,
+  BackLink,
   BalanceCard,
   FilterChips,
   LinkAction,
@@ -39,6 +40,7 @@ type Draft = {
   address: string;
   trn: string;
   notes: string;
+  active: boolean;
 };
 
 const EMPTY: Draft = {
@@ -49,6 +51,7 @@ const EMPTY: Draft = {
   address: "",
   trn: "",
   notes: "",
+  active: true,
 };
 
 export default function CustomersScreen() {
@@ -109,13 +112,22 @@ export default function CustomersScreen() {
     }
   }
 
-  async function remove(id: string) {
+  async function setActive(item: Customer, active: boolean) {
     try {
-      await apiDelete(`/customers/${id}`);
+      await apiPut(`/customers/${item.id}`, {
+        name: item.name,
+        contact: item.contact,
+        phone: item.phone,
+        email: item.email,
+        address: item.address,
+        trn: item.trn,
+        notes: item.notes,
+        active,
+      });
       await reload();
-      notify("Customer deleted", "danger");
+      notify(active ? "Customer activated" : "Customer deactivated");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Delete failed");
+      setError(e instanceof Error ? e.message : "Update failed");
     }
   }
 
@@ -180,6 +192,16 @@ export default function CustomersScreen() {
               multiline
               onChangeText={(v) => setDraft({ ...draft, notes: v })}
             />
+            <Pressable
+              style={ui.ghost}
+              onPress={() =>
+                setDraft({ ...draft, active: !draft.active })
+              }
+            >
+              <Text style={ui.ghostText}>
+                Active: {draft.active ? "Yes" : "No"}
+              </Text>
+            </Pressable>
             <View style={ui.cardActions}>
               <Pressable style={ui.button} onPress={() => void save()}>
                 <Text style={ui.buttonText}>
@@ -230,8 +252,22 @@ export default function CustomersScreen() {
               pager.paged.map((item) => (
                 <RecordRow
                   key={item.id}
-                  title={item.name}
+                  title={`${item.name}${item.active === false ? " (inactive)" : ""}`}
                   onPress={() => setHubId(item.id)}
+                  onEdit={() => {
+                    setDraft({
+                      name: item.name,
+                      contact: item.contact ?? "",
+                      phone: item.phone ?? "",
+                      email: item.email ?? "",
+                      address: item.address ?? "",
+                      trn: item.trn ?? "",
+                      notes: item.notes ?? "",
+                      active: item.active !== false,
+                    });
+                    setEditingId(item.id);
+                    setShowForm(true);
+                  }}
                   meta={[
                     item.contact,
                     item.phone,
@@ -247,25 +283,8 @@ export default function CustomersScreen() {
                     onPress={() => setHubId(item.id)}
                   />
                   <LinkAction
-                    label="Edit"
-                    onPress={() => {
-                      setDraft({
-                        name: item.name,
-                        contact: item.contact ?? "",
-                        phone: item.phone ?? "",
-                        email: item.email ?? "",
-                        address: item.address ?? "",
-                        trn: item.trn ?? "",
-                        notes: item.notes ?? "",
-                      });
-                      setEditingId(item.id);
-                      setShowForm(true);
-                    }}
-                  />
-                  <LinkAction
-                    label="Delete"
-                    tone="danger"
-                    onPress={() => void remove(item.id)}
+                    label={item.active === false ? "Activate" : "Deactivate"}
+                    onPress={() => void setActive(item, !item.active)}
                   />
                 </RecordRow>
               ))
@@ -309,9 +328,7 @@ function CustomerHubScreen({
     return (
       <View style={ui.screen}>
         <ScreenScroll>
-          <Pressable onPress={onBack}>
-            <Text style={{ color: colors.muted, marginBottom: 8 }}>← Customers</Text>
-          </Pressable>
+          <BackLink label="← Customers" onPress={onBack} />
           {error ? (
             <Text style={ui.error}>{error}</Text>
           ) : (
@@ -328,9 +345,7 @@ function CustomerHubScreen({
   return (
     <View style={ui.screen}>
       <ScreenScroll>
-        <Pressable onPress={onBack}>
-          <Text style={{ color: colors.muted, marginBottom: 8 }}>← Customers</Text>
-        </Pressable>
+        <BackLink label="← Customers" onPress={onBack} />
         <Text style={ui.title}>{customer.name}</Text>
         <Text style={ui.lede}>
           {[customer.trn ? `TRN ${customer.trn}` : null, customer.contact, customer.phone, customer.email]

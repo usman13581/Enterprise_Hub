@@ -15,6 +15,7 @@ import {
   EmptyState,
   FilterBar,
   PdfButton,
+  RowActionsBar,
   StatusBadge,
   TableScroll,
 } from '@/components/Finance';
@@ -341,7 +342,7 @@ export default function InvoicesPage() {
                         {money(invoice.netPayable)}
                       </td>
                       <td className={finance.actions}>
-                        <div className={finance.rowActions}>
+                        <RowActionsBar>
                           <PdfButton
                             path={`/documents/invoices/${invoice.id}.pdf`}
                             onError={setError}
@@ -363,7 +364,7 @@ export default function InvoicesPage() {
                               </button>
                             </>
                           ) : null}
-                        </div>
+                        </RowActionsBar>
                       </td>
                     </tr>
                   ))}

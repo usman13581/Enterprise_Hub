@@ -178,15 +178,19 @@ export class CustomersService {
     });
     if (!before) throw new NotFoundException('Customer not found');
 
-    await this.prisma.customer.delete({ where: { id } });
+    const customer = await this.prisma.customer.update({
+      where: { id },
+      data: { active: false },
+    });
 
     await this.audit.write({
       companyId: session.companyId,
       actorId: session.userId,
       entityType: 'Customer',
       entityId: id,
-      action: 'delete',
+      action: 'deactivate',
       before,
+      after: customer,
     });
 
     return { ok: true };

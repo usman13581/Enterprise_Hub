@@ -269,6 +269,130 @@ async function main() {
     },
   });
 
+  // Reusable quotation blocks (terms / notes / bank) from pilot PDF templates.
+  const lookupSeeds = [
+    {
+      id: 'seed-lookup-terms-standard',
+      category: 'terms',
+      appliesTo: 'both',
+      title: 'Standard Terms & Conditions',
+      body: `A) Payment:
+● Payment Terms: 80% as Advance & 20% before work completion
+● Payment modes: Cheque to "Binhaj Marble LLC"
+● Bank Transfer: Emirates NBD · AED · IBAN AE070331234567890123456
+
+B) Validity:
+● This offer is valid for 15 days from the date of issue and subject to official confirmation.
+
+C) Other General Terms:
+● The price may vary if there are any changes or addition at final site.
+● Electrical & Plumbing Works are excluded.
+● Service lift must be available if material need to be shifted to upper floors.
+● If the client fails to pay on time, the material at site will be returned.
+● Any damage due to other contractors' negligence during execution is additional scope and quoted separately.
+● The client must approve the shop drawing.
+● The client will be charged 50% of the total order value in case of cancellation of confirmed orders.
+
+E) Work execution:
+● After shop drawing approval, work will be executed within 10–14 days.
+● Protection of treated / surface shall be provided by the client / main contractor.
+● Scaffoldings to be provided by the client/contractor unless agreed.
+
+F) Guarantee:
+● Workmanship warranty applies for 12 months from the delivery date.
+● Product warranty as per the manufacturer's manual.`,
+      sortOrder: 0,
+    },
+    {
+      id: 'seed-lookup-notes-client-material',
+      category: 'notes',
+      appliesTo: 'counter_top',
+      title: 'Client-supplied material disclaimer',
+      body: '*Please note that Binhaj Marble will not bear any responsibility for material provided by the client. In the event of breakage or damage during production, the client will be required to supply additional slabs as needed.',
+      sortOrder: 0,
+    },
+    {
+      id: 'seed-lookup-bank',
+      category: 'bank',
+      appliesTo: 'both',
+      title: 'Bank transfer details',
+      body: 'Cheque to "Binhaj Marble LLC"\nBank Transfer: Emirates NBD · AED · IBAN AE070331234567890123456',
+      sortOrder: 0,
+    },
+  ] as const;
+
+  const specLabelSeeds = [
+    { id: 'seed-lookup-spec-material', title: 'Material', body: 'By Client' },
+    {
+      id: 'seed-lookup-spec-scope',
+      title: 'Scope of work',
+      body: 'Cutting, Fabrication and Installation of Countertop',
+    },
+    {
+      id: 'seed-lookup-spec-dimension',
+      title: 'Vanity Counter Top Dimension',
+      body: '110x55 CM',
+    },
+    { id: 'seed-lookup-spec-fascia', title: 'Fascia', body: '20 CM' },
+    { id: 'seed-lookup-spec-support', title: 'Support', body: 'Included' },
+    { id: 'seed-lookup-spec-sink', title: 'Customized Sink', body: '1 Nos' },
+    { id: 'seed-lookup-spec-splash', title: 'Rear Splash', body: 'Excluded' },
+    { id: 'seed-lookup-spec-drawer', title: 'Wooden Drawer', body: 'Excluded' },
+    { id: 'seed-lookup-spec-mixer', title: 'Mixer Hole', body: 'Wall Mounted' },
+    { id: 'seed-lookup-spec-edge', title: 'Edge Finish', body: '45 mm thick mitre edge' },
+    { id: 'seed-lookup-spec-backsplash', title: 'Backsplash', body: 'Excluded' },
+    { id: 'seed-lookup-spec-shelf', title: 'Shelf', body: 'Included' },
+    { id: 'seed-lookup-spec-shelf-dim', title: 'Shelf Dimension', body: '152x60 CM' },
+  ] as const;
+
+  for (const lookup of lookupSeeds) {
+    await prisma.quotationLookup.upsert({
+      where: { id: lookup.id },
+      update: {
+        category: lookup.category,
+        appliesTo: lookup.appliesTo,
+        title: lookup.title,
+        body: lookup.body,
+        active: true,
+        sortOrder: lookup.sortOrder,
+      },
+      create: {
+        id: lookup.id,
+        companyId: company.id,
+        category: lookup.category,
+        appliesTo: lookup.appliesTo,
+        title: lookup.title,
+        body: lookup.body,
+        active: true,
+        sortOrder: lookup.sortOrder,
+      },
+    });
+  }
+
+  for (const [index, spec] of specLabelSeeds.entries()) {
+    await prisma.quotationLookup.upsert({
+      where: { id: spec.id },
+      update: {
+        category: 'spec',
+        appliesTo: 'counter_top',
+        title: spec.title,
+        body: spec.body,
+        active: true,
+        sortOrder: index,
+      },
+      create: {
+        id: spec.id,
+        companyId: company.id,
+        category: 'spec',
+        appliesTo: 'counter_top',
+        title: spec.title,
+        body: spec.body,
+        active: true,
+        sortOrder: index,
+      },
+    });
+  }
+
   // One finished money path for Al Noor Villa (idempotent by fixed ids).
   const existingQuote = await prisma.quotation.findUnique({
     where: { id: 'seed-quotation-villa' },
@@ -425,8 +549,104 @@ async function main() {
     });
   }
 
+  // Sample Counter Top quotation (from docs/report PDFs) — draft for demo.
+  const existingCounterTop = await prisma.quotation.findUnique({
+    where: { id: 'seed-quotation-counter-top-demo' },
+  });
+
+  if (!existingCounterTop) {
+    const subtotal = 9500;
+    const vatAmount = 475;
+    const total = 9975;
+    const counterTopNumber = 'BM-QT-CT-0001';
+
+    await prisma.quotation.create({
+      data: {
+        id: 'seed-quotation-counter-top-demo',
+        companyId: company.id,
+        customerId: villaCustomer.id,
+        number: counterTopNumber,
+        kind: 'counter_top',
+        status: 'draft',
+        title: 'Guest bathroom vanity counter tops',
+        contactName: 'Fatima Al Noor',
+        contactPhone: '+971501234567',
+        location: 'Palm Jumeirah, Dubai',
+        subtotal,
+        vatAmount,
+        total,
+        purchaseTotal: 0,
+        sections: {
+          create: [
+            {
+              id: 'seed-ct-section-1',
+              productName: 'GUEST BATHROOM VANITY',
+              amount: 4500,
+              sortOrder: 0,
+              items: {
+                create: [
+                  { label: 'Material', value: 'By Client', sortOrder: 0 },
+                  {
+                    label: 'Scope of work',
+                    value: 'Cutting, Fabrication and Installation of Countertop',
+                    sortOrder: 1,
+                  },
+                  {
+                    label: 'Vanity Counter Top Dimension',
+                    value: '110x55 CM',
+                    sortOrder: 2,
+                  },
+                  { label: 'Fascia', value: '20 CM', sortOrder: 3 },
+                  { label: 'Support', value: 'Included', sortOrder: 4 },
+                  { label: 'Customized Sink', value: '1 Nos', sortOrder: 5 },
+                  { label: 'Rear Splash', value: 'Excluded', sortOrder: 6 },
+                  { label: 'Wooden Drawer', value: 'Excluded', sortOrder: 7 },
+                  { label: 'Mixer Hole', value: 'Wall Mounted', sortOrder: 8 },
+                ],
+              },
+            },
+            {
+              id: 'seed-ct-section-2',
+              productName: 'GF GUEST BATHROOM VANITY',
+              amount: 5000,
+              sortOrder: 1,
+              items: {
+                create: [
+                  { label: 'Material', value: 'Moraine', sortOrder: 0 },
+                  {
+                    label: 'Scope of work',
+                    value: 'Cutting Fabrication and Installation of Countertop',
+                    sortOrder: 1,
+                  },
+                  {
+                    label: 'Vanity Counter Top Dimension',
+                    value: '186x55 CM',
+                    sortOrder: 2,
+                  },
+                  { label: 'Fascia', value: '20 CM', sortOrder: 3 },
+                  { label: 'Support', value: 'Included', sortOrder: 4 },
+                  { label: 'Customized Sink', value: '1 Nos', sortOrder: 5 },
+                  { label: 'Mixer Hole', value: 'Wall Mounted', sortOrder: 6 },
+                  { label: 'Rear Splash', value: 'Excluded', sortOrder: 7 },
+                  { label: 'Wooden Drawer', value: 'Excluded', sortOrder: 8 },
+                ],
+              },
+            },
+          ],
+        },
+        lookupLinks: {
+          create: [
+            { lookupId: 'seed-lookup-terms-standard' },
+            { lookupId: 'seed-lookup-notes-client-material' },
+            { lookupId: 'seed-lookup-bank' },
+          ],
+        },
+      },
+    });
+  }
+
   console.log(
-    'Seeded Binhaj Marble pilot: suppliers, products, customers, villa job path',
+    'Seeded Binhaj Marble pilot: suppliers, products, customers, lookups, villa job path, counter-top demo',
   );
 }
 

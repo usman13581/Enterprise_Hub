@@ -68,8 +68,8 @@ describe('invoicing and money movement', () => {
         .expect(409);
     });
 
-    it('deletes an unallocated advance and removes its ledger credit', async () => {
-      const customer = await seedCustomer(h, 'Deletable advance');
+    it('cancels an unallocated advance and reverses its ledger credit', async () => {
+      const customer = await seedCustomer(h, 'Cancellable advance');
       const advance = await h
         .post('/advances')
         .send({ customerId: customer.id, amount: 750 })
@@ -78,6 +78,10 @@ describe('invoicing and money movement', () => {
       expect(await balance(h, customer.id)).toBe(-750);
       await h.del(`/advances/${advance.body.id}`).expect(200);
       expect(await balance(h, customer.id)).toBe(0);
+      const row = await h.prisma.advancePayment.findUnique({
+        where: { id: advance.body.id },
+      });
+      expect(row?.cancelledAt).toBeTruthy();
     });
   });
 

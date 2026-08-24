@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { apiDelete, apiPost, apiPut, apiUpload, assetUrl } from "@/lib/api";
+import { apiPost, apiPut, apiUpload, assetUrl } from "@/lib/api";
 import {
   searchItems,
   useFlash,
@@ -9,6 +9,7 @@ import {
   usePolledList,
 } from "@/lib/useCollection";
 import { Pagination, SearchBox, Toast } from "@/components/ListControls";
+import { EditIconButton } from "@/components/Finance";
 import { FilePicker } from "@/components/FilePicker";
 import { PreviewableImage } from "@/components/ImagePreview";
 import type { Product, Supplier } from "@/lib/types";
@@ -23,6 +24,7 @@ type Draft = {
   sellPrice: string;
   supplierId: string;
   description: string;
+  active: boolean;
 };
 
 const EMPTY: Draft = {
@@ -33,6 +35,7 @@ const EMPTY: Draft = {
   sellPrice: "0",
   supplierId: "",
   description: "",
+  active: true,
 };
 
 export default function ProductsPage() {
@@ -65,6 +68,7 @@ export default function ProductsPage() {
       sellPrice: String(item.sellPrice),
       supplierId: item.supplierId ?? "",
       description: item.description ?? "",
+      active: item.active !== false,
     });
     setEditingId(item.id);
     setShowForm(true);
@@ -84,6 +88,7 @@ export default function ProductsPage() {
         sellPrice: Number(draft.sellPrice) || 0,
         supplierId: draft.supplierId || null,
         description: draft.description || null,
+        active: draft.active,
       };
       if (editingId) {
         await apiPut(`/products/${editingId}`, payload);
@@ -102,13 +107,22 @@ export default function ProductsPage() {
     }
   }
 
-  async function onDelete(id: string) {
+  async function setActive(item: Product, active: boolean) {
     try {
-      await apiDelete(`/products/${id}`);
+      await apiPut(`/products/${item.id}`, {
+        name: item.name,
+        sku: item.sku,
+        unit: item.unit,
+        purchasePrice: item.purchasePrice,
+        sellPrice: item.sellPrice,
+        supplierId: item.supplierId,
+        description: item.description,
+        active,
+      });
       await reload();
-      notify("Product deleted", "danger");
+      notify(active ? "Product activated" : "Product deactivated");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Delete failed");
+      setError(err instanceof Error ? err.message : "Update failed");
     }
   }
 
@@ -220,6 +234,18 @@ export default function ProductsPage() {
               }
             />
           </div>
+          <div className={styles.field} style={{ marginTop: "0.9rem" }}>
+            <label className={styles.label} style={{ display: "flex", gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={draft.active}
+                onChange={(e) =>
+                  setDraft({ ...draft, active: e.target.checked })
+                }
+              />
+              Active
+            </label>
+          </div>
           <div className={styles.actions}>
             <button className={styles.button} type="submit" disabled={saving}>
               {saving ? "Saving…" : editingId ? "Save changes" : "Create"}
@@ -259,8 +285,12 @@ export default function ProductsPage() {
               {pager.paged.map((item) => (
                 <li key={item.id} className={styles.card}>
                   <div className={styles.cardHead}>
-                    <div>
-                      <h2 className={styles.cardTitle}>{item.name}</h2>
+                    <EditIconButton onClick={() => startEdit(item)} />
+                    <div className={styles.cardContent}>
+                      <h2 className={styles.cardTitle}>
+                        {item.name}
+                        {item.active === false ? " (inactive)" : ""}
+                      </h2>
                       <p className={styles.cardMeta}>
                         {[item.sku, `per ${item.unit}`, item.supplier?.name]
                           .filter(Boolean)
@@ -284,15 +314,9 @@ export default function ProductsPage() {
                     <div className={styles.cardActions}>
                       <button
                         className={styles.ghost}
-                        onClick={() => startEdit(item)}
+                        onClick={() => void setActive(item, !item.active)}
                       >
-                        Edit
-                      </button>
-                      <button
-                        className={`${styles.ghost} ${styles.danger}`}
-                        onClick={() => void onDelete(item.id)}
-                      >
-                        Delete
+                        {item.active === false ? "Activate" : "Deactivate"}
                       </button>
                     </div>
                   </div>
@@ -327,18 +351,6 @@ export default function ProductsPage() {
                                 }}
                               >
                                 Default
-                              </button>
-                              <button
-                                className={styles.thumbBtn}
-                                onClick={async () => {
-                                  await apiDelete(
-                                    `/products/${item.id}/images/${img.id}`,
-                                  );
-                                  await reload();
-                                  notify("Image removed", "danger");
-                                }}
-                              >
-                                ✕
                               </button>
                             </div>
                           )}

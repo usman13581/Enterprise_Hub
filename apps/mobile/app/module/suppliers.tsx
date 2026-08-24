@@ -6,7 +6,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { apiDelete, apiPost, apiPut } from "../../lib/api";
+import { apiPost, apiPut } from "../../lib/api";
 import {
   searchItems,
   useFlash,
@@ -27,6 +27,7 @@ type Draft = {
   address: string;
   trn: string;
   notes: string;
+  active: boolean;
 };
 
 const EMPTY: Draft = {
@@ -37,6 +38,7 @@ const EMPTY: Draft = {
   address: "",
   trn: "",
   notes: "",
+  active: true,
 };
 
 export default function SuppliersScreen() {
@@ -74,13 +76,22 @@ export default function SuppliersScreen() {
     }
   }
 
-  async function remove(id: string) {
+  async function setActive(item: Supplier, active: boolean) {
     try {
-      await apiDelete(`/suppliers/${id}`);
+      await apiPut(`/suppliers/${item.id}`, {
+        name: item.name,
+        contact: item.contact,
+        phone: item.phone,
+        email: item.email,
+        address: item.address,
+        trn: item.trn,
+        notes: item.notes,
+        active,
+      });
       await reload();
-      notify("Supplier deleted", "danger");
+      notify(active ? "Supplier activated" : "Supplier deactivated");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Delete failed");
+      setError(e instanceof Error ? e.message : "Update failed");
     }
   }
 
@@ -145,6 +156,16 @@ export default function SuppliersScreen() {
               multiline
               onChangeText={(v) => setDraft({ ...draft, notes: v })}
             />
+            <Pressable
+              style={ui.ghost}
+              onPress={() =>
+                setDraft({ ...draft, active: !draft.active })
+              }
+            >
+              <Text style={ui.ghostText}>
+                Active: {draft.active ? "Yes" : "No"}
+              </Text>
+            </Pressable>
             <View style={ui.cardActions}>
               <Pressable style={ui.button} onPress={() => void save()}>
                 <Text style={ui.buttonText}>
@@ -195,7 +216,21 @@ export default function SuppliersScreen() {
               pager.paged.map((item) => (
                 <RecordRow
                   key={item.id}
-                  title={item.name}
+                  title={`${item.name}${item.active === false ? " (inactive)" : ""}`}
+                  onEdit={() => {
+                    setDraft({
+                      name: item.name,
+                      contact: item.contact ?? "",
+                      phone: item.phone ?? "",
+                      email: item.email ?? "",
+                      address: item.address ?? "",
+                      trn: item.trn ?? "",
+                      notes: item.notes ?? "",
+                      active: item.active !== false,
+                    });
+                    setEditingId(item.id);
+                    setShowForm(true);
+                  }}
                   meta={[
                     item.contact,
                     item.phone,
@@ -206,25 +241,8 @@ export default function SuppliersScreen() {
                     .join(" · ") || "No contact details"}
                 >
                   <LinkAction
-                    label="Edit"
-                    onPress={() => {
-                      setDraft({
-                        name: item.name,
-                        contact: item.contact ?? "",
-                        phone: item.phone ?? "",
-                        email: item.email ?? "",
-                        address: item.address ?? "",
-                        trn: item.trn ?? "",
-                        notes: item.notes ?? "",
-                      });
-                      setEditingId(item.id);
-                      setShowForm(true);
-                    }}
-                  />
-                  <LinkAction
-                    label="Delete"
-                    tone="danger"
-                    onPress={() => void remove(item.id)}
+                    label={item.active === false ? "Activate" : "Deactivate"}
+                    onPress={() => void setActive(item, !item.active)}
                   />
                 </RecordRow>
               ))

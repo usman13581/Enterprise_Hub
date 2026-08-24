@@ -2,6 +2,9 @@ import { z } from 'zod';
 import {
   INVOICE_KINDS,
   PAYMENT_METHODS,
+  QUOTATION_KINDS,
+  QUOTATION_LOOKUP_APPLIES_TO,
+  QUOTATION_LOOKUP_CATEGORIES,
   QUOTATION_STATUSES,
 } from './enums';
 
@@ -123,16 +126,67 @@ export const quotationLineSchema = z.object({
 });
 export type QuotationLineInput = z.infer<typeof quotationLineSchema>;
 
-export const quotationSchema = z.object({
-  customerId: requiredText(60),
-  title: optionalText(200),
-  notes: optionalText(2000),
-  validUntil: isoDate,
-  lines: z.array(quotationLineSchema).min(1, 'at least one line is required'),
+export const quotationSectionItemSchema = z.object({
+  label: requiredText(120),
+  value: z.string().trim().max(500).default(''),
+  amount: money.default(0),
 });
+export type QuotationSectionItemInput = z.infer<
+  typeof quotationSectionItemSchema
+>;
+
+export const quotationSectionSchema = z.object({
+  productId: optionalText(60),
+  productName: requiredText(200),
+  amount: money,
+  items: z.array(quotationSectionItemSchema).default([]),
+});
+export type QuotationSectionInput = z.infer<typeof quotationSectionSchema>;
+
+export const quotationSchema = z
+  .object({
+    kind: z.enum(QUOTATION_KINDS).default('general'),
+    customerId: requiredText(60),
+    title: optionalText(200),
+    notes: optionalText(2000),
+    contactName: optionalText(120),
+    contactPhone: optionalText(60),
+    location: optionalText(200),
+    validUntil: isoDate,
+    discount: money.default(0),
+    lookupIds: z.array(requiredText(60)).default([]),
+    lines: z.array(quotationLineSchema).default([]),
+    sections: z.array(quotationSectionSchema).default([]),
+  })
+  .superRefine((data, ctx) => {
+    if (data.kind === 'general' && data.lines.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'at least one line is required',
+        path: ['lines'],
+      });
+    }
+    if (data.kind === 'counter_top' && data.sections.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'at least one counter top section is required',
+        path: ['sections'],
+      });
+    }
+  });
 export type QuotationInput = z.infer<typeof quotationSchema>;
 
 export const quotationStatusFilter = z.enum(QUOTATION_STATUSES).optional();
+
+export const quotationLookupSchema = z.object({
+  category: z.enum(QUOTATION_LOOKUP_CATEGORIES),
+  appliesTo: z.enum(QUOTATION_LOOKUP_APPLIES_TO).default('both'),
+  title: requiredText(200),
+  body: requiredText(8000),
+  active: z.boolean().default(true),
+  sortOrder: z.number().int().min(0).default(0),
+});
+export type QuotationLookupInput = z.infer<typeof quotationLookupSchema>;
 
 export const invoiceLineSchema = z.object({
   description: requiredText(300),

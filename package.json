@@ -12,6 +12,10 @@
     "db:generate": "pnpm --filter @marble/api prisma:generate",
     "build:packages": "pnpm --filter @marble/types build && pnpm --filter @marble/domain build && pnpm --filter @marble/pdf build",
     "build": "pnpm build:packages && pnpm -r --filter @marble/api --filter @marble/web build",
+    "railway:build:api": "pnpm build:packages && pnpm db:generate && pnpm --filter @marble/api build",
+    "railway:build:web": "pnpm build:packages && pnpm --filter @marble/web build",
+    "railway:deploy:api": "pnpm --filter @marble/api db:push && pnpm --filter @marble/api start",
+    "railway:start:web": "pnpm --filter @marble/web start",
     "typecheck": "pnpm build:packages && pnpm -r typecheck",
     "test": "pnpm build:packages && pnpm -r test",
     "verify": "pnpm db:generate && pnpm typecheck && pnpm test && pnpm build"

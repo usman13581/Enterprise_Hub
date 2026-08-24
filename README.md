@@ -19,6 +19,8 @@ Multi-company marble business SaaS — web (Next.js) + mobile (Expo) + NestJS AP
 ```bash
 pnpm install
 pnpm build:packages   # shared types / domain / PDF (also runs via prepare)
+docker compose up -d postgres
+cp apps/api/.env.example apps/api/.env
 pnpm db:push
 pnpm db:seed          # Binhaj catalog + villa job money path
 
@@ -36,7 +38,11 @@ Copy env templates first if you need overrides:
 Bootstrap company: **Binhaj Marble**  
 Bootstrap token: `binhaj-dev-token` (or whatever you set as `BOOTSTRAP_TOKEN`)
 
-Local DB is SQLite for now (no Docker). Schema is Postgres-ready.
+Database is **PostgreSQL** (local via `docker compose`, production via Railway).
+
+## Deploy on Railway
+
+See **[docs/RAILWAY.md](docs/RAILWAY.md)** for step-by-step Railway setup (Postgres + API + Web).
 
 ## Verify
 
