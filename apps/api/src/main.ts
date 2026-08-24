@@ -26,9 +26,13 @@ async function bootstrap() {
   app.useGlobalFilters(new PrismaExceptionFilter());
 
   const port = Number(process.env.PORT ?? 3001);
-  const host = process.env.HOST ?? '0.0.0.0';
+  // Containers must bind 0.0.0.0; a public hostname in HOST breaks listen().
+  const host = '0.0.0.0';
   await app.listen(port, host);
   console.log(`Marble API listening on http://${host}:${port}`);
 }
 
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('Fatal: API failed to start', err);
+  process.exit(1);
+});
