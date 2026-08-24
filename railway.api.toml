@@ -8,5 +8,5 @@ buildCommand = "pnpm install && pnpm railway:build:api"
 [deploy]
 startCommand = "pnpm railway:deploy:api"
 healthcheckPath = "/health"
-healthcheckTimeout = 120
+healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
