@@ -1,5 +1,6 @@
 # Railway config for the API service.
 # In Railway: Service → Settings → Config file path → railway.api.toml
+# deploy-trigger: 2026-08-24T19:55:00Z
 
 [build]
 builder = "NIXPACKS"
