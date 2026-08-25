@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { apiPost, apiPut, apiUpload, assetUrl } from "@/lib/api";
+import { apiDelete, apiPost, apiPut, apiUpload, assetUrl } from "@/lib/api";
 import {
   searchItems,
   useFlash,
@@ -338,8 +338,9 @@ export default function ProductsPage() {
                           />
                           {img.isDefault ? (
                             <p className={styles.defaultLabel}>DEFAULT</p>
-                          ) : (
-                            <div className={styles.thumbBar}>
+                          ) : null}
+                          <div className={styles.thumbBar}>
+                            {!img.isDefault ? (
                               <button
                                 className={styles.thumbBtn}
                                 onClick={async () => {
@@ -352,8 +353,35 @@ export default function ProductsPage() {
                               >
                                 Default
                               </button>
-                            </div>
-                          )}
+                            ) : null}
+                            <button
+                              className={`${styles.thumbBtn} ${styles.thumbBtnDanger}`}
+                              onClick={async () => {
+                                if (
+                                  !window.confirm(
+                                    "Delete this product image?",
+                                  )
+                                ) {
+                                  return;
+                                }
+                                try {
+                                  await apiDelete(
+                                    `/products/${item.id}/images/${img.id}`,
+                                  );
+                                  await reload();
+                                  notify("Image deleted");
+                                } catch (e) {
+                                  notify(
+                                    e instanceof Error
+                                      ? e.message
+                                      : "Could not delete image",
+                                  );
+                                }
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>

@@ -34,6 +34,28 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-router", "expo-secure-store"]
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "buildArchs": [
+              "arm64-v8a",
+              "x86_64"
+            ]
+          }
+        }
+      ],
+      "expo-sqlite"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c90cde1e-6a20-4654-94b6-6b6c2ace85f4"
+      }
+    },
+    "owner": "preuqaliq"
   }
 }

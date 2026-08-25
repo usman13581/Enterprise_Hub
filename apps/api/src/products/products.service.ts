@@ -1,7 +1,10 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { unlink } from 'fs/promises';
+import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { SessionContext } from '../auth/session.types';
+import { UPLOADS_DIR } from '../uploads/uploads.constants';
 
 export type ProductInput = {
   name: string;
@@ -218,8 +221,53 @@ export class ProductsService {
     productId: string,
     imageId: string,
   ) {
-    throw new ConflictException(
-      'Product images cannot be removed. Set another image as default instead.',
-    );
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, companyId: session.companyId },
+      include: { images: true },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+
+    const image = product.images.find((i) => i.id === imageId);
+    if (!image) throw new NotFoundException('Image not found');
+
+    const wasDefault = image.isDefault;
+    await this.prisma.productImage.delete({ where: { id: imageId } });
+
+    if (wasDefault) {
+      const next = await this.prisma.productImage.findFirst({
+        where: { productId },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (next) {
+        await this.prisma.productImage.update({
+          where: { id: next.id },
+          data: { isDefault: true },
+        });
+      }
+    }
+
+    await this.unlinkStaticFile(image.url);
+
+    await this.audit.write({
+      companyId: session.companyId,
+      actorId: session.userId,
+      entityType: 'ProductImage',
+      entityId: imageId,
+      action: 'delete',
+      before: image,
+    });
+
+    return this.get(session.companyId, productId);
+  }
+
+  /** Best-effort remove of a local /static/... upload; ignore missing files. */
+  private async unlinkStaticFile(url: string) {
+    const match = /^\/static\/([^/]+)$/.exec(url.trim());
+    if (!match) return;
+    try {
+      await unlink(join(UPLOADS_DIR, match[1]));
+    } catch {
+      // File may already be gone or stored elsewhere.
+    }
   }
 }

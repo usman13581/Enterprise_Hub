@@ -10,5 +10,7 @@ config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
 ];
+// Parent folder "Marble with Nuage/" also has node_modules — don't resolve from there.
+config.resolver.disableHierarchicalLookup = true;
 
 module.exports = config;

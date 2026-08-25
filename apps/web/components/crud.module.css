@@ -321,6 +321,16 @@
   color: var(--ink);
 }
 
+.thumbBtnDanger {
+  color: #b42318;
+  border-color: rgba(180, 35, 24, 0.35);
+}
+
+.thumbBtnDanger:hover {
+  color: #912018;
+  background: rgba(180, 35, 24, 0.06);
+}
+
 .defaultLabel {
   font-size: 0.7rem;
   font-weight: 700;

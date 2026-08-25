@@ -1,0 +1,30 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://marble-api-production.up.railway.app",
+        "EXPO_PUBLIC_BOOTSTRAP_TOKEN": "set-via-eas-secret-or-local-eas-json"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://marble-api-production.up.railway.app",
+        "EXPO_PUBLIC_BOOTSTRAP_TOKEN": "set-via-eas-secret-or-local-eas-json"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

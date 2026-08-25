@@ -2,6 +2,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -11,6 +12,7 @@ import {
   View,
 } from "react-native";
 import {
+  apiDelete,
   apiPost,
   apiPut,
   apiUploadImage,
@@ -355,8 +357,9 @@ export default function ProductsScreen() {
                           />
                           {img.isDefault ? (
                             <Text style={styles.defaultLabel}>DEFAULT</Text>
-                          ) : (
-                            <View style={styles.thumbActions}>
+                          ) : null}
+                          <View style={styles.thumbActions}>
+                            {!img.isDefault ? (
                               <Pressable
                                 onPress={async () => {
                                   await apiPut(
@@ -368,8 +371,46 @@ export default function ProductsScreen() {
                               >
                                 <Text style={styles.thumbBtn}>Set</Text>
                               </Pressable>
-                            </View>
-                          )}
+                            ) : null}
+                            <Pressable
+                              onPress={() => {
+                                Alert.alert(
+                                  "Delete image",
+                                  "Remove this product image?",
+                                  [
+                                    { text: "Cancel", style: "cancel" },
+                                    {
+                                      text: "Delete",
+                                      style: "destructive",
+                                      onPress: () => {
+                                        void (async () => {
+                                          try {
+                                            await apiDelete(
+                                              `/products/${item.id}/images/${img.id}`,
+                                            );
+                                            await reload();
+                                            notify("Image deleted");
+                                          } catch (e) {
+                                            notify(
+                                              e instanceof Error
+                                                ? e.message
+                                                : "Could not delete image",
+                                            );
+                                          }
+                                        })();
+                                      },
+                                    },
+                                  ],
+                                );
+                              }}
+                            >
+                              <Text
+                                style={[styles.thumbBtn, styles.thumbBtnDanger]}
+                              >
+                                Del
+                              </Text>
+                            </Pressable>
+                          </View>
                         </View>
                       ))}
                     </ScrollView>
@@ -454,5 +495,8 @@ const styles = StyleSheet.create({
   thumbBtn: {
     fontSize: 12,
     color: colors.muted,
+  },
+  thumbBtnDanger: {
+    color: "#b42318",
   },
 });

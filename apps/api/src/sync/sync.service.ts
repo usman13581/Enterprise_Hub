@@ -295,11 +295,37 @@ export class SyncService {
         return { ...base, decision: 'applied' };
       }
       case 'productImage': {
-        return {
-          ...base,
-          decision: 'reject_server_wins',
-          message: 'Product images cannot be removed',
-        };
+        const existing = await this.prisma.productImage.findFirst({
+          where: { id: mutation.id },
+          include: { product: { select: { companyId: true } } },
+        });
+        if (!existing || existing.product.companyId !== companyId) {
+          return { ...base, decision: 'applied' };
+        }
+        const wasDefault = existing.isDefault;
+        const productId = existing.productId;
+        await this.prisma.productImage.delete({ where: { id: existing.id } });
+        if (wasDefault) {
+          const next = await this.prisma.productImage.findFirst({
+            where: { productId },
+            orderBy: { createdAt: 'asc' },
+          });
+          if (next) {
+            await this.prisma.productImage.update({
+              where: { id: next.id },
+              data: { isDefault: true },
+            });
+          }
+        }
+        await this.audit.write({
+          companyId,
+          actorId: session.userId,
+          entityType: 'productImage',
+          entityId: existing.id,
+          action: 'sync_delete',
+          before: existing,
+        });
+        return { ...base, decision: 'applied' };
       }
       case 'quotation': {
         const existing = await this.prisma.quotation.findFirst({
