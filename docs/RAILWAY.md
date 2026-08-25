@@ -63,7 +63,17 @@ EXPO_PUBLIC_BOOTSTRAP_TOKEN=your-bootstrap-token
 
 ## Uploads (product images)
 
-Files are stored under `uploads/` on the API container disk. Railway disks are ephemeral unless you attach a **Volume** mounted at `uploads`. For production pilots, add a volume or plan object storage (S3/R2).
+The API writes files to `UPLOADS_DIR` (default `/data/uploads` in the Docker image).
+Railway container disks are ephemeral — attach a **Volume** so images survive redeploys.
+
+### Attach a Volume (marble-api)
+
+1. Open **marble-api** → **Settings** → **Volumes** (or **+ New** → **Volume** attached to marble-api).
+2. **Mount path:** `/data/uploads` (exact match — must match `UPLOADS_DIR`).
+3. Save — Railway will redeploy the API.
+4. Confirm **Variables** has `UPLOADS_DIR=/data/uploads` (the Docker image sets this by default).
+
+After that, product images persist across deploys. For long-term scale, consider object storage (S3/R2).
 
 ## Local development with Postgres
 

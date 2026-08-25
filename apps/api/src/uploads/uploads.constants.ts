@@ -1,6 +1,12 @@
 import { join } from 'path';
 
-export const UPLOADS_DIR = join(process.cwd(), 'uploads');
+/**
+ * Local default: <cwd>/uploads.
+ * On Railway, set UPLOADS_DIR=/data/uploads and mount a Volume at /data/uploads
+ * so product images survive redeploys.
+ */
+export const UPLOADS_DIR =
+  process.env.UPLOADS_DIR?.trim() || join(process.cwd(), 'uploads');
 
 export const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
 
