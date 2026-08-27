@@ -44,6 +44,7 @@ export default function CounterTopQuotationScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ edit?: string }>();
   const editId = typeof params.edit === 'string' ? params.edit : undefined;
+  const [featureOk, setFeatureOk] = useState<boolean | null>(null);
   const { items: customers } = usePolledList<Customer>('/customers', 20000);
   const { items: products } = usePolledList<Product>('/products', 20000);
   const [customerId, setCustomerId] = useState('');
@@ -68,6 +69,18 @@ export default function CounterTopQuotationScreen() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(Boolean(editId));
+
+  useEffect(() => {
+    void apiFetch<{ features?: string[] }>('/auth/session')
+      .then((s) => {
+        const ok = Array.isArray(s.features) && s.features.includes('quotation.counter_top');
+        setFeatureOk(ok);
+        if (!ok) {
+          setError('Counter Top quotations are not enabled for this company.');
+        }
+      })
+      .catch(() => setFeatureOk(false));
+  }, []);
 
   useEffect(() => {
     void apiFetch<QuotationLookup[]>('/quotation-lookups?category=spec')
@@ -139,6 +152,10 @@ export default function CounterTopQuotationScreen() {
   }
 
   async function save() {
+    if (featureOk === false) {
+      setError('Counter Top quotations are not enabled for this company.');
+      return;
+    }
     if (saving || !customerId) return;
     if (sections.some((s) => !s.productName.trim())) {
       setError('Each section needs a product name');

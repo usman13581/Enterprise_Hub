@@ -1,8 +1,14 @@
 import { File, Paths } from 'expo-file-system';
+import { router } from 'expo-router';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { getApiBaseUrl } from './apiBase';
-import { clearAuthToken, getAuthToken } from './auth';
+import {
+  clearAuthToken,
+  getAuthToken,
+  getSessionKind,
+  type SessionKind,
+} from './auth';
 import { listEntities, getEntity, upsertEntity } from './offline/db';
 import { isOnline } from './offline/net';
 import {
@@ -57,26 +63,44 @@ function parseApiError(detail: string, fallback: string) {
   return detail || fallback;
 }
 
+function isLoginPath(path: string) {
+  const base = path.split('?')[0];
+  return base === '/auth/login' || base === '/auth/admin/login';
+}
+
+function isAdminApiPath(path: string) {
+  const base = path.split('?')[0];
+  return base.startsWith('/admin') || base === '/auth/admin/login';
+}
+
+async function redirectUnauthorized(path: string) {
+  const kind = await getSessionKind();
+  await clearAuthToken();
+  const toAdmin =
+    kind === 'platform' || isAdminApiPath(path);
+  router.replace((toAdmin ? '/admin-login' : '/login') as never);
+}
+
 async function request<T>(
   path: string,
   init?: RequestInit & { json?: unknown },
 ): Promise<T> {
   const { json, ...rest } = init ?? {};
   const method = (rest.method ?? 'GET').toUpperCase();
-  const isLogin = path === '/auth/login';
+  const skipAuth = isLoginPath(path);
 
   try {
     const res = await fetch(`${getApiBaseUrl()}${path}`, {
       ...rest,
       headers: {
-        ...(isLogin ? {} : await authHeaders()),
+        ...(skipAuth ? {} : await authHeaders()),
         ...(json !== undefined ? { 'Content-Type': 'application/json' } : {}),
         ...(rest.headers ?? {}),
       },
       body: json !== undefined ? JSON.stringify(json) : rest.body,
     });
-    if (res.status === 401 && !isLogin) {
-      await clearAuthToken();
+    if (res.status === 401 && !skipAuth) {
+      await redirectUnauthorized(path);
       throw new Error('Session expired. Please sign in again.');
     }
     if (!res.ok) {
@@ -106,7 +130,7 @@ async function request<T>(
       }
     }
 
-    if (method !== 'GET' && path !== '/auth/login' && !(await isOnline())) {
+    if (method !== 'GET' && !isLoginPath(path) && !(await isOnline())) {
       await queueRestMutation({ method, path, body: json });
       return {
         queued: true,
@@ -126,6 +150,9 @@ export const apiPost = <T,>(path: string, json: unknown) =>
 export const apiPut = <T,>(path: string, json?: unknown) =>
   request<T>(path, { method: 'PUT', json: json ?? {} });
 
+export const apiPatch = <T,>(path: string, json?: unknown) =>
+  request<T>(path, { method: 'PATCH', json: json ?? {} });
+
 export const apiDelete = <T,>(path: string) =>
   request<T>(path, { method: 'DELETE' });
 
@@ -133,7 +160,7 @@ export async function apiUploadImage(
   uri: string,
   options?: {
     productId?: string;
-    purpose?: 'product' | 'logo' | 'signature';
+    purpose?: 'product' | 'logo' | 'signature' | 'deposit' | 'support';
   },
 ): Promise<{ url: string; queued?: boolean }> {
   const purpose =
@@ -165,6 +192,10 @@ export async function apiUploadImage(
     headers: { ...(await authHeaders()) },
     body: form,
   });
+  if (res.status === 401) {
+    await redirectUnauthorized('/uploads');
+    throw new Error('Session expired. Please sign in again.');
+  }
   if (!res.ok) throw new Error(`Upload failed (${res.status})`);
   return res.json() as Promise<{ url: string }>;
 }
@@ -187,6 +218,10 @@ export async function openPdf(path: string): Promise<void> {
   const res = await fetch(`${getApiBaseUrl()}${path}`, {
     headers: { ...(await authHeaders()) },
   });
+  if (res.status === 401) {
+    await redirectUnauthorized(path);
+    throw new Error('Session expired. Please sign in again.');
+  }
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
     throw new Error(
@@ -222,6 +257,19 @@ export async function openPdf(path: string): Promise<void> {
   throw new Error('Printing and sharing are unavailable on this device');
 }
 
+type LoginSession = {
+  kind?: SessionKind;
+  companyId?: string;
+  userId?: string;
+  email: string;
+  companyName?: string;
+  companyRole?: 'admin' | 'member';
+  features?: string[];
+  unreadNotifications?: number;
+  adminId?: string;
+  name?: string;
+};
+
 export async function apiLogin(input: {
   email: string;
   password: string;
@@ -229,11 +277,16 @@ export async function apiLogin(input: {
 }) {
   return request<{
     token: string;
-    session: {
-      companyId: string;
-      userId: string;
-      email: string;
-      companyName: string;
-    };
+    session: LoginSession;
   }>('/auth/login', { method: 'POST', json: input });
+}
+
+export async function apiAdminLogin(input: {
+  email: string;
+  password: string;
+}) {
+  return request<{
+    token: string;
+    session: LoginSession;
+  }>('/auth/admin/login', { method: 'POST', json: input });
 }

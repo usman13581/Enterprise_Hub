@@ -1,17 +1,24 @@
 :root {
-  --bg: #f4f6f8;
+  --bg: #fafbfc;
   --bg-elevated: #ffffff;
-  --ink: #14202b;
-  --muted: #5d6b78;
-  --accent: #1a6b7a;
-  --accent-soft: rgba(26, 107, 122, 0.1);
-  --accent-strong: #0f4f5c;
-  --line: rgba(20, 32, 43, 0.08);
-  --line-strong: rgba(20, 32, 43, 0.14);
+  --ink: #0f2744;
+  --primary: #0f2744;
+  --primary-mid: #1a3a5c;
+  --muted: #5c6b7a;
+  --accent: #2563eb;
+  --accent-soft: #eff6ff;
+  --accent-strong: #1d4ed8;
+  --accent-subtle: #eff6ff;
+  --gold: #c9a227;
+  --line: #e8ecf1;
+  --line-strong: #d1dae6;
+  --surface: #f4f6f9;
+  --card: #ffffff;
   --danger: #c23b3b;
-  --shadow: 0 1px 2px rgba(20, 32, 43, 0.04), 0 12px 32px rgba(20, 32, 43, 0.06);
+  --shadow: 0 1px 2px rgba(15, 39, 68, 0.04), 0 12px 32px rgba(15, 39, 68, 0.07);
   --radius: 14px;
   --sidebar-width: 260px;
+  --sidebar-collapsed-width: 72px;
 }
 
 * {
@@ -29,9 +36,9 @@ body {
   color: var(--ink);
   background-color: var(--bg);
   background-image:
-    radial-gradient(ellipse 90% 60% at 100% -10%, rgba(26, 107, 122, 0.09), transparent 55%),
-    radial-gradient(ellipse 70% 50% at -10% 20%, rgba(90, 120, 150, 0.08), transparent 50%),
-    linear-gradient(180deg, #f8fafb 0%, #eef2f5 100%);
+    radial-gradient(ellipse 90% 60% at 100% -10%, rgba(37, 99, 235, 0.1), transparent 55%),
+    radial-gradient(ellipse 70% 50% at -10% 20%, rgba(15, 39, 68, 0.06), transparent 50%),
+    linear-gradient(180deg, #fafbfc 0%, #f4f6f9 100%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
 }

@@ -5,9 +5,9 @@
   justify-content: center;
   padding: 1.5rem;
   background:
-    radial-gradient(circle at top left, rgba(26, 107, 122, 0.12), transparent 40%),
-    radial-gradient(circle at bottom right, rgba(20, 32, 43, 0.06), transparent 45%),
-    var(--bg, #f4f6f8);
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 40%),
+    radial-gradient(circle at bottom right, rgba(15, 39, 68, 0.08), transparent 45%),
+    var(--bg, #fafbfc);
 }
 
 .card {
@@ -15,8 +15,17 @@
   padding: 1.75rem 1.6rem 1.4rem;
   border: 1px solid var(--line);
   border-radius: var(--radius, 14px);
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.95);
   box-shadow: var(--shadow);
+}
+
+.mark {
+  display: block;
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  margin: 0 0 0.85rem;
+  border-radius: 12px;
 }
 
 .brand {
@@ -28,9 +37,28 @@
   color: var(--ink);
 }
 
+.powered {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.version {
+  margin: 0.2rem 0 0.85rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
 .hint {
   margin: 1rem 0 0;
   font-size: 0.78rem;
   color: var(--muted);
   line-height: 1.45;
+}
+
+.hint a {
+  color: var(--accent-strong);
+  font-weight: 600;
 }

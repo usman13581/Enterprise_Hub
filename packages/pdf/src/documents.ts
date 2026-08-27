@@ -33,6 +33,7 @@ import type {
   AdvanceReceiptPdfData,
   InvoicePdfData,
   QuotationPdfData,
+  ReportPdfData,
 } from './types';
 
 const el = createElement;
@@ -355,3 +356,137 @@ export function AdvanceReceiptDocument(
     ),
   );
 }
+
+function cellValue(
+  value: string | number | null | undefined,
+  money: boolean | undefined,
+  currency: string,
+): string {
+  if (value == null || value === '') return '—';
+  if (money && typeof value === 'number') {
+    return formatMoney(value, currency);
+  }
+  return String(value);
+}
+
+export function ReportDocument(data: ReportPdfData): PdfDocumentElement {
+  const colCount = Math.max(1, data.columns.length);
+  const flex = 1 / colCount;
+
+  const head = el(
+    View,
+    { style: styles.tableHead, key: 'rhead' },
+    ...data.columns.map((col, index) =>
+      text(
+        [
+          styles.headCell,
+          {
+            flex,
+            textAlign: col.align === 'right' ? 'right' : 'left',
+            paddingHorizontal: 2,
+          },
+        ],
+        col.label.toUpperCase(),
+        `rh${index}`,
+      ),
+    ),
+  );
+
+  const rows =
+    data.rows.length === 0
+      ? [
+          el(
+            View,
+            { style: styles.row, key: 'empty' },
+            text(styles.bodyText, 'No rows for these parameters.', 'empty-t'),
+          ),
+        ]
+      : data.rows.map((row, rowIndex) =>
+          el(
+            View,
+            { style: styles.row, key: `rr${rowIndex}`, wrap: false },
+            ...data.columns.map((col, colIndex) =>
+              text(
+                {
+                  flex,
+                  textAlign: col.align === 'right' ? 'right' : 'left',
+                  paddingHorizontal: 2,
+                  fontSize: 8,
+                },
+                cellValue(row[col.key], col.money, data.company.currency),
+                `rc${rowIndex}-${colIndex}`,
+              ),
+            ),
+          ),
+        );
+
+  const summaryBlock =
+    data.summary.length === 0
+      ? null
+      : el(
+          View,
+          {
+            style: {
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              gap: 8,
+              marginBottom: 14,
+            },
+            key: 'sum',
+          },
+          ...data.summary.map((stat, index) =>
+            el(
+              View,
+              {
+                style: {
+                  width: '30%',
+                  backgroundColor: '#f4f6f8',
+                  borderRadius: 4,
+                  padding: 8,
+                  marginBottom: 4,
+                },
+                key: `s${index}`,
+              },
+              text(
+                {
+                  fontSize: 7,
+                  color: '#1a6b7a',
+                  fontFamily: 'Helvetica-Bold',
+                  letterSpacing: 0.5,
+                  marginBottom: 2,
+                },
+                stat.label.toUpperCase(),
+                `sl${index}`,
+              ),
+              text(
+                { fontSize: 11, fontFamily: 'Helvetica-Bold' },
+                typeof stat.value === 'number' && stat.money
+                  ? formatMoney(stat.value, data.company.currency)
+                  : String(stat.value),
+                `sv${index}`,
+              ),
+            ),
+          ),
+        );
+
+  return el(
+    Document,
+    { title: data.title },
+    el(
+      Page,
+      { size: 'A4', style: styles.page, orientation: 'landscape' as never },
+      companyHeader(data.company, data.title, data.subtitle ?? 'Report', data.meta),
+      summaryBlock,
+      el(View, null, head, ...rows),
+      data.footerNote
+        ? el(
+            View,
+            { style: styles.section, key: 'fn' },
+            text(styles.bodyText, data.footerNote, 'fnt'),
+          )
+        : null,
+      footer(data.company, data.footerNote ?? 'Finance report'),
+    ),
+  );
+}
+

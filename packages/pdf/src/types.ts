@@ -92,3 +92,27 @@ export type AdvanceReceiptPdfData = {
   jobNumber?: string | null;
   notes?: string | null;
 };
+
+export type ReportColumn = {
+  key: string;
+  label: string;
+  align?: 'left' | 'right';
+  money?: boolean;
+};
+
+export type ReportSummaryStat = {
+  label: string;
+  value: string | number;
+  money?: boolean;
+};
+
+export type ReportPdfData = {
+  company: PdfCompany;
+  title: string;
+  subtitle?: string | null;
+  meta: Array<[string, string]>;
+  summary: ReportSummaryStat[];
+  columns: ReportColumn[];
+  rows: Array<Record<string, string | number | null | undefined>>;
+  footerNote?: string | null;
+};

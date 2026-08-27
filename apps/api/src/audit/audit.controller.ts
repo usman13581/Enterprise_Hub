@@ -1,7 +1,10 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { BootstrapAuthGuard } from '../auth/bootstrap-auth.guard';
 import { CurrentSession } from '../auth/current-session.decorator';
-import { SessionContext } from '../auth/session.types';
+import {
+  SessionContext,
+  requireCompanySession,
+} from '../auth/session.types';
 import { AuditService } from './audit.service';
 
 @Controller('audit')
@@ -14,6 +17,7 @@ export class AuditController {
     @CurrentSession() session: SessionContext,
     @Query('limit') limit?: string,
   ) {
-    return this.auditService.list(session.companyId, Number(limit) || 50);
+    const s = requireCompanySession(session);
+    return this.auditService.list(s.companyId, Number(limit) || 50);
   }
 }

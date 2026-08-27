@@ -8,11 +8,21 @@ function authHeaders(): Record<string, string> {
   return token ? { 'x-marble-token': token } : {};
 }
 
+function isAuthExemptPath(path: string) {
+  return (
+    path === '/auth/login' ||
+    path === '/auth/admin/login' ||
+    path.startsWith('/public/')
+  );
+}
+
 function redirectToLogin() {
   if (typeof window === 'undefined') return;
   clearAuthToken();
-  if (window.location.pathname !== '/login') {
-    window.location.href = '/login';
+  const isAdminPath = window.location.pathname.startsWith('/admin');
+  const target = isAdminPath ? '/admin/login' : '/login';
+  if (window.location.pathname !== target) {
+    window.location.href = target;
   }
 }
 
@@ -21,18 +31,18 @@ async function request<T>(
   init?: RequestInit & { json?: unknown },
 ): Promise<T> {
   const { json, ...rest } = init ?? {};
-  const isLogin = path === '/auth/login';
+  const skipAuth = isAuthExemptPath(path);
   const res = await fetch(`${API_URL}${path}`, {
     ...rest,
     headers: {
-      ...(isLogin ? {} : authHeaders()),
+      ...(skipAuth ? {} : authHeaders()),
       ...(json !== undefined ? { 'Content-Type': 'application/json' } : {}),
       ...(rest.headers ?? {}),
     },
     body: json !== undefined ? JSON.stringify(json) : rest.body,
     cache: 'no-store',
   });
-  if (res.status === 401 && !isLogin) {
+  if (res.status === 401 && !skipAuth) {
     redirectToLogin();
     throw new Error('Session expired. Please sign in again.');
   }
@@ -59,6 +69,9 @@ export const apiPost = <T,>(path: string, json: unknown) =>
 
 export const apiPut = <T,>(path: string, json?: unknown) =>
   request<T>(path, { method: 'PUT', json: json ?? {} });
+
+export const apiPatch = <T,>(path: string, json: unknown) =>
+  request<T>(path, { method: 'PATCH', json });
 
 export const apiDelete = <T,>(path: string) =>
   request<T>(path, { method: 'DELETE' });
@@ -124,6 +137,24 @@ export async function apiLogin(input: {
       userId: string;
       email: string;
       companyName: string;
+      companyRole?: 'admin' | 'member';
+      features?: string[];
+      unreadNotifications?: number;
     };
   }>('/auth/login', { method: 'POST', json: input });
+}
+
+export async function apiAdminLogin(input: {
+  email: string;
+  password: string;
+}) {
+  return request<{
+    token: string;
+    session: {
+      kind: 'platform';
+      adminId: string;
+      email: string;
+      name: string;
+    };
+  }>('/auth/admin/login', { method: 'POST', json: input });
 }

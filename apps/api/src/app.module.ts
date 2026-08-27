@@ -18,6 +18,9 @@ import { AccountsModule } from './accounts/accounts.module';
 import { DocumentsModule } from './documents/documents.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { SyncModule } from './sync/sync.module';
+import { AdminModule } from './admin/admin.module';
+import { PublicModule } from './public/public.module';
+import { ReportsModule } from './reports/reports.module';
 import { UPLOADS_DIR } from './uploads/uploads.constants';
 
 @Module({
@@ -51,6 +54,9 @@ import { UPLOADS_DIR } from './uploads/uploads.constants';
     DocumentsModule,
     UploadsModule,
     SyncModule,
+    AdminModule,
+    PublicModule,
+    ReportsModule,
   ],
   controllers: [HealthController],
 })

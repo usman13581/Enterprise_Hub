@@ -109,6 +109,14 @@ export default function QuotationsScreen() {
   });
   const [lookupEditingId, setLookupEditingId] = useState<string | null>(null);
   const [attachable, setAttachable] = useState<QuotationLookup[]>([]);
+  const [features, setFeatures] = useState<string[]>([]);
+  const canCounterTop = features.includes('quotation.counter_top');
+
+  useEffect(() => {
+    void apiFetch<{ features?: string[] }>('/auth/session').then((s) => {
+      setFeatures(s.features ?? []);
+    });
+  }, []);
 
   function resetLookupDraft() {
     setLookupEditingId(null);
@@ -181,11 +189,20 @@ export default function QuotationsScreen() {
   function startCreate() {
     setEditingId(null);
     setKind('general');
+    if (!canCounterTop) {
+      setDraft({ ...EMPTY, lines: [{ ...EMPTY_LINE }], lookupIds: [] });
+      setStep('general-form');
+      return;
+    }
     setStep('pick-kind');
   }
 
   function continueWithKind() {
     if (kind === 'counter_top') {
+      if (!canCounterTop) {
+        setError('Counter Top quotations are not enabled for this company');
+        return;
+      }
       router.push('/module/quotations-counter-top' as never);
       return;
     }
@@ -448,7 +465,9 @@ export default function QuotationsScreen() {
               {(
                 [
                   ['general', QUOTATION_KIND_LABELS.general],
-                  ['counter_top', QUOTATION_KIND_LABELS.counter_top],
+                  ...(canCounterTop
+                    ? ([['counter_top', QUOTATION_KIND_LABELS.counter_top]] as const)
+                    : []),
                 ] as const
               ).map(([value, label]) => (
                 <Pressable

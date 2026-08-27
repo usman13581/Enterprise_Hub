@@ -9,24 +9,246 @@ datasource db {
 }
 
 model Company {
+  id                   String    @id @default(cuid())
+  name                 String
+  slug                 String    @unique
+  /// When set, company login and company APIs are blocked.
+  suspendedAt          DateTime?
+  industryCategoryId   String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  profile              CompanyProfile?
+  users                User[]
+  auditLogs            AuditLog[]
+  suppliers            Supplier[]
+  products             Product[]
+  customers            Customer[]
+  quotations           Quotation[]
+  jobs                 Job[]
+  invoices             Invoice[]
+  advances             AdvancePayment[]
+  ledger               LedgerEntry[]
+  quotationLookups     QuotationLookup[]
+  industryCategory     IndustryCategory?           @relation(fields: [industryCategoryId], references: [id], onDelete: SetNull)
+  subscription         CompanySubscription?
+  renewalRequests      SubscriptionRenewalRequest[]
+  applications         CompanyApplication[]
+  notifications        Notification[]
+  supportRequests      SupportRequest[]
+}
+
+model PlatformAdmin {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  decidedApplications CompanyApplication[]       @relation("ApplicationDecidedBy")
+  decidedRenewals     SubscriptionRenewalRequest[] @relation("RenewalDecidedBy")
+  notificationsSent   Notification[]             @relation("NotificationByAdmin")
+  supportClosed       SupportRequest[]           @relation("SupportClosedByAdmin")
+}
+
+model Plan {
   id        String   @id @default(cuid())
   name      String
-  slug      String   @unique
+  code      String   @unique
+  /// monthly | yearly
+  interval  String   @default("monthly")
+  priceAed  Float    @default(0)
+  trialDays Int      @default(14)
+  /// 0 = unlimited
+  maxUsers  Int      @default(0)
+  active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  profile    CompanyProfile?
-  users      User[]
-  auditLogs  AuditLog[]
-  suppliers  Supplier[]
-  products   Product[]
-  customers  Customer[]
-  quotations Quotation[]
-  jobs       Job[]
-  invoices   Invoice[]
-  advances   AdvancePayment[]
-  ledger     LedgerEntry[]
-  quotationLookups QuotationLookup[]
+  subscriptions CompanySubscription[]
+}
+
+model CompanySubscription {
+  id                 String    @id @default(cuid())
+  companyId          String    @unique
+  planId             String
+  /// trial | active | past_due | suspended | cancelled
+  status             String    @default("trial")
+  /// manual only in this backlog
+  billingChannel     String    @default("manual")
+  startsAt           DateTime  @default(now())
+  trialEndsAt        DateTime?
+  expiresAt          DateTime?
+  seatsIncluded      Int       @default(0)
+  seatsOverride      Int?
+  note               String?
+  lastPaymentAmount  Float?
+  lastPaymentAt      DateTime?
+  lastPaymentRef     String?
+  lastExpiryNoticeAt DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plan    Plan    @relation(fields: [planId], references: [id])
+}
+
+model SubscriptionRenewalRequest {
+  id                 String    @id @default(cuid())
+  companyId          String
+  submittedByUserId  String
+  amount             Float
+  paidAt             DateTime
+  bankReference      String?
+  notes              String?
+  depositDocumentUrl String
+  /// pending | approved | rejected
+  status             String    @default("pending")
+  rejectReason       String?
+  decidedAt          DateTime?
+  decidedByAdminId   String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  submittedBy   User           @relation(fields: [submittedByUserId], references: [id], onDelete: Cascade)
+  decidedBy     PlatformAdmin? @relation("RenewalDecidedBy", fields: [decidedByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status])
+  @@index([status, createdAt])
+}
+
+model CompanyApplication {
+  id               String    @id @default(cuid())
+  /// pending | approved | rejected
+  status           String    @default("pending")
+  rejectReason     String?
+  decidedAt        DateTime?
+  decidedByAdminId String?
+  companyId        String?
+  source           String    @default("website")
+  legalName        String
+  tradeName        String?
+  contactName      String
+  email            String
+  phone            String
+  emirate          String
+  trn              String?
+  approxUsers      String?
+  planInterest     String?
+  needs            String?
+  heardFrom        String?
+  note             String?
+  honeypot         String?
+  ip               String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  company   Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  decidedBy PlatformAdmin? @relation("ApplicationDecidedBy", fields: [decidedByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([email])
+}
+
+model Notification {
+  id                       String   @id @default(cuid())
+  companyId                String?
+  /// platform | company | system
+  source                   String
+  /// admin_to_company | company_internal | subscription | expiry_subscription | expiry_user | support
+  kind                     String
+  title                    String
+  body                     String
+  /// company_admins | all_users | one_user
+  audience                 String
+  userId                   String?
+  createdByPlatformAdminId String?
+  createdByUserId          String?
+  createdAt                DateTime @default(now())
+
+  company              Company?       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdByAdmin       PlatformAdmin? @relation("NotificationByAdmin", fields: [createdByPlatformAdminId], references: [id], onDelete: SetNull)
+  createdByUser        User?          @relation("NotificationByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  targetUser           User?          @relation("NotificationTargetUser", fields: [userId], references: [id], onDelete: SetNull)
+  receipts             NotificationReceipt[]
+
+  @@index([companyId, createdAt])
+}
+
+model NotificationReceipt {
+  id             String    @id @default(cuid())
+  notificationId String
+  userId         String
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, userId])
+  @@index([userId, readAt])
+}
+
+model SupportRequest {
+  id               String    @id @default(cuid())
+  companyId        String
+  createdByUserId  String
+  title            String
+  body             String
+  attachmentUrl    String?
+  /// open | closed
+  status           String    @default("open")
+  closedAt         DateTime?
+  /// company_admin | platform_admin
+  closedByKind     String?
+  closedByUserId   String?
+  closedByAdminId  String?
+  closeNote        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy     User           @relation("SupportCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  closedByUser  User?          @relation("SupportClosedByUser", fields: [closedByUserId], references: [id], onDelete: SetNull)
+  closedByAdmin PlatformAdmin? @relation("SupportClosedByAdmin", fields: [closedByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status, createdAt])
+}
+
+model IndustryCategory {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  companies Company[]
+  features  AppFeatureOnCategory[]
+}
+
+model AppFeature {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  label     String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  categories AppFeatureOnCategory[]
+}
+
+model AppFeatureOnCategory {
+  featureId  String
+  categoryId String
+
+  feature  AppFeature       @relation(fields: [featureId], references: [id], onDelete: Cascade)
+  category IndustryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([featureId, categoryId])
 }
 
 model CompanyProfile {
@@ -56,19 +278,29 @@ model CompanyProfile {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  companyId    String
-  email        String
-  name         String
+  id              String    @id @default(cuid())
+  companyId       String
+  email           String
+  name            String
   /// bcrypt hash; null only for legacy rows before login existed.
-  passwordHash String?
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  passwordHash    String?
+  active          Boolean   @default(true)
+  /// admin | member
+  companyRole     String    @default("member")
+  accessExpiresAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company              Company                      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  renewalRequests      SubscriptionRenewalRequest[]
+  notificationsCreated Notification[]               @relation("NotificationByUser")
+  notificationsTarget  Notification[]               @relation("NotificationTargetUser")
+  notificationReceipts NotificationReceipt[]
+  supportCreated       SupportRequest[]             @relation("SupportCreatedBy")
+  supportClosed        SupportRequest[]             @relation("SupportClosedByUser")
 
   @@unique([companyId, email])
+  @@index([companyId, companyRole, active])
 }
 
 model Supplier {

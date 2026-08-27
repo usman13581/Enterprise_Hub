@@ -2,14 +2,16 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   QUOTATION_KIND_LABELS,
   QUOTATION_LOOKUP_CATEGORY_LABELS,
+  hasFeature,
   type QuotationKind,
   type QuotationLookupCategory,
+  type SessionPayload,
 } from '@marble/types';
-import { apiPost, apiPut } from '@/lib/api';
+import { apiFetch, apiPost, apiPut } from '@/lib/api';
 import { day, money } from '@/lib/format';
 import {
   searchItems,
@@ -79,6 +81,15 @@ export default function QuotationsPage() {
   const [kind, setKind] = useState<QuotationKind>('general');
   const [pageTab, setPageTab] = useState<PageTab>('quotations');
   const [saving, setSaving] = useState(false);
+  const [features, setFeatures] = useState<string[]>([]);
+
+  useEffect(() => {
+    void apiFetch<SessionPayload>('/auth/session').then((s) => {
+      setFeatures(s.features ?? []);
+    });
+  }, []);
+
+  const canCounterTop = hasFeature(features, 'quotation.counter_top');
 
   const filtered = useMemo(() => {
     const byStatus =
@@ -95,6 +106,10 @@ export default function QuotationsPage() {
 
   function continueWithKind() {
     if (kind === 'counter_top') {
+      if (!canCounterTop) {
+        setError('Counter Top quotations are not enabled for this company');
+        return;
+      }
       router.push('/quotations/counter-top');
       return;
     }
@@ -221,9 +236,11 @@ export default function QuotationsPage() {
               onChange={(e) => setKind(e.target.value as QuotationKind)}
             >
               <option value="general">{QUOTATION_KIND_LABELS.general}</option>
-              <option value="counter_top">
-                {QUOTATION_KIND_LABELS.counter_top}
-              </option>
+              {canCounterTop ? (
+                <option value="counter_top">
+                  {QUOTATION_KIND_LABELS.counter_top}
+                </option>
+              ) : null}
             </select>
           </div>
           <div className={styles.actions}>

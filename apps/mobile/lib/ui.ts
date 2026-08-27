@@ -1,14 +1,18 @@
 import { StyleSheet } from 'react-native';
 
 export const colors = {
-  bg: '#f4f6f8',
+  bg: '#fafbfc',
   surface: '#ffffff',
-  ink: '#14202b',
-  muted: '#5d6b78',
-  soft: '#7a8794',
-  accent: '#1a6b7a',
-  accentSoft: 'rgba(26,107,122,0.1)',
-  line: 'rgba(20,32,43,0.08)',
+  ink: '#0f2744',
+  primary: '#0f2744',
+  primaryMid: '#1a3a5c',
+  muted: '#5c6b7a',
+  soft: '#94a3b8',
+  accent: '#2563eb',
+  accentSoft: '#eff6ff',
+  accentStrong: '#1d4ed8',
+  gold: '#c9a227',
+  line: '#e8ecf1',
   danger: '#c23b3b',
 };
 
@@ -46,21 +50,21 @@ export const ui = StyleSheet.create({
   },
   button: {
     backgroundColor: colors.accent,
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 10,
+    borderRadius: 12,
   },
   buttonText: {
     color: '#fff',
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: 15,
   },
   ghost: {
-    paddingVertical: 7,
-    paddingHorizontal: 10,
-    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(20,32,43,0.14)',
+    borderColor: colors.line,
   },
   ghostText: {
     color: colors.muted,
@@ -73,7 +77,7 @@ export const ui = StyleSheet.create({
   /** Form / detail cards — keep roomy. List rows use RecordRow instead. */
   card: {
     backgroundColor: colors.surface,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.line,
     padding: 14,
@@ -106,10 +110,10 @@ export const ui = StyleSheet.create({
   input: {
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: 'rgba(20,32,43,0.14)',
-    borderRadius: 9,
+    borderColor: colors.line,
+    borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 11,
+    paddingVertical: 12,
     fontSize: 15,
     color: colors.ink,
   },
@@ -121,10 +125,10 @@ export const ui = StyleSheet.create({
   empty: {
     marginTop: 16,
     padding: 20,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: 'rgba(20,32,43,0.14)',
+    borderColor: colors.line,
     alignItems: 'center',
   },
   emptyText: {

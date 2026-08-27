@@ -1,6 +1,7 @@
 import { createElement, type ReactElement } from 'react';
 import { Image, Text, View } from '@react-pdf/renderer';
 import { formatMoney } from '@marble/domain';
+import { APP_POWERED_BY, APP_VERSION } from '@marble/types';
 import { styles } from './theme';
 import type { PdfCompany, PdfLine, PdfParty } from './types';
 
@@ -206,12 +207,23 @@ export function signatureBlock(company: PdfCompany): ReactElement {
 }
 
 export function footer(company: PdfCompany, extra?: string): ReactElement {
-  const parts = [
+  const base = [
     company.legalName,
     company.trn ? `TRN ${company.trn}` : null,
     extra,
-  ].filter(Boolean);
-  return el(Text, { style: styles.footer, fixed: true }, parts.join('   ·   '));
+  ].filter(Boolean) as string[];
+
+  return el(Text, {
+    style: styles.footer,
+    fixed: true,
+    render: ({ pageNumber }: { pageNumber: number }) => {
+      const parts = [...base];
+      if (pageNumber === 1) {
+        parts.push(`${APP_POWERED_BY}  ·  v${APP_VERSION}`);
+      }
+      return parts.join('   ·   ');
+    },
+  } as never);
 }
 
 function formatPdfDate(value?: string | null): string {

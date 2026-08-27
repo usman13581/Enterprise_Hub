@@ -95,12 +95,158 @@ async function main() {
       name: 'Binhaj Owner',
       active: true,
       passwordHash,
+      companyRole: 'admin',
     },
     create: {
       companyId: company.id,
       email: 'owner@binhajmarble.ae',
       name: 'Binhaj Owner',
       passwordHash,
+      companyRole: 'admin',
+    },
+  });
+
+  await prisma.user.upsert({
+    where: {
+      companyId_email: {
+        companyId: company.id,
+        email: 'sales@binhajmarble.ae',
+      },
+    },
+    update: {
+      name: 'Binhaj Sales',
+      active: true,
+      passwordHash,
+      companyRole: 'member',
+    },
+    create: {
+      companyId: company.id,
+      email: 'sales@binhajmarble.ae',
+      name: 'Binhaj Sales',
+      passwordHash,
+      companyRole: 'member',
+    },
+  });
+
+  const pilotPlan = await prisma.plan.upsert({
+    where: { code: 'pilot' },
+    update: {
+      name: 'Pilot',
+      interval: 'yearly',
+      priceAed: 0,
+      trialDays: 365,
+      maxUsers: 5,
+      active: true,
+    },
+    create: {
+      name: 'Pilot',
+      code: 'pilot',
+      interval: 'yearly',
+      priceAed: 0,
+      trialDays: 365,
+      maxUsers: 5,
+      active: true,
+    },
+  });
+
+  await prisma.plan.upsert({
+    where: { code: 'standard' },
+    update: {
+      name: 'Standard',
+      interval: 'monthly',
+      priceAed: 499,
+      trialDays: 14,
+      maxUsers: 10,
+      active: true,
+    },
+    create: {
+      name: 'Standard',
+      code: 'standard',
+      interval: 'monthly',
+      priceAed: 499,
+      trialDays: 14,
+      maxUsers: 10,
+      active: true,
+    },
+  });
+
+  const farExpiry = new Date();
+  farExpiry.setFullYear(farExpiry.getFullYear() + 2);
+
+  await prisma.companySubscription.upsert({
+    where: { companyId: company.id },
+    update: {
+      planId: pilotPlan.id,
+      status: 'active',
+      seatsIncluded: pilotPlan.maxUsers,
+      expiresAt: farExpiry,
+    },
+    create: {
+      companyId: company.id,
+      planId: pilotPlan.id,
+      status: 'active',
+      seatsIncluded: pilotPlan.maxUsers,
+      startsAt: new Date(),
+      expiresAt: farExpiry,
+    },
+  });
+
+  const marbleCategory = await prisma.industryCategory.upsert({
+    where: { code: 'marble' },
+    update: { name: 'Marble & Stone', active: true },
+    create: { code: 'marble', name: 'Marble & Stone', active: true },
+  });
+
+  const counterTopFeature = await prisma.appFeature.upsert({
+    where: { key: 'quotation.counter_top' },
+    update: { label: 'Counter Top quotations', active: true },
+    create: {
+      key: 'quotation.counter_top',
+      label: 'Counter Top quotations',
+      active: true,
+    },
+  });
+
+  await prisma.appFeatureOnCategory.upsert({
+    where: {
+      featureId_categoryId: {
+        featureId: counterTopFeature.id,
+        categoryId: marbleCategory.id,
+      },
+    },
+    update: {},
+    create: {
+      featureId: counterTopFeature.id,
+      categoryId: marbleCategory.id,
+    },
+  });
+
+  await prisma.company.update({
+    where: { id: company.id },
+    data: { industryCategoryId: marbleCategory.id },
+  });
+
+  const platformEmail = (
+    process.env.PLATFORM_ADMIN_EMAIL || 'platform@prequaliq.com'
+  )
+    .trim()
+    .toLowerCase();
+  const platformPassword =
+    process.env.PLATFORM_ADMIN_PASSWORD || 'platform123';
+  const platformHash = await bcrypt.hash(platformPassword, 10);
+
+  await prisma.platformAdmin.upsert({
+    where: { email: platformEmail },
+    update: {
+      name: 'Platform Admin',
+      passwordHash: platformHash,
+      active: true,
+    },
+    create: {
+      email: platformEmail,
+      name: 'Platform Admin',
+      passwordHash: platformHash,
+      active: true,
     },
   });
 
@@ -646,7 +792,7 @@ F) Guarantee:
   }
 
   console.log(
-    'Seeded Binhaj Marble pilot: suppliers, products, customers, lookups, villa job path, counter-top demo',
+    'Seeded Binhaj Marble pilot: plans, subscription, industry features, platform admin, suppliers, products, customers, lookups, villa job path, counter-top demo',
   );
 }
 

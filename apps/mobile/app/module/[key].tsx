@@ -14,6 +14,7 @@ const DESCRIPTIONS: Record<string, string> = {
   jobs: "Jobs from approved quotations. Progress, advances, invoices, P&L.",
   invoices: "Progressive, custom, and final UAE tax invoices.",
   accounts: "Company AR, advances, and P&L summaries.",
+  reports: "Finance and invoice reports with Print PDF.",
   profile: "Logo, name, signature, TRN, and document prefixes.",
   audit: "History of creates, updates, and status changes.",
 };

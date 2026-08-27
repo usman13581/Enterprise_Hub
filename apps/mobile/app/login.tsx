@@ -1,6 +1,8 @@
+import { APP_NAME, APP_POWERED_BY, APP_VERSION } from '@marble/types';
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -9,7 +11,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { apiLogin, getApiBaseUrl } from '../lib/api';
-import { setAuthToken } from '../lib/auth';
+import { setAuthToken, setSessionKind } from '../lib/auth';
 import { ScreenScroll } from '../components/ScreenScroll';
 import { colors, ui } from '../lib/ui';
 
@@ -27,6 +29,7 @@ export default function LoginScreen() {
     try {
       const result = await apiLogin({ email, password });
       await setAuthToken(result.token);
+      await setSessionKind('company');
       router.replace('/' as never);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sign in failed');
@@ -40,11 +43,14 @@ export default function LoginScreen() {
       keyboardLift="gentle"
       contentContainerStyle={styles.content}
     >
-      <Text style={styles.brand}>Marble with Nuage</Text>
+      <Image
+        source={require('../assets/prequaliq-mark.png')}
+        style={styles.mark}
+        accessibilityLabel="Prequaliq"
+      />
+      <Text style={styles.brand}>{APP_NAME}</Text>
       <Text style={ui.title}>Sign in</Text>
-      <Text style={ui.lede}>
-        Use your company account on this device.
-      </Text>
+      <Text style={ui.lede}>Use your company account on this device.</Text>
       <Text style={styles.api}>API {getApiBaseUrl()}</Text>
 
       <View style={ui.card}>
@@ -82,9 +88,15 @@ export default function LoginScreen() {
         </Pressable>
       </View>
 
-      <Text style={styles.hint}>
-        Pilot: owner@binhajmarble.ae · default password binhaj123
-      </Text>
+      <Pressable
+        style={styles.adminLink}
+        onPress={() => router.push('/admin-login' as never)}
+      >
+        <Text style={styles.adminLinkText}>Platform admin</Text>
+      </Pressable>
+
+      <Text style={styles.credit}>{APP_POWERED_BY}</Text>
+      <Text style={styles.version}>v{APP_VERSION}</Text>
     </ScreenScroll>
   );
 }
@@ -92,11 +104,15 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
-    // Mid-upper placement so a small keyboard nudge keeps brand + fields
-    // visible without the big jump from vertical centering.
     justifyContent: 'flex-start',
-    paddingTop: 72,
+    paddingTop: 56,
     paddingBottom: 24,
+  },
+  mark: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    marginBottom: 12,
   },
   brand: {
     color: colors.ink,
@@ -110,11 +126,29 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 8,
   },
-  hint: {
-    marginTop: 16,
+  adminLink: {
+    alignSelf: 'center',
+    marginTop: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  adminLinkText: {
+    color: colors.accent,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  credit: {
+    marginTop: 28,
     color: colors.soft,
-    fontSize: 12,
-    lineHeight: 18,
+    fontSize: 11,
+    textAlign: 'center',
+  },
+  version: {
+    marginTop: 2,
+    marginBottom: 8,
+    color: colors.soft,
+    fontSize: 11,
+    textAlign: 'center',
   },
   disabled: { opacity: 0.6 },
 });

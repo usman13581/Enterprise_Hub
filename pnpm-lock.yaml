@@ -221,6 +221,9 @@ importers:
       '@marble/domain':
         specifier: workspace:*
         version: link:../domain
+      '@marble/types':
+        specifier: workspace:*
+        version: link:../types
       '@react-pdf/renderer':
         specifier: ^4.1.6
         version: 4.5.1(react@19.1.0)

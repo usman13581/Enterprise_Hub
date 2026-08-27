@@ -341,6 +341,8 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.line,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.accent,
     padding: 14,
     marginTop: 10,
   },

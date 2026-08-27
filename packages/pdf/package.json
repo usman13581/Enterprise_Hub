@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@marble/domain": "workspace:*",
+    "@marble/types": "workspace:*",
     "@react-pdf/renderer": "^4.1.6",
     "react": "19.1.0"
   },

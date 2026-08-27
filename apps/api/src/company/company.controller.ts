@@ -5,7 +5,10 @@ import {
 } from '@marble/types';
 import { BootstrapAuthGuard } from '../auth/bootstrap-auth.guard';
 import { CurrentSession } from '../auth/current-session.decorator';
-import { SessionContext } from '../auth/session.types';
+import {
+  SessionContext,
+  requireCompanySession,
+} from '../auth/session.types';
 import { zodBody } from '../common/zod-validation.pipe';
 import { CompanyService } from './company.service';
 
@@ -16,7 +19,14 @@ export class CompanyController {
 
   @Get('me')
   me(@CurrentSession() session: SessionContext) {
-    return this.companyService.getCompany(session.companyId);
+    const s = requireCompanySession(session);
+    return this.companyService.getCompany(s.companyId);
+  }
+
+  @Get('subscription')
+  subscription(@CurrentSession() session: SessionContext) {
+    const s = requireCompanySession(session);
+    return this.companyService.getSubscription(s.companyId);
   }
 
   @Put('profile')

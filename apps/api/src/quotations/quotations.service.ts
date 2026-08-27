@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -16,7 +17,11 @@ import type { QuotationInput, QuotationStatus } from '@marble/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NumberingService } from '../common/numbering.service';
-import { SessionContext } from '../auth/session.types';
+import { AuthService } from '../auth/auth.service';
+import {
+  SessionContext,
+  requireCompanySession,
+} from '../auth/session.types';
 import { QuotationLookupsService } from './quotation-lookups.service';
 
 const CUSTOMER_SELECT = { id: true, name: true, trn: true } as const;
@@ -41,7 +46,18 @@ export class QuotationsService {
     private readonly audit: AuditService,
     private readonly numbering: NumberingService,
     private readonly lookups: QuotationLookupsService,
+    private readonly auth: AuthService,
   ) {}
+
+  private async assertCounterTopFeature(companyId: string, kind: string) {
+    if (kind !== 'counter_top') return;
+    const features = await this.auth.featuresForCompany(companyId);
+    if (!features.includes('quotation.counter_top')) {
+      throw new ForbiddenException(
+        'Counter Top quotations are not enabled for this company',
+      );
+    }
+  }
 
   list(companyId: string, status?: QuotationStatus) {
     return this.prisma.quotation
@@ -63,22 +79,24 @@ export class QuotationsService {
   }
 
   async create(session: SessionContext, input: QuotationInput) {
-    await this.assertCustomer(session.companyId, input.customerId);
-    await this.assertProducts(session.companyId, input);
-    await this.assertLookups(session.companyId, input.lookupIds, input.kind);
+    const s = requireCompanySession(session);
+    await this.assertCounterTopFeature(s.companyId, input.kind);
+    await this.assertCustomer(s.companyId, input.customerId);
+    await this.assertProducts(s.companyId, input);
+    await this.assertLookups(s.companyId, input.lookupIds, input.kind);
 
     const totals = this.totalsFor(input);
 
     const quotation = await this.prisma.$transaction(async (tx) => {
       const number = await this.numbering.next(
         tx,
-        session.companyId,
+        s.companyId,
         'quotation',
       );
 
       return tx.quotation.create({
         data: {
-          companyId: session.companyId,
+          companyId: s.companyId,
           customerId: input.customerId,
           number,
           kind: input.kind,
@@ -140,8 +158,8 @@ export class QuotationsService {
     });
 
     await this.audit.write({
-      companyId: session.companyId,
-      actorId: session.userId,
+      companyId: s.companyId,
+      actorId: s.userId,
       entityType: 'Quotation',
       entityId: quotation.id,
       action: 'create',
@@ -150,7 +168,7 @@ export class QuotationsService {
 
     if (input.kind === 'counter_top') {
       await this.lookups.ensureSpecLabels(
-        session.companyId,
+        s.companyId,
         this.specItemsFromInput(input),
       );
     }
@@ -159,8 +177,10 @@ export class QuotationsService {
   }
 
   async update(session: SessionContext, id: string, input: QuotationInput) {
+    const s = requireCompanySession(session);
+    await this.assertCounterTopFeature(s.companyId, input.kind);
     const before = await this.prisma.quotation.findFirst({
-      where: { id, companyId: session.companyId },
+      where: { id, companyId: s.companyId },
       include: { lines: true, sections: true },
     });
     if (!before) throw new NotFoundException('Quotation not found');
@@ -173,9 +193,9 @@ export class QuotationsService {
       throw new BadRequestException('Quotation kind cannot be changed');
     }
 
-    await this.assertCustomer(session.companyId, input.customerId);
-    await this.assertProducts(session.companyId, input);
-    await this.assertLookups(session.companyId, input.lookupIds, input.kind);
+    await this.assertCustomer(s.companyId, input.customerId);
+    await this.assertProducts(s.companyId, input);
+    await this.assertLookups(s.companyId, input.lookupIds, input.kind);
 
     const totals = this.totalsFor(input);
 
@@ -245,8 +265,8 @@ export class QuotationsService {
     });
 
     await this.audit.write({
-      companyId: session.companyId,
-      actorId: session.userId,
+      companyId: s.companyId,
+      actorId: s.userId,
       entityType: 'Quotation',
       entityId: id,
       action: 'update',
@@ -256,7 +276,7 @@ export class QuotationsService {
 
     if (input.kind === 'counter_top') {
       await this.lookups.ensureSpecLabels(
-        session.companyId,
+        s.companyId,
         this.specItemsFromInput(input),
       );
     }
@@ -265,8 +285,9 @@ export class QuotationsService {
   }
 
   async approve(session: SessionContext, id: string) {
+    const s = requireCompanySession(session);
     const before = await this.prisma.quotation.findFirst({
-      where: { id, companyId: session.companyId },
+      where: { id, companyId: s.companyId },
       include: { lines: true, job: true },
     });
     if (!before) throw new NotFoundException('Quotation not found');
@@ -277,7 +298,7 @@ export class QuotationsService {
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
-      const jobNumber = await this.numbering.next(tx, session.companyId, 'job');
+      const jobNumber = await this.numbering.next(tx, s.companyId, 'job');
 
       const quotation = await tx.quotation.update({
         where: { id },
@@ -287,7 +308,7 @@ export class QuotationsService {
 
       const job = await tx.job.create({
         data: {
-          companyId: session.companyId,
+          companyId: s.companyId,
           customerId: quotation.customerId,
           quotationId: quotation.id,
           number: jobNumber,
@@ -303,8 +324,8 @@ export class QuotationsService {
     });
 
     await this.audit.write({
-      companyId: session.companyId,
-      actorId: session.userId,
+      companyId: s.companyId,
+      actorId: s.userId,
       entityType: 'Quotation',
       entityId: id,
       action: 'approve',
@@ -312,8 +333,8 @@ export class QuotationsService {
       after: result.quotation,
     });
     await this.audit.write({
-      companyId: session.companyId,
-      actorId: session.userId,
+      companyId: s.companyId,
+      actorId: s.userId,
       entityType: 'Job',
       entityId: result.job.id,
       action: 'create',
@@ -327,8 +348,9 @@ export class QuotationsService {
   }
 
   async cancel(session: SessionContext, id: string) {
+    const s = requireCompanySession(session);
     const before = await this.prisma.quotation.findFirst({
-      where: { id, companyId: session.companyId },
+      where: { id, companyId: s.companyId },
       include: { lines: true },
     });
     if (!before) throw new NotFoundException('Quotation not found');
@@ -345,8 +367,8 @@ export class QuotationsService {
     });
 
     await this.audit.write({
-      companyId: session.companyId,
-      actorId: session.userId,
+      companyId: s.companyId,
+      actorId: s.userId,
       entityType: 'Quotation',
       entityId: id,
       action: 'cancel',

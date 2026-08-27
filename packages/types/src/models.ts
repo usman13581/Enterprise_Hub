@@ -18,10 +18,17 @@ export type CompanySummary = {
 };
 
 export type SessionPayload = {
-  companyId: string;
-  userId: string;
+  kind?: 'company' | 'platform';
+  companyId?: string;
+  userId?: string;
   email: string;
-  companyName: string;
+  companyName?: string;
+  companyRole?: 'admin' | 'member';
+  features?: string[];
+  unreadNotifications?: number;
+  /** Platform admin session fields */
+  adminId?: string;
+  name?: string;
 };
 
 export type Supplier = {

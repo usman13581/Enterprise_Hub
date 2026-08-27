@@ -5,11 +5,17 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { SESSION_HEADER, SessionContext } from './session.types';
+import {
+  SESSION_HEADER,
+  SessionContext,
+  isCompanySession,
+} from './session.types';
 
 /**
- * Accepts a user JWT (from login) or the legacy bootstrap token (tests/dev).
+ * Accepts a company JWT (from login) or the legacy bootstrap token (tests/dev).
  * Controllers keep importing this under the historical BootstrapAuthGuard name.
+ * Rejects platform-admin tokens on company APIs.
+ * Re-checks subscription + user access on every request.
  */
 @Injectable()
 export class BootstrapAuthGuard implements CanActivate {
@@ -37,8 +43,15 @@ export class BootstrapAuthGuard implements CanActivate {
       return true;
     }
 
-    // Prefer verifying JWT without a DB hit; refresh name/active on session endpoint.
-    req.session = this.auth.verifyToken(token);
+    const session = this.auth.verifyToken(token);
+    if (!isCompanySession(session)) {
+      throw new UnauthorizedException(
+        'Company session required. Use company login.',
+      );
+    }
+    await this.auth.assertCompanyAccess(session.companyId, session.userId);
+    const features = await this.auth.featuresForCompany(session.companyId);
+    req.session = { ...session, features };
     return true;
   }
 }

@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { searchItems, usePagination, usePolledList } from "@/lib/useCollection";
 import { Pagination, SearchBox } from "@/components/ListControls";
+import { TableScroll } from "@/components/Finance";
 import page from "../page.module.css";
 import styles from "@/components/crud.module.css";
+import finance from "@/components/finance.module.css";
 
 type AuditRow = {
   id: string;
@@ -12,11 +14,16 @@ type AuditRow = {
   entityId: string;
   action: string;
   createdAt: string;
+  actorName?: string | null;
+  actorEmail?: string | null;
+  beforeJson?: string | null;
+  afterJson?: string | null;
 };
 
 export default function AuditPage() {
   const { items, error } = usePolledList<AuditRow>("/audit?limit=200");
   const [query, setQuery] = useState("");
+  const [openId, setOpenId] = useState<string | null>(null);
   const filtered = searchItems(items, query);
   const pager = usePagination(filtered);
 
@@ -33,7 +40,7 @@ export default function AuditPage() {
       <SearchBox
         value={query}
         onChange={setQuery}
-        placeholder="Search by action or entity type…"
+        placeholder="Search by action, actor, or entity…"
       />
 
       {filtered.length === 0 ? (
@@ -43,18 +50,70 @@ export default function AuditPage() {
             : "No audit entries yet. Writes will appear here."}
         </div>
       ) : (
-        <ul className={styles.list}>
-          {pager.paged.map((r) => (
-            <li key={r.id} className={styles.card}>
-              <strong>
-                {r.action} · {r.entityType}
-              </strong>
-              <p className={styles.cardMeta}>
-                {r.entityId} · {new Date(r.createdAt).toLocaleString()}
-              </p>
-            </li>
-          ))}
-        </ul>
+        <TableScroll>
+          <table className={finance.table}>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Actor</th>
+                <th>Action</th>
+                <th>Entity</th>
+                <th>Id</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pager.paged.map((r) => {
+                const actor =
+                  r.actorName || r.actorEmail
+                    ? [r.actorName, r.actorEmail].filter(Boolean).join(" · ")
+                    : "—";
+                const expanded = openId === r.id;
+                const hasJson = Boolean(r.beforeJson || r.afterJson);
+                return (
+                  <Fragment key={r.id}>
+                    <tr
+                      onClick={() =>
+                        hasJson
+                          ? setOpenId(expanded ? null : r.id)
+                          : undefined
+                      }
+                      style={hasJson ? { cursor: "pointer" } : undefined}
+                    >
+                      <td>{new Date(r.createdAt).toLocaleString()}</td>
+                      <td>{actor}</td>
+                      <td>{r.action}</td>
+                      <td>{r.entityType}</td>
+                      <td>{r.entityId}</td>
+                    </tr>
+                    {expanded && hasJson ? (
+                      <tr>
+                        <td colSpan={5}>
+                          <pre
+                            style={{
+                              margin: 0,
+                              padding: "0.65rem",
+                              background: "#f4f6f8",
+                              borderRadius: 8,
+                              fontSize: "0.75rem",
+                              overflow: "auto",
+                            }}
+                          >
+                            {r.beforeJson
+                              ? `before:\n${tryPretty(r.beforeJson)}\n\n`
+                              : ""}
+                            {r.afterJson
+                              ? `after:\n${tryPretty(r.afterJson)}`
+                              : ""}
+                          </pre>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
 
       <Pagination
@@ -67,4 +126,12 @@ export default function AuditPage() {
       />
     </section>
   );
+}
+
+function tryPretty(raw: string) {
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2);
+  } catch {
+    return raw;
+  }
 }

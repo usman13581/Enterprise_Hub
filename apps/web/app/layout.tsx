@@ -16,7 +16,7 @@ const sans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'Marble with Nuage',
+  title: 'Enterprise Hub',
   description: 'Quotations, jobs, and invoices for marble businesses',
 };
 

@@ -1,7 +1,9 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { APP_NAME, APP_POWERED_BY, APP_VERSION } from '@marble/types';
 import { apiLogin } from '@/lib/api';
 import { setAuthToken } from '@/lib/auth';
 import styles from '@/components/crud.module.css';
@@ -34,7 +36,17 @@ export default function LoginPage() {
   return (
     <section className={login.screen}>
       <div className={login.card}>
-        <p className={login.brand}>Marble with Nuage</p>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          className={login.mark}
+          src="/brand/prequaliq-mark.png"
+          alt="Prequaliq"
+          width={56}
+          height={56}
+        />
+        <p className={login.brand}>{APP_NAME}</p>
+        <p className={login.powered}>{APP_POWERED_BY}</p>
+        <p className={login.version}>v{APP_VERSION}</p>
         <h1 className={page.title}>Sign in</h1>
         <p className={page.lede}>
           Use your company account to open quotations, jobs, and invoices.
@@ -72,7 +84,8 @@ export default function LoginPage() {
         </form>
 
         <p className={login.hint}>
-          Pilot: owner@binhajmarble.ae · password from seed (default binhaj123)
+          New company?{' '}
+          <Link href="/get-started">Get started</Link>
         </p>
       </div>
     </section>

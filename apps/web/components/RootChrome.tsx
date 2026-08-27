@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
+import { AdminShell } from '@/components/AdminShell';
 import { isAuthenticated } from '@/lib/auth';
 
 export function RootChrome({ children }: { children: React.ReactNode }) {
@@ -10,26 +11,31 @@ export function RootChrome({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const isLogin = pathname === '/login';
+  const isAdminLogin = pathname === '/admin/login';
+  const isAdmin = pathname.startsWith('/admin');
+  const isPublicGetStarted = pathname === '/get-started';
 
   useEffect(() => {
-    if (isLogin) {
-      if (isAuthenticated()) router.replace('/');
+    if (isLogin || isAdminLogin || isPublicGetStarted) {
+      if (isLogin && isAuthenticated()) router.replace('/');
+      if (isAdminLogin && isAuthenticated()) router.replace('/admin');
       setReady(true);
       return;
     }
     if (!isAuthenticated()) {
-      router.replace('/login');
+      router.replace(isAdmin ? '/admin/login' : '/login');
       return;
     }
     setReady(true);
-  }, [isLogin, pathname, router]);
+  }, [isLogin, isAdminLogin, isPublicGetStarted, isAdmin, pathname, router]);
 
-  if (isLogin) return <>{children}</>;
+  if (isLogin || isAdminLogin || isPublicGetStarted) return <>{children}</>;
   if (!ready) {
     return (
       <div style={{ padding: '2rem', color: '#5d6b78' }}>Loading session…</div>
     );
   }
 
+  if (isAdmin) return <AdminShell>{children}</AdminShell>;
   return <AppShell>{children}</AppShell>;
 }

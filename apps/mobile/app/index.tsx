@@ -1,10 +1,17 @@
-import { MODULE_NAV } from '@marble/types';
+import {
+  APP_NAME,
+  APP_POWERED_BY,
+  APP_VERSION,
+  MODULE_NAV,
+  SHOW_NOTIFICATIONS,
+} from '@marble/types';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ScreenScroll } from '../components/ScreenScroll';
 import { apiFetch, apiPost, getApiBaseUrl } from '../lib/api';
 import { clearAuthToken } from '../lib/auth';
+import { day, money } from '../lib/format';
 import {
   runSync,
   subscribeSyncStatus,
@@ -13,10 +20,38 @@ import {
 import { colors, ui } from '../lib/ui';
 
 type Session = {
+  kind?: 'company' | 'platform';
   companyId: string;
   userId: string;
   email: string;
   companyName: string;
+  companyRole?: 'admin' | 'member';
+  features?: string[];
+  unreadNotifications?: number;
+};
+
+type SubscriptionSummary = {
+  planName: string;
+  planCode: string;
+  status: string;
+  startsAt: string;
+  trialEndsAt: string | null;
+  expiresAt: string | null;
+  seats: number;
+  lastPaymentAmount: number | null;
+  lastPaymentAt: string | null;
+} | null;
+
+type Dashboard = {
+  subscription: SubscriptionSummary;
+  seats: { active: number; cap: number; deactivated: number };
+  openQuotations: number;
+  openJobs: number;
+  outstandingInvoiceCount: number;
+  arTotal: number;
+  overdueInvoiceCount: number;
+  unreadNotifications: number;
+  openSupportCount: number;
 };
 
 const READY = new Set([
@@ -28,22 +63,41 @@ const READY = new Set([
   'invoices',
   'advances',
   'accounts',
+  'reports',
   'audit',
 ]);
 
 export default function HomeScreen() {
   const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
+  const [dashboard, setDashboard] = useState<Dashboard | null>(null);
+  const [subscription, setSubscription] = useState<SubscriptionSummary>(null);
   const [error, setError] = useState<string | null>(null);
   const [sync, setSync] = useState<SyncStatus | null>(null);
 
-  useEffect(() => {
-    apiFetch<Session>('/auth/session')
-      .then(setSession)
-      .catch((e) =>
-        setError(e instanceof Error ? e.message : 'Failed to load session'),
-      );
+  const load = useCallback(async () => {
+    try {
+      const next = await apiFetch<Session>('/auth/session');
+      setSession(next);
+      setError(null);
+
+      const sub = await apiFetch<SubscriptionSummary>('/company/subscription');
+      setSubscription(sub);
+
+      if (next.companyRole === 'admin') {
+        const dash = await apiFetch<Dashboard>('/company/dashboard');
+        setDashboard(dash);
+      } else {
+        setDashboard(null);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load session');
+    }
   }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   useEffect(() => {
     const unsubscribe = subscribeSyncStatus(setSync);
@@ -55,14 +109,44 @@ export default function HomeScreen() {
     };
   }, []);
 
+  const isAdmin = session?.companyRole === 'admin';
   const modules = MODULE_NAV.filter((m) => m.key !== 'home');
   const pending =
     (sync?.pendingMutations ?? 0) + (sync?.pendingImages ?? 0);
+  const unread =
+    dashboard?.unreadNotifications ?? session?.unreadNotifications ?? 0;
+  const sub = dashboard?.subscription ?? subscription;
 
   return (
     <ScreenScroll>
-      <Text style={styles.brand}>Marble with Nuage</Text>
-      <Text style={ui.lede}>Same modules and data as the web app.</Text>
+      <View style={styles.headerRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.brand}>{APP_NAME}</Text>
+          <Text style={ui.lede}>
+            {isAdmin
+              ? 'Work modules and company details.'
+              : 'Same modules and data as the web app.'}
+          </Text>
+        </View>
+        {SHOW_NOTIFICATIONS ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.bell,
+              pressed && styles.rowPressed,
+            ]}
+            onPress={() => router.push('/module/notifications' as never)}
+          >
+            <Text style={styles.bellIcon}>N</Text>
+            {unread > 0 ? (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {unread > 99 ? '99+' : String(unread)}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
+        ) : null}
+      </View>
       <Text style={styles.api}>API {getApiBaseUrl()}</Text>
 
       {error ? <Text style={ui.error}>{error}</Text> : null}
@@ -71,7 +155,11 @@ export default function HomeScreen() {
           <Text style={styles.cardLabel}>Active company</Text>
           <Text style={ui.cardTitle}>{session.companyName}</Text>
           <Text style={ui.cardMeta}>{session.email}</Text>
-          <Text style={styles.pilot}>Binhaj Marble pilot</Text>
+          {session.companyRole ? (
+            <Text style={styles.pilot}>
+              {session.companyRole === 'admin' ? 'Company admin' : 'Member'}
+            </Text>
+          ) : null}
           <Pressable
             style={({ pressed }) => [
               styles.profileBtn,
@@ -84,9 +172,91 @@ export default function HomeScreen() {
         </View>
       ) : null}
 
+      <Text style={styles.section}>Work</Text>
+      {modules
+        .filter((m) =>
+          [
+            'customers',
+            'suppliers',
+            'products',
+            'quotations',
+            'jobs',
+            'invoices',
+            'advances',
+            'accounts',
+          ].includes(m.key),
+        )
+        .map((item) => (
+          <Pressable
+            key={item.key}
+            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+            onPress={() => router.push(`/module/${item.key}` as never)}
+          >
+            <View>
+              <Text style={styles.rowText}>{item.label}</Text>
+              {!READY.has(item.key) ? (
+                <Text style={styles.soon}>Coming in a later phase</Text>
+              ) : null}
+            </View>
+            <Text style={styles.chevron}>›</Text>
+          </Pressable>
+        ))}
+
+      <Text style={styles.section}>Insights</Text>
+      {modules
+        .filter((m) => ['reports', 'audit'].includes(m.key))
+        .map((item) => (
+          <Pressable
+            key={item.key}
+            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+            onPress={() => router.push(`/module/${item.key}` as never)}
+          >
+            <Text style={styles.rowText}>{item.label}</Text>
+            <Text style={styles.chevron}>›</Text>
+          </Pressable>
+        ))}
+
+      {isAdmin && dashboard ? (
+        <>
+          <Text style={styles.section}>Overview</Text>
+          <View style={styles.detailCard}>
+            <Text style={styles.detailLine}>
+              Plan · {sub?.planName ?? '—'}
+              {sub?.status ? ` (${sub.status})` : ''}
+            </Text>
+            {sub?.expiresAt ? (
+              <Text style={styles.detailMeta}>
+                Expires {day(sub.expiresAt)}
+              </Text>
+            ) : null}
+            <Text style={styles.detailLine}>
+              Team · {dashboard.seats.active} /{' '}
+              {dashboard.seats.cap || '—'} seats
+            </Text>
+            <Text style={styles.detailLine}>
+              Open · {dashboard.openQuotations} quotations ·{' '}
+              {dashboard.openJobs} jobs
+            </Text>
+            <Text style={styles.detailLine}>
+              AR · {dashboard.outstandingInvoiceCount} invoices ·{' '}
+              {money(dashboard.arTotal)}
+              {dashboard.overdueInvoiceCount
+                ? ` · ${dashboard.overdueInvoiceCount} overdue`
+                : ''}
+            </Text>
+            <Text style={styles.detailMeta}>
+              {dashboard.openSupportCount} open support
+              {SHOW_NOTIFICATIONS
+                ? ` · ${dashboard.unreadNotifications} unread`
+                : ''}
+            </Text>
+          </View>
+        </>
+      ) : null}
+
+      <Text style={styles.section}>Sync</Text>
       <View style={styles.syncCard}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.cardLabel}>Offline sync</Text>
           <Text style={styles.syncLine}>
             {sync?.online === false ? 'Offline' : 'Online'}
             {sync?.syncing ? ' · syncing…' : ''}
@@ -114,27 +284,46 @@ export default function HomeScreen() {
         </Pressable>
       </View>
 
-      <Text style={styles.section}>Modules</Text>
-      {modules.map((item) => (
+      <Text style={styles.section}>Account</Text>
+      {isAdmin ? (
         <Pressable
-          key={item.key}
           style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-          onPress={() => router.push(`/module/${item.key}` as never)}
+          onPress={() => router.push('/module/team' as never)}
         >
-          <View>
-            <Text style={styles.rowText}>{item.label}</Text>
-            {!READY.has(item.key) ? (
-              <Text style={styles.soon}>Coming in a later phase</Text>
-            ) : null}
-          </View>
+          <Text style={styles.rowText}>Team</Text>
           <Text style={styles.chevron}>›</Text>
         </Pressable>
-      ))}
-
+      ) : null}
+      <Pressable
+        style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+        onPress={() => router.push('/module/subscription' as never)}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={styles.rowText}>Subscription</Text>
+          <Text style={styles.soon}>
+            {[
+              sub?.planName,
+              sub?.status,
+              sub?.expiresAt ? `expires ${day(sub.expiresAt)}` : null,
+              sub?.trialEndsAt ? `trial ends ${day(sub.trialEndsAt)}` : null,
+            ]
+              .filter(Boolean)
+              .join(' · ') || 'No subscription loaded'}
+          </Text>
+        </View>
+        <Text style={styles.chevron}>›</Text>
+      </Pressable>
+      <Pressable
+        style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+        onPress={() => router.push('/module/support' as never)}
+      >
+        <Text style={styles.rowText}>Support</Text>
+        <Text style={styles.chevron}>›</Text>
+      </Pressable>
       {session ? (
         <Pressable
           style={({ pressed }) => [
-            styles.signOutBtn,
+            styles.signOutRow,
             pressed && styles.rowPressed,
           ]}
           onPress={() =>
@@ -152,16 +341,54 @@ export default function HomeScreen() {
           <Text style={styles.signOutText}>Sign out</Text>
         </Pressable>
       ) : null}
+
+      <Text style={styles.credit}>{APP_POWERED_BY}</Text>
+      <Text style={styles.version}>v{APP_VERSION}</Text>
     </ScreenScroll>
   );
 }
 
 const styles = StyleSheet.create({
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
   brand: {
     color: colors.ink,
     fontSize: 30,
     fontWeight: '700',
     letterSpacing: -0.6,
+  },
+  bell: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bellIcon: {
+    fontSize: 18,
+  },
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
   },
   api: {
     color: colors.soft,
@@ -201,13 +428,38 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
   },
+  signOutRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: 'rgba(194,59,59,0.25)',
+    marginBottom: 8,
+  },
   signOutText: {
     color: colors.danger,
     fontSize: 15,
     fontWeight: '600',
   },
+  credit: {
+    marginTop: 4,
+    color: colors.soft,
+    fontSize: 11,
+    textAlign: 'center',
+  },
+  version: {
+    marginTop: 2,
+    marginBottom: 8,
+    color: colors.soft,
+    fontSize: 11,
+    textAlign: 'center',
+  },
   syncCard: {
-    marginTop: 16,
+    marginTop: 4,
     padding: 14,
     borderRadius: 12,
     backgroundColor: colors.surface,
@@ -237,6 +489,25 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontWeight: '600',
     fontSize: 13,
+  },
+  detailCard: {
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    marginBottom: 8,
+    gap: 4,
+  },
+  detailLine: {
+    color: colors.ink,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  detailMeta: {
+    color: colors.soft,
+    fontSize: 12,
+    marginTop: 2,
   },
   section: {
     marginTop: 22,

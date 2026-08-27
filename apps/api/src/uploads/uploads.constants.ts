@@ -20,6 +20,7 @@ export const ALLOWED_UPLOAD_MIME_TYPES = [
   'image/webp',
   'image/heic',
   'image/heif',
+  'application/pdf',
 ] as const;
 
 const EXTENSION_BY_MIME: Record<string, string> = {
@@ -28,6 +29,7 @@ const EXTENSION_BY_MIME: Record<string, string> = {
   'image/webp': '.webp',
   'image/heic': '.heic',
   'image/heif': '.heif',
+  'application/pdf': '.pdf',
 };
 
 export function isAllowedUploadMime(mimetype: string): boolean {

@@ -1,4 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
+import { APP_VERSION } from '@marble/types';
 
 @Controller('health')
 export class HealthController {
@@ -7,8 +8,8 @@ export class HealthController {
     return {
       ok: true,
       service: 'marble-api',
+      version: APP_VERSION,
       phase: 5,
-      deploy: 'docker-v7-volume-check',
     };
   }
 }
