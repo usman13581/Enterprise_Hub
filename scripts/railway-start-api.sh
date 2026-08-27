@@ -22,6 +22,11 @@ fi
 echo "==> Applying database schema (prisma db push)..."
 pnpm --filter @marble/api exec prisma db push --skip-generate --accept-data-loss
 
+echo "==> Seeding pilot data (idempotent upserts)..."
+pnpm --filter @marble/api db:seed || {
+  echo "WARNING: db:seed failed — API will still start. Run seed from Railway shell."
+}
+
 echo "==> Starting Nest API..."
 # Always bind all interfaces inside the container (Railway routes to $PORT).
 export HOST=0.0.0.0

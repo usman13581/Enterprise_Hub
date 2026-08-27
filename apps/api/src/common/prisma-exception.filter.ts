@@ -40,6 +40,19 @@ export class PrismaExceptionFilter implements ExceptionFilter {
       if (error.code === 'P2003' || error.code === 'P2025') {
         return new BadRequestException('Referenced record does not exist');
       }
+      // Surface code so ops can spot missing migrations (P2021/P2022) quickly.
+      return new BadRequestException({
+        message: 'Request contained invalid values',
+        prismaCode: error.code,
+        prismaMeta: error.meta ?? null,
+      });
+    }
+    if (error instanceof Prisma.PrismaClientValidationError) {
+      return new BadRequestException({
+        message: 'Request contained invalid values',
+        prismaCode: 'VALIDATION',
+        detail: error.message.split('\n')[0],
+      });
     }
     return new BadRequestException('Request contained invalid values');
   }
