@@ -20,12 +20,16 @@ if [ ! -f apps/api/dist/main.js ]; then
 fi
 
 echo "==> Applying database schema (prisma db push)..."
-pnpm --filter @marble/api exec prisma db push --skip-generate --accept-data-loss
+if ! pnpm --filter @marble/api exec prisma db push --skip-generate --accept-data-loss; then
+  echo "ERROR: prisma db push failed"
+  exit 1
+fi
 
 echo "==> Seeding pilot data (idempotent upserts)..."
-pnpm --filter @marble/api db:seed || {
-  echo "WARNING: db:seed failed — API will still start. Run seed from Railway shell."
-}
+if ! pnpm --filter @marble/api db:seed; then
+  echo "ERROR: db:seed failed"
+  exit 1
+fi
 
 echo "==> Starting Nest API..."
 # Always bind all interfaces inside the container (Railway routes to $PORT).

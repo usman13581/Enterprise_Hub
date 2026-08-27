@@ -6,6 +6,8 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile.api"
 
 [deploy]
+# Force schema push + seed on every boot (idempotent). Do not override in Railway UI.
+startCommand = "bash scripts/railway-start-api.sh"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
