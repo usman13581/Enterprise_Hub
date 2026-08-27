@@ -13,6 +13,8 @@ export class HealthController {
       service: 'marble-api',
       version: APP_VERSION,
       phase: 5,
+      // bump: force Railway rebuild so boot runs db push + seed
+      boot: 'schema-seed-v1',
     };
   }
 
