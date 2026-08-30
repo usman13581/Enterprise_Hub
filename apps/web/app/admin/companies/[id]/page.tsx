@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { apiFetch, apiPatch, apiPost } from "@/lib/api";
+import { beginReadOnlyWorkspace, getAuthToken } from "@/lib/auth";
 import { day, money } from "@/lib/format";
 import page from "../../../page.module.css";
 import styles from "@/components/crud.module.css";
@@ -70,6 +71,11 @@ export default function AdminCompanyDetailPage() {
   const [subStatus, setSubStatus] = useState("active");
   const [expiresAt, setExpiresAt] = useState("");
   const [seatsOverride, setSeatsOverride] = useState("");
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentDate, setPaymentDate] = useState(
+    new Date().toISOString().slice(0, 10),
+  );
+  const [paymentReference, setPaymentReference] = useState("");
 
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
@@ -137,6 +143,23 @@ export default function AdminCompanyDetailPage() {
     }
   }
 
+  async function openWorkspace() {
+    if (busy || !getAuthToken()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await apiPost<{ token: string }>(
+        `/admin/companies/${id}/workspace`,
+        {},
+      );
+      beginReadOnlyWorkspace(result.token);
+      window.location.href = "/";
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Workspace access failed");
+      setBusy(false);
+    }
+  }
+
   async function saveSubscription(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -174,6 +197,28 @@ export default function AdminCompanyDetailPage() {
       await reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Create user failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function recordPayment(event: FormEvent) {
+    event.preventDefault();
+    if (!paymentAmount || !paymentDate) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await apiPost(`/admin/companies/${id}/subscription/manual-payment`, {
+        amount: Number(paymentAmount),
+        paidAt: paymentDate,
+        reference: paymentReference || undefined,
+        extendExpiresAt: expiresAt || undefined,
+      });
+      setPaymentAmount("");
+      setPaymentReference("");
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Payment failed");
     } finally {
       setBusy(false);
     }
@@ -217,6 +262,14 @@ export default function AdminCompanyDetailPage() {
       {error ? <p className={styles.error}>{error}</p> : null}
 
       <div className={styles.actions}>
+        <button
+          type="button"
+          className={styles.button}
+          disabled={busy}
+          onClick={() => void openWorkspace()}
+        >
+          Open application (read-only)
+        </button>
         <button
           type="button"
           className={company?.suspendedAt ? styles.button : `${styles.ghost} ${styles.danger}`}
@@ -322,6 +375,51 @@ export default function AdminCompanyDetailPage() {
         <div className={styles.actions}>
           <button className={styles.button} type="submit" disabled={busy}>
             Save subscription
+          </button>
+        </div>
+      </form>
+
+      <form className={styles.form} onSubmit={recordPayment}>
+        <p className={styles.formTitle}>Record manual payment</p>
+        <div className={styles.grid}>
+          <div className={styles.field}>
+            <label className={styles.label}>Amount (AED)</label>
+            <input
+              className={styles.input}
+              type="number"
+              min="0"
+              step="0.01"
+              value={paymentAmount}
+              onChange={(e) => setPaymentAmount(e.target.value)}
+              required
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label}>Paid at</label>
+            <input
+              className={styles.input}
+              type="date"
+              value={paymentDate}
+              onChange={(e) => setPaymentDate(e.target.value)}
+              required
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label}>Reference</label>
+            <input
+              className={styles.input}
+              value={paymentReference}
+              onChange={(e) => setPaymentReference(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className={styles.actions}>
+          <button
+            className={styles.button}
+            type="submit"
+            disabled={busy || !paymentAmount}
+          >
+            {busy ? "Saving…" : "Record payment"}
           </button>
         </div>
       </form>

@@ -159,6 +159,7 @@ export default function RootLayout() {
           options={{ title: 'Applications' }}
         />
         <Stack.Screen name="admin/plans" options={{ title: 'Plans' }} />
+        <Stack.Screen name="admin/subscriptions" options={{ title: 'Subscriptions' }} />
         <Stack.Screen name="admin/renewals" options={{ title: 'Renewals' }} />
         <Stack.Screen
           name="admin/notifications"

@@ -6,7 +6,7 @@ import {
   SHOW_NOTIFICATIONS,
   type SessionPayload,
 } from "@marble/types";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiPost } from "@/lib/api";
 import { day, money } from "@/lib/format";
 import {
   DashboardHero,
@@ -47,28 +47,94 @@ type Dashboard = {
   openSupportCount: number;
 };
 
+type SampleStatus = {
+  eligible: boolean;
+  status: string;
+  counts: Record<string, number> | null;
+  canLoad: boolean;
+  canErase: boolean;
+};
+
 export default function HomePage() {
   const [session, setSession] = useState<SessionPayload | null>(null);
   const [company, setCompany] = useState<Company | null>(null);
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
+  const [sample, setSample] = useState<SampleStatus | null>(null);
+  const [sampleBusy, setSampleBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      apiFetch<SessionPayload>("/auth/session"),
-      apiFetch<Company>("/company/me"),
-    ])
-      .then(([s, c]) => {
+    void (async () => {
+      try {
+        const [s, c] = await Promise.all([
+          apiFetch<SessionPayload>("/auth/session"),
+          apiFetch<Company>("/company/me"),
+        ]);
         setSession(s);
         setCompany(c);
         if (s.companyRole === "admin") {
-          return apiFetch<Dashboard>("/company/dashboard").then(setDashboard);
+          const [d, sampleStatus] = await Promise.all([
+            apiFetch<Dashboard>("/company/dashboard"),
+            apiFetch<SampleStatus>("/company/sample-data"),
+          ]);
+          setDashboard(d);
+          setSample(sampleStatus);
         }
-      })
-      .catch((e) =>
-        setError(e instanceof Error ? e.message : "Failed to load session"),
-      );
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to load session");
+      }
+    })();
   }, []);
+
+  async function reloadSample() {
+    setSample(await apiFetch<SampleStatus>("/company/sample-data"));
+  }
+
+  async function loadSample() {
+    if (sampleBusy || !sample?.canLoad) return;
+    setSampleBusy(true);
+    setError(null);
+    try {
+      await apiPost("/company/sample-data/load", {});
+      await reloadSample();
+      window.location.reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Sample data could not be loaded");
+    } finally {
+      setSampleBusy(false);
+    }
+  }
+
+  async function eraseSample() {
+    if (sampleBusy || !sample?.canErase || !company) return;
+    let confirmation: string | null;
+    try {
+      const preview = await apiFetch<{ counts: Record<string, number> }>(
+        "/company/sample-data/preview-erase",
+      );
+      const summary = Object.entries(preview.counts)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join(", ");
+      confirmation = window.prompt(
+        `This permanently deletes trial data (${summary}). Type ERASE ${company.name} to continue.`,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not prepare sample data erase");
+      return;
+    }
+    if (confirmation !== `ERASE ${company.name}`) return;
+    setSampleBusy(true);
+    setError(null);
+    try {
+      await apiPost("/company/sample-data/erase", { confirmation });
+      await reloadSample();
+      window.location.reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Sample data could not be erased");
+    } finally {
+      setSampleBusy(false);
+    }
+  }
 
   const isAdmin = session?.companyRole === "admin";
   const sub = dashboard?.subscription;
@@ -162,6 +228,40 @@ export default function HomePage() {
               />
             </DashboardMosaic>
           </DashboardSection>
+
+          {isAdmin && sample?.eligible ? (
+            <DashboardSection title="Trial workspace">
+              <div className={crud.card}>
+                <p className={crud.cardTitle}>Generic sample data</p>
+                <p className={crud.cardMeta}>
+                  Load a complete demo workspace for this trial company. You
+                  can erase it while the trial remains active.
+                </p>
+                <div className={crud.actions}>
+                  {sample.canLoad ? (
+                    <button
+                      className={crud.button}
+                      type="button"
+                      disabled={sampleBusy}
+                      onClick={() => void loadSample()}
+                    >
+                      {sampleBusy ? "Loading…" : "Load sample data"}
+                    </button>
+                  ) : null}
+                  {sample.canErase ? (
+                    <button
+                      className={`${crud.ghost} ${crud.danger}`}
+                      type="button"
+                      disabled={sampleBusy}
+                      onClick={() => void eraseSample()}
+                    >
+                      {sampleBusy ? "Working…" : "Erase sample data"}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </DashboardSection>
+          ) : null}
 
           <DashboardSection title="Shortcuts">
             <DashboardShortcuts

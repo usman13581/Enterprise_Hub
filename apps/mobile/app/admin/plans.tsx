@@ -38,9 +38,11 @@ export default function AdminPlansScreen() {
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
+  const [interval, setInterval] = useState<'monthly' | 'yearly'>('monthly');
   const [priceAed, setPriceAed] = useState('0');
   const [maxUsers, setMaxUsers] = useState('5');
   const [trialDays, setTrialDays] = useState('14');
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState('');
   const { flash, notify } = useFlash();
@@ -65,24 +67,51 @@ export default function AdminPlansScreen() {
     if (saving) return;
     setSaving(true);
     try {
-      await apiPost('/admin/plans', {
+      const payload = {
         name,
         code,
         priceAed: Number(priceAed),
         maxUsers: Number(maxUsers),
         trialDays: Number(trialDays),
-        interval: 'year',
+        interval,
         active: true,
-      });
+      };
+      if (editingId) {
+        await apiPatch(`/admin/plans/${editingId}`, payload);
+      } else {
+        await apiPost('/admin/plans', payload);
+      }
       setName('');
       setCode('');
+      setInterval('monthly');
+      setEditingId(null);
       await load();
-      notify('Plan created');
+      notify(editingId ? 'Plan updated' : 'Plan created');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Create failed');
     } finally {
       setSaving(false);
     }
+  }
+
+  function startEdit(plan: Plan) {
+    setEditingId(plan.id);
+    setName(plan.name);
+    setCode(plan.code);
+    setPriceAed(String(plan.priceAed));
+    setMaxUsers(String(plan.maxUsers));
+    setTrialDays(String(plan.trialDays));
+    setInterval(plan.interval === 'yearly' ? 'yearly' : 'monthly');
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setName('');
+    setCode('');
+    setInterval('monthly');
+    setPriceAed('0');
+    setMaxUsers('5');
+    setTrialDays('14');
   }
 
   async function toggleActive(plan: Plan) {
@@ -110,7 +139,7 @@ export default function AdminPlansScreen() {
       />
 
       <View style={ui.card}>
-        <Text style={ui.cardTitle}>New plan</Text>
+        <Text style={ui.cardTitle}>{editingId ? 'Edit plan' : 'New plan'}</Text>
         <Text style={ui.label}>Name</Text>
         <TextInput
           style={ui.input}
@@ -134,6 +163,19 @@ export default function AdminPlansScreen() {
           keyboardType="decimal-pad"
           placeholderTextColor={colors.soft}
         />
+        <Text style={ui.label}>Billing interval</Text>
+        <RowActions>
+          <ActionButton
+            label={`Monthly${interval === 'monthly' ? ' ✓' : ''}`}
+            tone={interval === 'monthly' ? 'primary' : 'ghost'}
+            onPress={() => setInterval('monthly')}
+          />
+          <ActionButton
+            label={`Yearly${interval === 'yearly' ? ' ✓' : ''}`}
+            tone={interval === 'yearly' ? 'primary' : 'ghost'}
+            onPress={() => setInterval('yearly')}
+          />
+        </RowActions>
         <Text style={ui.label}>Max users</Text>
         <TextInput
           style={ui.input}
@@ -157,6 +199,9 @@ export default function AdminPlansScreen() {
             disabled={saving || !name.trim() || !code.trim()}
             onPress={() => void create()}
           />
+          {editingId ? (
+            <ActionButton label="Cancel" tone="ghost" onPress={cancelEdit} />
+          ) : null}
         </RowActions>
       </View>
 
@@ -181,6 +226,11 @@ export default function AdminPlansScreen() {
             status={plan.active ? 'active' : 'closed'}
           >
             <RowActions>
+              <ActionButton
+                label="Edit"
+                tone="ghost"
+                onPress={() => startEdit(plan)}
+              />
               <ActionButton
                 label={plan.active ? 'Deactivate' : 'Activate'}
                 onPress={() => void toggleActive(plan)}

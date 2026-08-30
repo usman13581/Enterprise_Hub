@@ -193,11 +193,15 @@ export default function AdminHomeScreen() {
               />
             </Pressable>
           </View>
-          <StatCard
-            title="Subscriptions"
-            value={`A ${subs.active ?? 0} · T ${subs.trial ?? 0}`}
-            hint={`past_due ${subs.past_due ?? 0} · suspended ${subs.suspended ?? 0}`}
-          />
+          <Pressable
+            onPress={() => router.push('/admin/subscriptions' as never)}
+          >
+            <StatCard
+              title="Subscriptions"
+              value={`A ${subs.active ?? 0} · T ${subs.trial ?? 0}`}
+              hint={`past_due ${subs.past_due ?? 0} · suspended ${subs.suspended ?? 0}`}
+            />
+          </Pressable>
         </>
       ) : null}
 

@@ -25,6 +25,8 @@ export type SessionPayload = {
   companyName?: string;
   companyRole?: 'admin' | 'member';
   features?: string[];
+  readOnly?: boolean;
+  actingAdminId?: string;
   unreadNotifications?: number;
   /** Platform admin session fields */
   adminId?: string;

@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,12 +17,14 @@ import {
   RowActions,
 } from '../../../components/Finance';
 import { colors, ui } from '../../../lib/ui';
+import { beginReadOnlyWorkspace } from '../../../lib/auth';
 
 type CompanyDetail = {
   id: string;
   name: string;
   slug: string;
   suspendedAt: string | null;
+  industryCategoryId: string | null;
   subscription?: {
     status: string;
     startsAt: string;
@@ -50,11 +52,18 @@ type Plan = {
   active: boolean;
 };
 
+type IndustryCategory = {
+  id: string;
+  name: string;
+  code: string;
+};
+
 export default function AdminCompanyDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [company, setCompany] = useState<CompanyDetail | null>(null);
   const [users, setUsers] = useState<CompanyUser[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [categories, setCategories] = useState<IndustryCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userName, setUserName] = useState('');
@@ -64,6 +73,7 @@ export default function AdminCompanyDetailScreen() {
   const [planId, setPlanId] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
   const [payAmount, setPayAmount] = useState('');
+  const [payReference, setPayReference] = useState('');
   const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
   const { flash, notify } = useFlash();
@@ -72,14 +82,17 @@ export default function AdminCompanyDetailScreen() {
     if (!id) return;
     setLoading(true);
     try {
-      const [c, u, p] = await Promise.all([
+      const [c, u, p, cats] = await Promise.all([
         apiFetch<CompanyDetail>(`/admin/companies/${id}`),
         apiFetch<CompanyUser[]>(`/admin/companies/${id}/users`),
         apiFetch<Plan[]>('/admin/plans'),
+        apiFetch<IndustryCategory[]>('/admin/industry-categories'),
       ]);
       setCompany(c);
       setUsers(u);
       setPlans(p.filter((row) => row.active));
+      setCategories(cats);
+      setCategoryId(c.industryCategoryId ?? '');
       setPlanId(c.subscription?.plan?.id ?? '');
       setExpiresAt(
         c.subscription?.expiresAt
@@ -93,6 +106,7 @@ export default function AdminCompanyDetailScreen() {
       setLoading(false);
     }
   }, [id]);
+  const [categoryId, setCategoryId] = useState('');
 
   useEffect(() => {
     void load();
@@ -109,6 +123,39 @@ export default function AdminCompanyDetailScreen() {
       notify(company.suspendedAt ? 'Unsuspended' : 'Suspended');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Action failed');
+    }
+  }
+
+  async function saveCategory() {
+    if (!id || saving) return;
+    setSaving(true);
+    try {
+      await apiPatch(`/admin/companies/${id}`, {
+        industryCategoryId: categoryId || null,
+      });
+      await load();
+      notify('Category saved');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Category update failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function openWorkspace() {
+    if (!id || saving) return;
+    setSaving(true);
+    try {
+      const result = await apiPost<{ token: string }>(
+        `/admin/companies/${id}/workspace`,
+        {},
+      );
+      await beginReadOnlyWorkspace(result.token);
+      router.replace('/' as never);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Workspace access failed');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -168,9 +215,11 @@ export default function AdminCompanyDetailScreen() {
       await apiPost(`/admin/companies/${id}/subscription/manual-payment`, {
         amount: Number(payAmount),
         paidAt: payDate,
+        reference: payReference || undefined,
         extendExpiresAt: expiresAt || undefined,
       });
       setPayAmount('');
+      setPayReference('');
       await load();
       notify('Payment recorded');
     } catch (e) {
@@ -207,6 +256,42 @@ export default function AdminCompanyDetailScreen() {
         {company.suspendedAt ? ' · suspended' : ''}
       </Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
+      <RowActions>
+        <ActionButton
+          label="Open application (read-only)"
+          tone="primary"
+          disabled={saving}
+          onPress={() => void openWorkspace()}
+        />
+      </RowActions>
+
+      <View style={ui.card}>
+        <Text style={ui.cardTitle}>Industry category</Text>
+        <Text style={ui.label}>Category</Text>
+        <View style={{ gap: 6 }}>
+          <ActionButton
+            label={!categoryId ? 'None' : categories.find((row) => row.id === categoryId)?.name ?? 'Selected'}
+            tone={!categoryId ? 'ghost' : 'primary'}
+            onPress={() => setCategoryId('')}
+          />
+          {categories.map((category) => (
+            <ActionButton
+              key={category.id}
+              label={`${category.name} (${category.code})${categoryId === category.id ? ' ✓' : ''}`}
+              tone={categoryId === category.id ? 'primary' : 'ghost'}
+              onPress={() => setCategoryId(category.id)}
+            />
+          ))}
+        </View>
+        <RowActions>
+          <ActionButton
+            label="Save category"
+            tone="primary"
+            disabled={saving}
+            onPress={() => void saveCategory()}
+          />
+        </RowActions>
+      </View>
 
       <View style={ui.card}>
         <Text style={ui.cardTitle}>Subscription</Text>
@@ -273,6 +358,14 @@ export default function AdminCompanyDetailScreen() {
           value={payDate}
           onChangeText={setPayDate}
           autoCapitalize="none"
+          placeholderTextColor={colors.soft}
+        />
+        <Text style={ui.label}>Reference</Text>
+        <TextInput
+          style={ui.input}
+          value={payReference}
+          onChangeText={setPayReference}
+          placeholder="Optional"
           placeholderTextColor={colors.soft}
         />
         <RowActions>

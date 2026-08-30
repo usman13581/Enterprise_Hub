@@ -74,9 +74,11 @@ export default function ChangePasswordPage() {
             />
           </div>
           {error ? <p className={styles.error}>{error}</p> : null}
-          <button className={styles.button} type="submit" disabled={saving}>
-            {saving ? 'Saving…' : 'Save new password'}
-          </button>
+          <div className={styles.actions}>
+            <button className={styles.button} type="submit" disabled={saving}>
+              {saving ? 'Saving…' : 'Save new password'}
+            </button>
+          </div>
         </form>
       </div>
     </section>

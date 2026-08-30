@@ -7,6 +7,7 @@ import {
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import type { PlatformSessionContext } from '../auth/session.types';
+import { SampleDataService } from '../sample-data/sample-data.service';
 
 function slugify(name: string): string {
   const base = name
@@ -31,6 +32,10 @@ function addInterval(from: Date, interval: string): Date {
   return next;
 }
 
+function normalizeInterval(interval?: string) {
+  return interval === 'year' || interval === 'yearly' ? 'yearly' : 'monthly';
+}
+
 function effectiveSeats(sub: {
   seatsIncluded: number;
   seatsOverride: number | null;
@@ -40,7 +45,10 @@ function effectiveSeats(sub: {
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly samples: SampleDataService,
+  ) {}
 
   async notifyCompanyAdmins(
     companyId: string,
@@ -407,7 +415,7 @@ export class AdminService {
       data: {
         name: input.name.trim(),
         code,
-        interval: input.interval === 'yearly' ? 'yearly' : 'monthly',
+        interval: normalizeInterval(input.interval),
         priceAed: input.priceAed ?? 0,
         trialDays: input.trialDays ?? 14,
         maxUsers: input.maxUsers ?? 0,
@@ -438,7 +446,7 @@ export class AdminService {
           ? { code: input.code.trim().toLowerCase() }
           : {}),
         ...(input.interval !== undefined
-          ? { interval: input.interval === 'yearly' ? 'yearly' : 'monthly' }
+          ? { interval: normalizeInterval(input.interval) }
           : {}),
         ...(input.priceAed !== undefined ? { priceAed: input.priceAed } : {}),
         ...(input.trialDays !== undefined ? { trialDays: input.trialDays } : {}),
@@ -475,10 +483,11 @@ export class AdminService {
     });
     if (!plan) throw new NotFoundException('Plan not found');
 
+    const targetStatus = input.status ?? 'active';
     const data = {
       planId: plan.id,
       seatsIncluded: plan.maxUsers,
-      status: input.status ?? 'active',
+      status: targetStatus,
       ...(input.startsAt !== undefined
         ? { startsAt: new Date(input.startsAt) }
         : {}),
@@ -498,15 +507,24 @@ export class AdminService {
         : {}),
     };
 
-    const sub = await this.prisma.companySubscription.upsert({
-      where: { companyId },
-      create: {
-        companyId,
-        ...data,
-        startsAt: data.startsAt ?? new Date(),
-      },
-      update: data,
-      include: { plan: true },
+    const sub = await this.prisma.$transaction(async (tx) => {
+      const current = await tx.companySubscription.findUnique({
+        where: { companyId },
+        select: { status: true },
+      });
+      if (current?.status === 'trial' && targetStatus !== 'trial') {
+        await this.samples.purgeTrialDataInTransaction(tx, companyId);
+      }
+      return tx.companySubscription.upsert({
+        where: { companyId },
+        create: {
+          companyId,
+          ...data,
+          startsAt: data.startsAt ?? new Date(),
+        },
+        update: data,
+        include: { plan: true },
+      });
     });
 
     await this.notifyCompanyAdmins(
@@ -542,16 +560,21 @@ export class AdminService {
       expiresAt = new Date(input.extendExpiresAt);
     }
 
-    const updated = await this.prisma.companySubscription.update({
-      where: { companyId },
-      data: {
-        lastPaymentAmount: input.amount,
-        lastPaymentAt: new Date(input.paidAt),
-        lastPaymentRef: input.reference ?? null,
-        status: 'active',
-        expiresAt,
-      },
-      include: { plan: true },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (sub.status === 'trial') {
+        await this.samples.purgeTrialDataInTransaction(tx, companyId);
+      }
+      return tx.companySubscription.update({
+        where: { companyId },
+        data: {
+          lastPaymentAmount: input.amount,
+          lastPaymentAt: new Date(input.paidAt),
+          lastPaymentRef: input.reference ?? null,
+          status: 'active',
+          expiresAt,
+        },
+        include: { plan: true },
+      });
     });
 
     await this.notifyCompanyAdmins(
@@ -607,16 +630,19 @@ export class AdminService {
       ? new Date(input.expiresAt)
       : addInterval(base, sub.plan.interval);
 
-    await this.prisma.$transaction([
-      this.prisma.subscriptionRenewalRequest.update({
+    await this.prisma.$transaction(async (tx) => {
+      if (sub.status === 'trial') {
+        await this.samples.purgeTrialDataInTransaction(tx, row.companyId, id);
+      }
+      await tx.subscriptionRenewalRequest.update({
         where: { id },
         data: {
           status: 'approved',
           decidedAt: new Date(),
           decidedByAdminId: admin.adminId,
         },
-      }),
-      this.prisma.companySubscription.update({
+      });
+      await tx.companySubscription.update({
         where: { companyId: row.companyId },
         data: {
           status: 'active',
@@ -625,8 +651,8 @@ export class AdminService {
           lastPaymentAt: row.paidAt,
           lastPaymentRef: row.bankReference,
         },
-      }),
-    ]);
+      });
+    });
 
     await this.notifyCompanyAdmins(
       row.companyId,

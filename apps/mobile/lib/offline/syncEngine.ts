@@ -1,6 +1,7 @@
 import {
   countPendingImages,
   countPendingMutations,
+  clearOfflineStore,
   deleteEntity,
   enqueueImage,
   enqueueMutation,
@@ -68,6 +69,7 @@ export type SyncStatus = {
 
 type PullResponse = {
   serverTime: string;
+  dataEpoch: number;
   entities: Record<string, Array<Record<string, unknown> & { id?: string }>>;
 };
 
@@ -173,11 +175,22 @@ export async function runSync(): Promise<SyncStatus> {
 }
 
 async function pullAndStore() {
-  const since = await getMeta('pullCursor');
-  const path = since
+  let since = await getMeta('pullCursor');
+  const previousEpoch = await getMeta('dataEpoch');
+  let path = since
     ? `/sync/pull?since=${encodeURIComponent(since)}`
     : '/sync/pull';
-  const payload = await syncFetch<PullResponse>(path);
+  let payload = await syncFetch<PullResponse>(path);
+
+  if (
+    previousEpoch !== null &&
+    Number(previousEpoch) !== payload.dataEpoch
+  ) {
+    await clearOfflineStore();
+    since = null;
+    path = '/sync/pull';
+    payload = await syncFetch<PullResponse>(path);
+  }
 
   for (const [key, collection] of Object.entries(COLLECTION_MAP)) {
     const rows = payload.entities[key] ?? [];
@@ -200,6 +213,7 @@ async function pullAndStore() {
   }
 
   await setMeta('pullCursor', payload.serverTime);
+  await setMeta('dataEpoch', String(payload.dataEpoch));
 }
 
 async function flushImageQueue() {

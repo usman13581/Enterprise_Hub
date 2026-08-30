@@ -16,6 +16,8 @@ export type SessionContext = {
   features: string[];
   unreadNotifications?: number;
   mustChangePassword?: boolean;
+  readOnly?: boolean;
+  actingAdminId?: string;
   adminId: string;
   name: string;
 };

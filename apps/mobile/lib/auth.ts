@@ -4,6 +4,7 @@ import { clearOfflineStore } from './offline/db';
 const TOKEN_KEY = 'marble_auth_token';
 const KIND_KEY = 'marble_session_kind';
 const ACTIVITY_KEY = 'marble_session_activity';
+const PLATFORM_TOKEN_KEY = 'marble_platform_token';
 
 export type SessionKind = 'company' | 'platform';
 
@@ -61,7 +62,35 @@ export async function clearAuthToken() {
   } catch {
     // ignore
   }
+  try {
+    await SecureStore.deleteItemAsync(PLATFORM_TOKEN_KEY);
+  } catch {
+    // ignore
+  }
   await clearOfflineStore().catch(() => undefined);
+}
+
+export async function beginReadOnlyWorkspace(token: string) {
+  const current = await getAuthToken();
+  if (current) await SecureStore.setItemAsync(PLATFORM_TOKEN_KEY, current);
+  await setAuthToken(token);
+  await setSessionKind('company');
+  await clearOfflineStore().catch(() => undefined);
+}
+
+export async function restorePlatformWorkspace() {
+  let token: string | null = null;
+  try {
+    token = await SecureStore.getItemAsync(PLATFORM_TOKEN_KEY);
+    await SecureStore.deleteItemAsync(PLATFORM_TOKEN_KEY);
+  } catch {
+    token = null;
+  }
+  if (!token) return false;
+  await clearOfflineStore().catch(() => undefined);
+  await setAuthToken(token);
+  await setSessionKind('platform');
+  return true;
 }
 
 export function peekAuthToken() {

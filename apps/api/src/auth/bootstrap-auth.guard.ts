@@ -29,6 +29,7 @@ export class BootstrapAuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<{
+      method: string;
       headers: Record<string, string | undefined>;
       session?: SessionContext;
     }>();
@@ -64,6 +65,11 @@ export class BootstrapAuthGuard implements CanActivate {
       session.companyId,
       session.userId,
     );
+    if (session.readOnly && req.method !== 'GET' && req.method !== 'HEAD') {
+      throw new ForbiddenException(
+        'This company workspace is read-only for platform support.',
+      );
+    }
     if (access.user.mustChangePassword && !allowPasswordSetup) {
       throw new ForbiddenException({
         code: 'PASSWORD_CHANGE_REQUIRED',

@@ -12,7 +12,10 @@ import {
   type SessionPayload,
 } from '@marble/types';
 import { apiFetch, apiPost } from '@/lib/api';
-import { clearAuthToken } from '@/lib/auth';
+import {
+  clearAuthToken,
+  restorePlatformWorkspace,
+} from '@/lib/auth';
 import { day } from '@/lib/format';
 import styles from './AppShell.module.css';
 
@@ -108,6 +111,17 @@ export function AppShell({
   }
 
   async function handleSignOut() {
+    if (session?.readOnly) {
+      try {
+        await apiPost('/auth/logout', {});
+      } catch {
+        // Restore the platform session locally even if revocation fails.
+      }
+      if (restorePlatformWorkspace()) {
+        router.replace('/admin/companies');
+        return;
+      }
+    }
     if (onSignOut) {
       onSignOut();
       return;
@@ -295,6 +309,17 @@ export function AppShell({
             <p className={styles.footerLine}>Subscription unavailable</p>
           )}
           <div className={styles.footerActions}>
+            {session?.readOnly ? (
+              <button
+                type="button"
+                className={styles.footerLink}
+                onClick={() => void handleSignOut()}
+                title="Exit company workspace"
+              >
+                <span className={styles.navIcon}>←</span>
+                <span className={styles.navLabel}>Exit admin view</span>
+              </button>
+            ) : null}
             <Link
               href="/support"
               className={styles.footerLink}

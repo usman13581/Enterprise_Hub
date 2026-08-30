@@ -72,7 +72,7 @@ export default function ChangePasswordScreen() {
         />
         {error ? <Text style={ui.error}>{error}</Text> : null}
         <Pressable
-          style={[ui.button, saving && styles.disabled]}
+          style={[ui.button, styles.submit, saving && styles.disabled]}
           disabled={saving}
           onPress={() => void submit()}
         >
@@ -88,6 +88,9 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     paddingVertical: 32,
+  },
+  submit: {
+    marginTop: 16,
   },
   disabled: { opacity: 0.6 },
 });

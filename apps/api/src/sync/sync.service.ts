@@ -35,6 +35,7 @@ export class SyncService {
     const serverTime = new Date();
 
     const [
+      company,
       profile,
       suppliers,
       products,
@@ -48,6 +49,10 @@ export class SyncService {
       ledger,
       audit,
     ] = await Promise.all([
+      this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { dataEpoch: true },
+      }),
       this.prisma.companyProfile.findFirst({
         where: {
           companyId,
@@ -150,6 +155,7 @@ export class SyncService {
 
     return {
       serverTime: serverTime.toISOString(),
+      dataEpoch: company?.dataEpoch ?? 0,
       since: since ? since.toISOString() : null,
       entities: {
         profile: profile ? [profile] : [],

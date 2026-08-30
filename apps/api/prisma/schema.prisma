@@ -17,6 +17,7 @@ model Company {
   industryCategoryId   String?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
+  dataEpoch            Int       @default(0)
 
   profile              CompanyProfile?
   users                User[]
@@ -36,6 +37,7 @@ model Company {
   applications         CompanyApplication[]
   notifications        Notification[]
   supportRequests      SupportRequest[]
+  sampleDataSets       SampleDataSet[]
 }
 
 model PlatformAdmin {
@@ -96,6 +98,25 @@ model CompanySubscription {
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   plan    Plan    @relation(fields: [planId], references: [id])
+}
+
+model SampleDataSet {
+  id             String   @id @default(cuid())
+  companyId      String
+  templateKey    String
+  templateVersion Int     @default(1)
+  /// loaded | erasing | erased | failed
+  status         String   @default("loaded")
+  loadedAt       DateTime @default(now())
+  erasedAt       DateTime?
+  error          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, templateKey])
+  @@index([companyId, status])
 }
 
 model SubscriptionRenewalRequest {
@@ -327,6 +348,8 @@ model AuthSession {
   tokenHash         String    @unique
   userId            String?
   platformAdminId   String?
+  actingAdminId     String?
+  readOnly          Boolean   @default(false)
   createdAt         DateTime  @default(now())
   lastActivityAt    DateTime  @default(now())
   absoluteExpiresAt DateTime
@@ -343,6 +366,8 @@ model AuthSession {
 model Supplier {
   id        String   @id @default(cuid())
   companyId String
+  sampleSetId String?
+  sampleKey String?
   name      String
   contact   String?
   phone     String?
@@ -359,12 +384,15 @@ model Supplier {
   products Product[]
 
   @@index([companyId, name])
+  @@index([sampleSetId])
   @@index([companyId, updatedAt])
 }
 
 model Product {
   id            String   @id @default(cuid())
   companyId     String
+  sampleSetId   String?
+  sampleKey     String?
   supplierId    String?
   name          String
   sku           String?
@@ -385,6 +413,7 @@ model Product {
 
   @@index([companyId, name])
   @@index([companyId, updatedAt])
+  @@index([sampleSetId])
 }
 
 model ProductImage {
@@ -405,6 +434,8 @@ model ProductImage {
 model Customer {
   id        String   @id @default(cuid())
   companyId String
+  sampleSetId String?
+  sampleKey String?
   name      String
   contact   String?
   phone     String?
@@ -426,11 +457,14 @@ model Customer {
 
   @@index([companyId, name])
   @@index([companyId, updatedAt])
+  @@index([sampleSetId])
 }
 
 model Quotation {
   id            String    @id @default(cuid())
   companyId     String
+  sampleSetId   String?
+  sampleKey     String?
   customerId    String
   number        String
   /// general | counter_top
@@ -468,6 +502,7 @@ model Quotation {
   @@index([companyId, kind])
   @@index([companyId, customerId])
   @@index([companyId, updatedAt])
+  @@index([sampleSetId])
 }
 
 model QuotationLine {
@@ -525,6 +560,8 @@ model QuotationSectionItem {
 model QuotationLookup {
   id        String   @id @default(cuid())
   companyId String
+  sampleSetId String?
+  sampleKey String?
   /// terms | notes | bank
   category  String
   /// general | counter_top | both
@@ -541,6 +578,7 @@ model QuotationLookup {
 
   @@index([companyId, category])
   @@index([companyId, appliesTo])
+  @@index([sampleSetId])
 }
 
 model QuotationLookupLink {
@@ -557,6 +595,8 @@ model QuotationLookupLink {
 model Job {
   id            String    @id @default(cuid())
   companyId     String
+  sampleSetId   String?
+  sampleKey     String?
   customerId    String
   quotationId   String    @unique
   number        String
@@ -584,11 +624,14 @@ model Job {
   @@index([companyId, status])
   @@index([companyId, customerId])
   @@index([companyId, updatedAt])
+  @@index([sampleSetId])
 }
 
 model Invoice {
   id         String  @id @default(cuid())
   companyId  String
+  sampleSetId String?
+  sampleKey String?
   customerId String
   jobId      String?
   number     String
@@ -627,6 +670,7 @@ model Invoice {
   @@index([companyId, customerId])
   @@index([companyId, jobId])
   @@index([companyId, updatedAt])
+  @@index([sampleSetId])
 }
 
 model InvoiceLine {
@@ -649,6 +693,8 @@ model InvoiceLine {
 model AdvancePayment {
   id              String   @id @default(cuid())
   companyId       String
+  sampleSetId     String?
+  sampleKey       String?
   customerId      String
   jobId           String?
   number          String
@@ -674,6 +720,7 @@ model AdvancePayment {
   @@index([companyId, customerId])
   @@index([companyId, jobId])
   @@index([companyId, updatedAt])
+  @@index([sampleSetId])
 }
 
 /// Records which advance settles which invoice. This moves no money: the cash

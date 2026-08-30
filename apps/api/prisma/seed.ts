@@ -232,7 +232,14 @@ async function main() {
     .trim()
     .toLowerCase();
   const platformPassword =
-    process.env.PLATFORM_ADMIN_PASSWORD || 'platform123';
+    process.env.PLATFORM_ADMIN_PASSWORD ||
+    (process.env.NODE_ENV === 'production'
+      ? (() => {
+          throw new Error(
+            'PLATFORM_ADMIN_PASSWORD must be configured before production seeding',
+          );
+        })()
+      : 'platform123');
   const platformHash = await bcrypt.hash(platformPassword, 10);
 
   await prisma.platformAdmin.upsert({

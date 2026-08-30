@@ -9,6 +9,8 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { z } from 'zod';
+import { zodBody } from '../common/zod-validation.pipe';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
 import { CurrentSession } from '../auth/current-session.decorator';
 import {
@@ -17,6 +19,77 @@ import {
 } from '../auth/session.types';
 import { AdminService } from './admin.service';
 import { DemoProvisioningService } from '../public/demo-provisioning.service';
+import { AuthService } from '../auth/auth.service';
+
+const companySchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  slug: z.string().trim().max(100).optional(),
+});
+const companyUpdateSchema = companySchema.partial().extend({
+  industryCategoryId: z.string().trim().min(1).nullable().optional(),
+});
+const userSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  email: z.string().trim().email().max(200),
+  password: z.string().min(12).max(200),
+  companyRole: z.enum(['admin', 'member']),
+  accessExpiresAt: z.string().trim().min(1).nullable().optional(),
+});
+const userUpdateSchema = z.object({
+  active: z.boolean().optional(),
+  companyRole: z.enum(['admin', 'member']).optional(),
+  accessExpiresAt: z.string().trim().min(1).nullable().optional(),
+  password: z.string().min(12).max(200).optional(),
+});
+const planSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  code: z.string().trim().min(1).max(50),
+  interval: z.enum(['month', 'monthly', 'year', 'yearly']).optional(),
+  priceAed: z.number().finite().nonnegative().optional(),
+  trialDays: z.number().int().nonnegative().optional(),
+  maxUsers: z.number().int().nonnegative().optional(),
+  active: z.boolean().optional(),
+});
+const subscriptionSchema = z.object({
+  planId: z.string().min(1),
+  status: z.enum(['trial', 'active', 'past_due', 'suspended', 'cancelled', 'expired']).optional(),
+  startsAt: z.string().min(1).optional(),
+  trialEndsAt: z.string().min(1).nullable().optional(),
+  expiresAt: z.string().min(1).nullable().optional(),
+  note: z.string().max(1000).nullable().optional(),
+  seatsOverride: z.number().int().nonnegative().nullable().optional(),
+});
+const paymentSchema = z.object({
+  amount: z.number().finite().nonnegative(),
+  paidAt: z.string().min(1),
+  reference: z.string().trim().max(200).optional(),
+  extendExpiresAt: z.string().min(1).optional(),
+});
+const renewalApproveSchema = z.object({
+  expiresAt: z.string().min(1).optional(),
+});
+const renewalRejectSchema = z.object({
+  reason: z.string().trim().min(1).max(1000),
+});
+const applicationApproveSchema = z.object({
+  planId: z.string().min(1),
+  ownerPassword: z.string().min(12).max(200),
+  trialDays: z.number().int().nonnegative().optional(),
+  slug: z.string().trim().max(100).optional(),
+  industryCategoryId: z.string().trim().min(1).nullable().optional(),
+});
+const applicationRejectSchema = z.object({
+  reason: z.string().trim().min(1).max(1000),
+});
+const notificationSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  body: z.string().trim().min(1).max(5000),
+  companyIds: z.union([z.literal('all'), z.array(z.string().min(1))]).optional(),
+  audience: z.enum(['company_admins', 'all_users']),
+});
+const supportCloseSchema = z.object({
+  note: z.string().trim().max(1000).optional(),
+});
 
 @Controller('admin')
 @UseGuards(PlatformAdminGuard)
@@ -24,6 +97,7 @@ export class AdminController {
   constructor(
     private readonly admin: AdminService,
     private readonly demos: DemoProvisioningService,
+    private readonly auth: AuthService,
   ) {}
 
   @Get('overview')
@@ -37,7 +111,7 @@ export class AdminController {
   }
 
   @Post('companies')
-  createCompany(@Body() body: { name: string; slug?: string }) {
+  createCompany(@Body(zodBody(companySchema)) body: { name: string; slug?: string }) {
     return this.admin.createCompany(body);
   }
 
@@ -46,10 +120,21 @@ export class AdminController {
     return this.admin.getCompany(id);
   }
 
+  @Post('companies/:id/workspace')
+  openWorkspace(
+    @CurrentSession() session: SessionContext,
+    @Param('id') id: string,
+  ) {
+    return this.auth.createReadOnlyCompanySession(
+      requirePlatformSession(session),
+      id,
+    );
+  }
+
   @Patch('companies/:id')
   updateCompany(
     @Param('id') id: string,
-    @Body()
+    @Body(zodBody(companyUpdateSchema))
     body: { name?: string; slug?: string; industryCategoryId?: string | null },
   ) {
     return this.admin.updateCompany(id, body);
@@ -73,7 +158,7 @@ export class AdminController {
   @Post('companies/:id/users')
   createUser(
     @Param('id') id: string,
-    @Body()
+    @Body(zodBody(userSchema))
     body: {
       name: string;
       email: string;
@@ -88,7 +173,7 @@ export class AdminController {
   @Patch('users/:id')
   updateUser(
     @Param('id') id: string,
-    @Body()
+    @Body(zodBody(userUpdateSchema))
     body: {
       active?: boolean;
       companyRole?: 'admin' | 'member';
@@ -106,7 +191,7 @@ export class AdminController {
 
   @Post('plans')
   createPlan(
-    @Body()
+    @Body(zodBody(planSchema))
     body: {
       name: string;
       code: string;
@@ -123,7 +208,7 @@ export class AdminController {
   @Patch('plans/:id')
   updatePlan(
     @Param('id') id: string,
-    @Body()
+    @Body(zodBody(planSchema.partial()))
     body: {
       name?: string;
       code?: string;
@@ -145,7 +230,7 @@ export class AdminController {
   @Patch('companies/:id/subscription')
   upsertSubscription(
     @Param('id') id: string,
-    @Body()
+    @Body(zodBody(subscriptionSchema))
     body: {
       planId: string;
       status?: string;
@@ -162,7 +247,7 @@ export class AdminController {
   @Post('companies/:id/subscription/manual-payment')
   manualPayment(
     @Param('id') id: string,
-    @Body()
+    @Body(zodBody(paymentSchema))
     body: {
       amount: number;
       paidAt: string;
@@ -187,7 +272,7 @@ export class AdminController {
   approveRenewal(
     @CurrentSession() session: SessionContext,
     @Param('id') id: string,
-    @Body() body: { expiresAt?: string },
+    @Body(zodBody(renewalApproveSchema)) body: { expiresAt?: string },
   ) {
     return this.admin.approveRenewal(id, requirePlatformSession(session), body);
   }
@@ -196,7 +281,7 @@ export class AdminController {
   rejectRenewal(
     @CurrentSession() session: SessionContext,
     @Param('id') id: string,
-    @Body() body: { reason: string },
+    @Body(zodBody(renewalRejectSchema)) body: { reason: string },
   ) {
     return this.admin.rejectRenewal(id, requirePlatformSession(session), body);
   }
@@ -231,7 +316,7 @@ export class AdminController {
   approveApplication(
     @CurrentSession() session: SessionContext,
     @Param('id') id: string,
-    @Body()
+    @Body(zodBody(applicationApproveSchema))
     body: {
       planId: string;
       ownerPassword: string;
@@ -251,7 +336,7 @@ export class AdminController {
   rejectApplication(
     @CurrentSession() session: SessionContext,
     @Param('id') id: string,
-    @Body() body: { reason: string },
+    @Body(zodBody(applicationRejectSchema)) body: { reason: string },
   ) {
     return this.admin.rejectApplication(
       id,
@@ -263,7 +348,7 @@ export class AdminController {
   @Post('notifications')
   sendNotification(
     @CurrentSession() session: SessionContext,
-    @Body()
+    @Body(zodBody(notificationSchema))
     body: {
       title: string;
       body: string;
@@ -299,7 +384,7 @@ export class AdminController {
   closeSupport(
     @CurrentSession() session: SessionContext,
     @Param('id') id: string,
-    @Body() body: { note?: string },
+    @Body(zodBody(supportCloseSchema)) body: { note?: string },
   ) {
     return this.admin.closeSupportRequest(
       id,

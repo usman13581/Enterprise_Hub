@@ -22,6 +22,7 @@ import { AdminModule } from './admin/admin.module';
 import { PublicModule } from './public/public.module';
 import { ReportsModule } from './reports/reports.module';
 import { MailModule } from './mail/mail.module';
+import { SampleDataModule } from './sample-data/sample-data.module';
 import { UPLOADS_DIR } from './uploads/uploads.constants';
 
 @Module({
@@ -59,6 +60,7 @@ import { UPLOADS_DIR } from './uploads/uploads.constants';
     PublicModule,
     ReportsModule,
     MailModule,
+    SampleDataModule,
   ],
   controllers: [HealthController],
 })

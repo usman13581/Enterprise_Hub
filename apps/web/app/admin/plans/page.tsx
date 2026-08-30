@@ -26,7 +26,7 @@ type Plan = {
 const EMPTY = {
   name: "",
   code: "",
-  interval: "year",
+  interval: "monthly",
   priceAed: "0",
   trialDays: "14",
   maxUsers: "5",
@@ -144,8 +144,8 @@ export default function AdminPlansPage() {
                   setDraft({ ...draft, interval: e.target.value })
                 }
               >
-                <option value="month">month</option>
-                <option value="year">year</option>
+                <option value="monthly">monthly</option>
+                <option value="yearly">yearly</option>
               </select>
             </div>
             <div className={styles.field}>

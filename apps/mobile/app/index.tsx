@@ -7,16 +7,20 @@ import {
 } from '@marble/types';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ScreenScroll } from '../components/ScreenScroll';
 import { apiFetch, apiPost } from '../lib/api';
-import { clearAuthToken } from '../lib/auth';
+import {
+  clearAuthToken,
+  restorePlatformWorkspace,
+} from '../lib/auth';
 import { day, money } from '../lib/format';
 import {
   runSync,
   subscribeSyncStatus,
   type SyncStatus,
 } from '../lib/offline/syncEngine';
+import { clearOfflineStore } from '../lib/offline/db';
 import { colors, ui } from '../lib/ui';
 
 type Session = {
@@ -26,6 +30,7 @@ type Session = {
   email: string;
   companyName: string;
   companyRole?: 'admin' | 'member';
+  readOnly?: boolean;
   features?: string[];
   unreadNotifications?: number;
 };
@@ -54,6 +59,14 @@ type Dashboard = {
   openSupportCount: number;
 };
 
+type SampleStatus = {
+  eligible: boolean;
+  status: string;
+  counts: Record<string, number> | null;
+  canLoad: boolean;
+  canErase: boolean;
+};
+
 const READY = new Set([
   'customers',
   'suppliers',
@@ -72,6 +85,10 @@ export default function HomeScreen() {
   const [session, setSession] = useState<Session | null>(null);
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionSummary>(null);
+  const [sample, setSample] = useState<SampleStatus | null>(null);
+  const [samplePreview, setSamplePreview] = useState<Record<string, number> | null>(null);
+  const [sampleConfirmation, setSampleConfirmation] = useState('');
+  const [sampleBusy, setSampleBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sync, setSync] = useState<SyncStatus | null>(null);
 
@@ -85,15 +102,95 @@ export default function HomeScreen() {
       setSubscription(sub);
 
       if (next.companyRole === 'admin') {
-        const dash = await apiFetch<Dashboard>('/company/dashboard');
+        const [dash, sampleStatus] = await Promise.all([
+          apiFetch<Dashboard>('/company/dashboard'),
+          apiFetch<SampleStatus>('/company/sample-data'),
+        ]);
         setDashboard(dash);
+        setSample(sampleStatus);
       } else {
         setDashboard(null);
+        setSample(null);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load session');
     }
   }, []);
+
+  async function loadSample() {
+    if (sampleBusy || !sample?.canLoad) return;
+    setSampleBusy(true);
+    setError(null);
+    try {
+      await apiPost('/company/sample-data/load', {});
+      setSample(await apiFetch<SampleStatus>('/company/sample-data'));
+      await runSync();
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Sample data could not be loaded');
+    } finally {
+      setSampleBusy(false);
+    }
+  }
+
+  async function prepareEraseSample() {
+    if (sampleBusy || !sample?.canErase) return;
+    setSampleBusy(true);
+    setError(null);
+    try {
+      const preview = await apiFetch<{ counts: Record<string, number> }>(
+        '/company/sample-data/preview-erase',
+      );
+      setSamplePreview(preview.counts);
+      setSampleConfirmation('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not prepare sample data erase');
+    } finally {
+      setSampleBusy(false);
+    }
+  }
+
+  async function eraseSample() {
+    if (
+      sampleBusy ||
+      !samplePreview ||
+      !session ||
+      sampleConfirmation !== `ERASE ${session.companyName}`
+    ) {
+      return;
+    }
+    setSampleBusy(true);
+    setError(null);
+    try {
+      await apiPost('/company/sample-data/erase', {
+        confirmation: sampleConfirmation,
+      });
+      await clearOfflineStore();
+      setSamplePreview(null);
+      setSampleConfirmation('');
+      setSample(await apiFetch<SampleStatus>('/company/sample-data'));
+      await runSync();
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Sample data could not be erased');
+    } finally {
+      setSampleBusy(false);
+    }
+  }
+
+  async function exitAdminWorkspace() {
+    try {
+      await apiPost('/auth/logout', {});
+    } catch {
+      // Restore the platform session locally even if revocation fails.
+    }
+    if (await restorePlatformWorkspace()) {
+      router.replace('/admin' as never);
+      return;
+    }
+    await clearAuthToken();
+    router.replace('/admin-login' as never);
+  }
 
   useEffect(() => {
     void load();
@@ -250,6 +347,73 @@ export default function HomeScreen() {
                 : ''}
             </Text>
           </View>
+          {sample?.eligible ? (
+            <View style={styles.sampleCard}>
+              <Text style={styles.detailLine}>Trial workspace</Text>
+              <Text style={styles.detailMeta}>
+                Generic sample data for testing every module and report.
+              </Text>
+              {sample.counts ? (
+                <Text style={styles.detailMeta}>
+                  {Object.entries(sample.counts)
+                    .map(([key, value]) => `${key}: ${value}`)
+                    .join(' · ')}
+                </Text>
+              ) : null}
+              {sample.canLoad ? (
+                <Pressable
+                  style={styles.syncButton}
+                  disabled={sampleBusy}
+                  onPress={() => void loadSample()}
+                >
+                  <Text style={styles.syncButtonText}>
+                    {sampleBusy ? 'Loading…' : 'Load sample data'}
+                  </Text>
+                </Pressable>
+              ) : null}
+              {sample.canErase && !samplePreview ? (
+                <Pressable
+                  style={styles.eraseButton}
+                  disabled={sampleBusy}
+                  onPress={() => void prepareEraseSample()}
+                >
+                  <Text style={styles.eraseButtonText}>
+                    {sampleBusy ? 'Preparing…' : 'Erase sample data'}
+                  </Text>
+                </Pressable>
+              ) : null}
+              {samplePreview && session ? (
+                <View style={styles.confirmBox}>
+                  <Text style={styles.detailMeta}>
+                    This permanently deletes {Object.entries(samplePreview)
+                      .map(([key, value]) => `${value} ${key}`)
+                      .join(', ')}. It also deletes trial records linked to
+                    sample records.
+                  </Text>
+                  <TextInput
+                    style={ui.input}
+                    value={sampleConfirmation}
+                    onChangeText={setSampleConfirmation}
+                    autoCapitalize="none"
+                    placeholder={`ERASE ${session.companyName}`}
+                    placeholderTextColor={colors.soft}
+                  />
+                  <Pressable
+                    style={styles.eraseButton}
+                    disabled={
+                      sampleBusy ||
+                      sampleConfirmation !== `ERASE ${session.companyName}`
+                    }
+                    onPress={() => void eraseSample()}
+                  >
+                    <Text style={styles.eraseButtonText}>
+                      {sampleBusy ? 'Erasing…' : 'Permanently erase'}
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
         </>
       ) : null}
 
@@ -284,6 +448,15 @@ export default function HomeScreen() {
       </View>
 
       <Text style={styles.section}>Account</Text>
+      {session?.readOnly ? (
+        <Pressable
+          style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+          onPress={() => void exitAdminWorkspace()}
+        >
+          <Text style={styles.rowText}>Exit admin view</Text>
+          <Text style={styles.chevron}>›</Text>
+        </Pressable>
+      ) : null}
       {isAdmin ? (
         <Pressable
           style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
@@ -502,6 +675,29 @@ const styles = StyleSheet.create({
     color: colors.soft,
     fontSize: 12,
     marginTop: 2,
+  },
+  sampleCard: {
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: 'rgba(201,162,39,0.35)',
+    marginBottom: 8,
+    gap: 8,
+  },
+  eraseButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: 'rgba(194,59,59,0.08)',
+  },
+  eraseButtonText: {
+    color: colors.danger,
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  confirmBox: {
+    gap: 8,
   },
   section: {
     marginTop: 22,

@@ -78,6 +78,11 @@ function isLoginPath(path: string) {
   return base === '/auth/login' || base === '/auth/admin/login';
 }
 
+function isNeverQueuedMutation(path: string) {
+  const base = path.split('?')[0];
+  return base === '/company/sample-data/erase';
+}
+
 function isAdminApiPath(path: string) {
   const base = path.split('?')[0];
   return base.startsWith('/admin') || base === '/auth/admin/login';
@@ -157,6 +162,14 @@ async function request<T>(
       }
     }
 
+    if (
+      method !== 'GET' &&
+      !isLoginPath(path) &&
+      isNeverQueuedMutation(path) &&
+      !(await isOnline())
+    ) {
+      throw new Error('This action needs a network connection.');
+    }
     if (method !== 'GET' && !isLoginPath(path) && !(await isOnline())) {
       await queueRestMutation({ method, path, body: json });
       return {

@@ -27,6 +27,8 @@ type CompanyJwtPayload = {
   companyName: string;
   companyRole?: 'admin' | 'member';
   mustChangePassword?: boolean;
+  readOnly?: boolean;
+  actingAdminId?: string;
 };
 
 type PlatformJwtPayload = {
@@ -86,6 +88,8 @@ export class AuthService {
       companyName: session.companyName,
       companyRole: session.companyRole,
       mustChangePassword: session.mustChangePassword,
+        readOnly: session.readOnly,
+        actingAdminId: session.actingAdminId,
     };
     return jwt.sign(payload, this.jwtSecret(), {
       expiresIn: this.jwtExpires() as jwt.SignOptions['expiresIn'],
@@ -124,6 +128,8 @@ export class AuthService {
         companyRole: c.companyRole ?? 'member',
         features: [],
         mustChangePassword: Boolean(c.mustChangePassword),
+        readOnly: Boolean(c.readOnly),
+        actingAdminId: c.actingAdminId,
         adminId: '',
         name: '',
       };
@@ -145,6 +151,8 @@ export class AuthService {
         tokenHash: this.tokenHash(token),
         userId: isCompanySession(session) ? session.userId : null,
         platformAdminId: isPlatformSession(session) ? session.adminId : null,
+        actingAdminId: session.actingAdminId ?? null,
+        readOnly: session.readOnly ?? false,
         createdAt: now,
         lastActivityAt: now,
         absoluteExpiresAt: new Date(now.getTime() + this.absoluteMs()),
@@ -183,10 +191,9 @@ export class AuthService {
       });
     }
     if (isCompanySession(session)) {
-      const access = await this.assertCompanyAccess(
-        session.companyId,
-        session.userId,
-      );
+      const access = session.readOnly
+        ? await this.assertCompanyIdentity(session.companyId, session.userId)
+        : await this.assertCompanyAccess(session.companyId, session.userId);
       if (access.user.mustChangePassword && !allowPasswordSetup) {
         throw new ForbiddenException({
           code: 'PASSWORD_CHANGE_REQUIRED',
@@ -214,6 +221,53 @@ export class AuthService {
       where: { id: session.sessionId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+  }
+
+  async createReadOnlyCompanySession(
+    admin: PlatformSessionContext,
+    companyId: string,
+  ) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      include: {
+        subscription: true,
+        users: {
+          where: { active: true },
+          orderBy: { createdAt: 'asc' },
+          take: 1,
+        },
+      },
+    });
+    const user = company?.users[0];
+    if (!company || !user || !company.subscription) {
+      throw new BadRequestException('Company is not ready for workspace access.');
+    }
+    const features = await this.featuresForCompany(companyId);
+    const session: CompanySessionContext = {
+      kind: 'company',
+      companyId,
+      userId: user.id,
+      email: user.email,
+      companyName: company.name,
+      companyRole: 'admin',
+      features,
+      mustChangePassword: false,
+      readOnly: true,
+      actingAdminId: admin.adminId,
+      adminId: '',
+      name: user.name,
+    };
+    await this.prisma.auditLog.create({
+      data: {
+        companyId,
+        actorId: admin.adminId,
+        entityType: 'company_workspace',
+        entityId: companyId,
+        action: 'platform_admin_view_started',
+        afterJson: JSON.stringify({ platformAdminId: admin.adminId, readOnly: true }),
+      },
+    });
+    return this.issueSession(session);
   }
 
   async changePassword(session: SessionContext, password: string) {
@@ -318,6 +372,19 @@ export class AuthService {
       );
     }
     return { company, user, subscription: sub };
+  }
+
+  private async assertCompanyIdentity(companyId: string, userId: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+    });
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, companyId, active: true },
+    });
+    if (!company || !user) {
+      throw new UnauthorizedException('Company workspace is unavailable.');
+    }
+    return { company, user, subscription: null };
   }
 
   async login(input: LoginInput) {
@@ -457,7 +524,11 @@ export class AuthService {
     if (!isCompanySession(session)) {
       throw new UnauthorizedException('Invalid session');
     }
-    await this.assertCompanyAccess(session.companyId, session.userId);
+    if (session.readOnly) {
+      await this.assertCompanyIdentity(session.companyId, session.userId);
+    } else {
+      await this.assertCompanyAccess(session.companyId, session.userId);
+    }
     const user = await this.prisma.user.findFirst({
       where: { id: session.userId, companyId: session.companyId },
       include: { company: { select: { name: true } } },
@@ -470,6 +541,7 @@ export class AuthService {
       where: { userId: user.id, readAt: null },
     });
     return {
+      ...session,
       kind: 'company',
       companyId: user.companyId,
       userId: user.id,
