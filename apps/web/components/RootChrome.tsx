@@ -19,8 +19,6 @@ export function RootChrome({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isLogin || isAdminLogin || isPublicGetStarted || isPasswordChange) {
-      if (isLogin && isAuthenticated()) router.replace('/');
-      if (isAdminLogin && isAuthenticated()) router.replace('/admin');
       setReady(true);
       return;
     }

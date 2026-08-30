@@ -27,6 +27,9 @@ export class MailService {
     }
 
     const webUrl = process.env.WEB_APP_URL || 'https://enterprise-hub.up.railway.app';
+    const webLoginUrl = webUrl.replace(/\/$/, '').endsWith('/login')
+      ? webUrl
+      : `${webUrl.replace(/\/$/, '')}/login`;
     const mobileUrl =
       process.env.MOBILE_APP_URL ||
       'https://expo.dev/accounts/preuqaliq/projects/marble-with-nuage';
@@ -42,7 +45,7 @@ export class MailService {
 
 Your Enterprise Hub demo workspace for ${input.companyName} is ready.
 
-Web app: ${webUrl}
+Web app: ${webLoginUrl}
 Mobile app: ${mobileUrl}
 Username: ${input.to}
 Temporary password: ${input.temporaryPassword}
@@ -57,7 +60,7 @@ Sign in and change the temporary password before using the workspace.
     <h1 style="font-size:24px">Your seven-day trial is ready</h1>
     <p>Hello,</p>
     <p>Your Enterprise Hub demo workspace for <strong>${company}</strong> is ready.</p>
-    <p><a href="${escapeHtml(webUrl)}">Open the web app</a></p>
+    <p><a href="${escapeHtml(webLoginUrl)}">Open the web app</a></p>
     <p><a href="${escapeHtml(mobileUrl)}">Open the mobile app</a></p>
     <p><strong>Username:</strong> ${email}<br />
     <strong>Temporary password:</strong> ${password}<br />
