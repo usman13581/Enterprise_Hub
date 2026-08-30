@@ -161,6 +161,7 @@ Required API configuration:
 - `MAIL_REPLY_TO`
 - `WEB_APP_URL`
 - `MOBILE_APP_URL`
+- `DEMO_CLEANUP_ENABLED=false` until a production dry-run is reviewed
 
 ## User cancellation
 

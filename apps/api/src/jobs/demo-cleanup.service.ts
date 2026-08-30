@@ -9,6 +9,12 @@ export class DemoCleanupService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly demos: DemoProvisioningService) {}
 
   onModuleInit() {
+    if (process.env.DEMO_CLEANUP_ENABLED !== 'true') {
+      this.logger.warn(
+        'Demo cleanup worker is disabled; set DEMO_CLEANUP_ENABLED=true after reviewing a dry run.',
+      );
+      return;
+    }
     const intervalMs = Number(
       process.env.DEMO_CLEANUP_INTERVAL_MS ?? 60 * 60 * 1000,
     );
