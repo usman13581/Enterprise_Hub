@@ -16,6 +16,7 @@ import {
   isPlatformSession,
 } from './session.types';
 import { createHash, randomUUID } from 'crypto';
+import { MailService } from '../mail/mail.service';
 
 type CompanyJwtPayload = {
   kind?: 'company';
@@ -38,7 +39,10 @@ type PlatformJwtPayload = {
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+  ) {}
 
   private jwtSecret() {
     return process.env.JWT_SECRET || process.env.BOOTSTRAP_TOKEN || 'marble-dev-secret';
@@ -186,7 +190,7 @@ export class AuthService {
       if (access.user.mustChangePassword && !allowPasswordSetup) {
         throw new ForbiddenException({
           code: 'PASSWORD_CHANGE_REQUIRED',
-          message: 'Change your temporary password before continuing.',
+          message: 'Password change required.',
         });
       }
     } else {
@@ -236,6 +240,10 @@ export class AuthService {
       companyName: access.company.name,
       mustChangePassword: false,
     };
+    await this.mail.sendPasswordChanged({
+      to: access.user.email,
+      companyName: access.company.name,
+    });
     return this.issueSession(refreshed);
   }
 

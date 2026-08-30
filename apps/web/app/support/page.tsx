@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
 import type { SessionPayload } from "@marble/types";
 import { apiFetch, apiPost } from "@/lib/api";
 import { day } from "@/lib/format";
@@ -81,6 +82,11 @@ export default function SupportPage() {
       <p className={page.lede}>
         Open a ticket for billing, access, or product help.
       </p>
+      <div className={styles.actions}>
+        <Link className={styles.ghost} href="/change-password">
+          Change password
+        </Link>
+      </div>
 
       {error ? <p className={styles.error}>{error}</p> : null}
 

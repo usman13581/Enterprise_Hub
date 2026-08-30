@@ -55,7 +55,7 @@ async function request<T>(
     const detail = await res.text().catch(() => '');
     if (errorCode(detail) === 'PASSWORD_CHANGE_REQUIRED') {
       if (typeof window !== 'undefined') window.location.href = '/change-password';
-      throw new Error('Change your temporary password before continuing.');
+      throw new Error('');
     }
     if (res.status === 401 || errorCode(detail) === 'SESSION_EXPIRED') {
       redirectToLogin();

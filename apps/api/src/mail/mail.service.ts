@@ -101,4 +101,62 @@ Sign in and change the temporary password before using the workspace.
       return { sent: false, error: 'Email provider request failed' };
     }
   }
+
+  async sendPasswordChanged(input: { to: string; companyName: string }) {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      return { sent: false, error: 'RESEND_API_KEY is not configured' };
+    }
+
+    const webUrl = process.env.WEB_APP_URL || 'https://enterprise-hub.up.railway.app';
+    const from = process.env.MAIL_FROM || 'PrequaliQ <info@prequaliq.com>';
+    const replyTo = process.env.MAIL_REPLY_TO || 'info@prequaliq.com';
+    const company = escapeHtml(input.companyName);
+    const subject = 'Your Enterprise Hub password was changed';
+    const text = `Hello,
+
+The password for your Enterprise Hub account (${input.to}) at ${input.companyName} was changed successfully.
+
+Open Enterprise Hub: ${webUrl}
+
+If you did not make this change, contact ${replyTo} immediately.
+`;
+    const html = `<!doctype html>
+<html lang="en">
+  <body style="font-family:Arial,sans-serif;line-height:1.6;color:#1e293b;max-width:600px;margin:auto;padding:24px">
+    <p style="color:#64748b">PrequaliQ · Enterprise Hub</p>
+    <h1 style="font-size:24px">Password changed successfully</h1>
+    <p>The password for your Enterprise Hub account at <strong>${company}</strong> was changed successfully.</p>
+    <p><a href="${escapeHtml(webUrl)}">Open Enterprise Hub</a></p>
+    <p style="color:#64748b;font-size:13px">If you did not make this change, contact ${escapeHtml(replyTo)} immediately.</p>
+  </body>
+</html>`;
+
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from,
+          to: [input.to],
+          reply_to: replyTo,
+          subject,
+          text,
+          html,
+        }),
+      });
+      if (!response.ok) {
+        this.logger.error(`Resend rejected password-change email (${response.status})`);
+        return { sent: false, error: `Email provider rejected the request (${response.status})` };
+      }
+      return { sent: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown email error';
+      this.logger.error(`Password-change email failed: ${message}`);
+      return { sent: false, error: 'Email provider request failed' };
+    }
+  }
 }

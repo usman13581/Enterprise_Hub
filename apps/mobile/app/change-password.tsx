@@ -21,6 +21,10 @@ export default function ChangePasswordScreen() {
   const [saving, setSaving] = useState(false);
 
   async function submit() {
+    if (password.length < 12) {
+      setError('Password must be at least 12 characters.');
+      return;
+    }
     if (password !== confirmation) {
       setError('Passwords do not match.');
       return;
@@ -41,10 +45,8 @@ export default function ChangePasswordScreen() {
 
   return (
     <ScreenScroll contentContainerStyle={styles.content}>
-      <Text style={ui.title}>Set a new password</Text>
-      <Text style={ui.lede}>
-        Replace your temporary password before opening the company workspace.
-      </Text>
+      <Text style={ui.title}>Change password</Text>
+      <Text style={ui.lede}>Choose a new password for your account.</Text>
       <View style={ui.card}>
         <Text style={ui.label}>New password</Text>
         <TextInput

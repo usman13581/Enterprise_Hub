@@ -17,6 +17,10 @@ export default function ChangePasswordPage() {
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    if (password.length < 12) {
+      setError('Password must be at least 12 characters.');
+      return;
+    }
     if (password !== confirmation) {
       setError('Passwords do not match.');
       return;
@@ -38,9 +42,9 @@ export default function ChangePasswordPage() {
     <section className={login.screen}>
       <div className={login.card}>
         <p className={login.brand}>Enterprise Hub</p>
-        <h1 className={page.title}>Set a new password</h1>
+        <h1 className={page.title}>Change password</h1>
         <p className={page.lede}>
-          Your temporary password must be replaced before you can use the workspace.
+          Choose a new password for your account.
         </p>
         <form className={styles.form} onSubmit={onSubmit}>
           <div className={styles.field}>

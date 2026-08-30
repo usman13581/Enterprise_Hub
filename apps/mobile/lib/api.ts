@@ -117,7 +117,7 @@ async function request<T>(
       const code = parseApiErrorCode(detail);
       if (code === 'PASSWORD_CHANGE_REQUIRED') {
         router.replace('/change-password' as never);
-        throw new Error('Change your temporary password before continuing.');
+        throw new Error('');
       }
       if (res.status === 401 || code === 'SESSION_EXPIRED' || code === 'SUBSCRIPTION_INACTIVE') {
         await redirectUnauthorized(path);

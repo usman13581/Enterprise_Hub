@@ -67,7 +67,7 @@ export class BootstrapAuthGuard implements CanActivate {
     if (access.user.mustChangePassword && !allowPasswordSetup) {
       throw new ForbiddenException({
         code: 'PASSWORD_CHANGE_REQUIRED',
-        message: 'Change your temporary password before continuing.',
+        message: 'Password change required.',
       });
     }
     const features = await this.auth.featuresForCompany(session.companyId);

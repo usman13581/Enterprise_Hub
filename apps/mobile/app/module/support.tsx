@@ -15,6 +15,7 @@ import {
 } from '../../lib/useCollection';
 import { Pagination, SearchBox, Toast } from '../../components/ListControls';
 import { ScreenScroll } from '../../components/ScreenScroll';
+import { router } from 'expo-router';
 import {
   ActionButton,
   FilterChips,
@@ -150,6 +151,13 @@ export default function SupportScreen() {
           ? 'Company tickets. Close when resolved.'
           : 'Your support requests for this company.'}
       </Text>
+      <RowActions>
+        <ActionButton
+          label="Change password"
+          tone="ghost"
+          onPress={() => router.push('/change-password' as never)}
+        />
+      </RowActions>
       {error ? <Text style={ui.error}>{error}</Text> : null}
 
       <View style={ui.card}>
