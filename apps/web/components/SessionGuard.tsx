@@ -30,10 +30,12 @@ export function SessionGuard({ children }: { children: React.ReactNode }) {
     window.localStorage.setItem(ACTIVITY_KEY, String(now));
     if (now - lastPing.current > 60_000 && getAuthToken()) {
       lastPing.current = now;
-      void apiFetch('/auth/session').catch(() => undefined);
+      void apiFetch(
+        pathname.startsWith('/admin') ? '/admin/session' : '/auth/session',
+      ).catch(() => undefined);
     }
     setWarning(false);
-  }, []);
+  }, [pathname]);
 
   useEffect(() => {
     if (isPublic || !getAuthToken()) return;
@@ -68,7 +70,9 @@ export function SessionGuard({ children }: { children: React.ReactNode }) {
 
   async function staySignedIn() {
     try {
-      await apiFetch('/auth/session');
+      await apiFetch(
+        pathname.startsWith('/admin') ? '/admin/session' : '/auth/session',
+      );
       markActivity();
     } catch {
       redirect();

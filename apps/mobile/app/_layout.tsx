@@ -50,8 +50,11 @@ export default function RootLayout() {
     const checkSession = async () => {
       const lastActivity = await getLastSessionActivity();
       const elapsed = Date.now() - lastActivity;
+      const currentKind = await getSessionKind();
+      const sessionPath =
+        currentKind === 'platform' ? '/admin/session' : '/auth/session';
       if (elapsed >= 30 * 60 * 1000) {
-        await apiFetch('/auth/session').catch(() => undefined);
+        await apiFetch(sessionPath).catch(() => undefined);
         return;
       }
       if (elapsed >= 28 * 60 * 1000 && !warningShown) {
@@ -70,7 +73,7 @@ export default function RootLayout() {
             {
               text: 'Stay signed in',
               onPress: () => {
-                void apiFetch('/auth/session').then(() => markSessionActivity());
+                void apiFetch(sessionPath).then(() => markSessionActivity());
               },
             },
           ],
