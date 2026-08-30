@@ -25,7 +25,7 @@ if ! pnpm --filter @marble/api exec prisma db push --skip-generate --accept-data
   exit 1
 fi
 
-echo "==> Seeding pilot data (idempotent upserts)..."
+echo "==> Seeding platform data (idempotent upserts)..."
 if ! pnpm --filter @marble/api db:seed; then
   echo "ERROR: db:seed failed"
   exit 1
