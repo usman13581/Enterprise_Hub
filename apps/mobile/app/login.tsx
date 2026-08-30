@@ -17,7 +17,7 @@ import { colors, ui } from '../lib/ui';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [email, setEmail] = useState('owner@binhajmarble.ae');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);

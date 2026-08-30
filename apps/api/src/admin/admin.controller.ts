@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  ForbiddenException,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -217,7 +218,13 @@ export class AdminController {
 
   @Post('demo-requests/cleanup')
   cleanupDemos(@Query('dryRun') dryRun?: string) {
-    return this.demos.cleanupExpired({ dryRun: dryRun === 'true' });
+    const isDryRun = dryRun === 'true';
+    if (!isDryRun && process.env.DEMO_CLEANUP_ENABLED !== 'true') {
+      throw new ForbiddenException(
+        'Destructive demo cleanup is disabled until DEMO_CLEANUP_ENABLED=true.',
+      );
+    }
+    return this.demos.cleanupExpired({ dryRun: isDryRun });
   }
 
   @Post('applications/:id/approve')

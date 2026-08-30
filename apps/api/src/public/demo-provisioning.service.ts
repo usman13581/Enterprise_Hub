@@ -432,14 +432,21 @@ export class DemoProvisioningService {
       throw new ConflictException('Credential handoff has expired.');
     }
     const password = decryptCredential(application.credentialHandoff);
-    await this.prisma.companyApplication.update({
-      where: { id: application.id },
+    const claimed = await this.prisma.companyApplication.updateMany({
+      where: {
+        id: application.id,
+        credentialHandoff: { not: null },
+        credentialRevealedAt: null,
+      },
       data: {
         credentialRevealedAt: new Date(),
         credentialStatus: 'delivered',
         credentialHandoff: null,
       },
     });
+    if (claimed.count !== 1) {
+      throw new ConflictException('Credentials have already been delivered or are unavailable.');
+    }
     return {
       email: application.email,
       password,
@@ -553,25 +560,28 @@ export class DemoProvisioningService {
       if (claimed.count !== 1) continue;
       try {
         const uploadUrls = await this.companyUploadUrls(candidate.companyId);
-        await this.prisma.companySubscription.update({
-          where: { id: candidate.id },
-          data: { status: 'cancelled', demoCleanupStatus: 'expired' },
-        });
-        await this.prisma.company.delete({ where: { id: candidate.companyId } });
-        await this.removeCompanyFiles(uploadUrls);
-        for (const application of candidate.company.applications) {
-          await this.prisma.companyApplication.update({
-            where: { id: application.id },
-            data: {
-              companyId: null,
-              status: 'rejected',
-              lifecycleStatus: 'demo_cleaned',
-              cleanedAt: new Date(),
-              cleanupError: null,
-              credentialStatus: 'expired',
-            },
+        await this.prisma.$transaction(async (tx) => {
+          await tx.companySubscription.update({
+            where: { id: candidate.id },
+            data: { status: 'cancelled', demoCleanupStatus: 'expired' },
           });
-        }
+          for (const application of candidate.company.applications) {
+            await tx.companyApplication.update({
+              where: { id: application.id },
+              data: {
+                companyId: null,
+                status: 'rejected',
+                lifecycleStatus: 'demo_cleaned',
+                cleanedAt: new Date(),
+                cleanupError: null,
+                credentialStatus: 'expired',
+                credentialHandoff: null,
+              },
+            });
+          }
+          await tx.company.delete({ where: { id: candidate.companyId } });
+        });
+        await this.removeCompanyFiles(uploadUrls);
         cleaned.push(candidate.companyId);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown cleanup failure';

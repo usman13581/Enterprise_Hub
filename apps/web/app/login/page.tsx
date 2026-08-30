@@ -12,7 +12,7 @@ import login from './login.module.css';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('owner@binhajmarble.ae');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);

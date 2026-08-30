@@ -57,9 +57,17 @@ async function request<T>(
       if (typeof window !== 'undefined') window.location.href = '/change-password';
       throw new Error('');
     }
-    if (res.status === 401 || errorCode(detail) === 'SESSION_EXPIRED') {
+    if (
+      res.status === 401 ||
+      errorCode(detail) === 'SESSION_EXPIRED' ||
+      errorCode(detail) === 'SUBSCRIPTION_INACTIVE'
+    ) {
       redirectToLogin();
-      throw new Error('Session expired. Please sign in again.');
+      throw new Error(
+        errorCode(detail) === 'SUBSCRIPTION_INACTIVE'
+          ? 'Your trial or subscription has expired.'
+          : 'Session expired. Please sign in again.',
+      );
     }
     throw new Error(detail || `API ${res.status} for ${path}`);
   }

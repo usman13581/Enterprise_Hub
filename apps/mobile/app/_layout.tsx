@@ -25,13 +25,21 @@ export default function RootLayout() {
     void (async () => {
       const token = await getAuthToken();
       const sessionKind = await getSessionKind();
-      setAuthed(Boolean(token));
       setKind(sessionKind);
-      if (token) await markSessionActivity();
+      let validated = false;
       if (token && sessionKind === 'company') {
         const session = await apiFetch<{ mustChangePassword?: boolean }>('/auth/session').catch(() => null);
-        setNeedsPassword(Boolean(session?.mustChangePassword));
+        validated = Boolean(session);
+        if (session) {
+          setNeedsPassword(Boolean(session.mustChangePassword));
+          await markSessionActivity();
+        }
+      } else if (token && sessionKind === 'platform') {
+        const session = await apiFetch('/admin/session').catch(() => null);
+        validated = Boolean(session);
+        if (session) await markSessionActivity();
       }
+      setAuthed(Boolean(await getAuthToken()) && (validated || Boolean(token)));
       setReady(true);
     })();
   }, [segments]);

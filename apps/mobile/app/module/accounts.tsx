@@ -6,7 +6,12 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { money } from '../../lib/format';
-import { usePolledItem } from '../../lib/useCollection';
+import {
+  searchItems,
+  usePagination,
+  usePolledItem,
+} from '../../lib/useCollection';
+import { Pagination, SearchBox } from '../../components/ListControls';
 import { ScreenScroll } from '../../components/ScreenScroll';
 import {
   BalanceCard,
@@ -24,6 +29,17 @@ export default function AccountsScreen() {
   const { item, error } =
     usePolledItem<AccountsOverview>('/accounts/overview');
   const [tab, setTab] = useState<Tab>('receivables');
+  const [query, setQuery] = useState('');
+  const filteredReceivables = searchItems(
+    item?.receivableByCustomer ?? [],
+    query,
+  );
+  const filteredProfit = searchItems(item?.profitByJob ?? [], query);
+  const receivablesPager = usePagination(
+    filteredReceivables,
+    `receivables:${query}`,
+  );
+  const profitPager = usePagination(filteredProfit, `profit:${query}`);
 
   if (!item) {
     return (
@@ -82,15 +98,24 @@ export default function AccountsScreen() {
             },
           ]}
         />
+        <SearchBox
+          value={query}
+          onChange={setQuery}
+          placeholder={
+            tab === 'receivables'
+              ? 'Search customers…'
+              : 'Search jobs or customers…'
+          }
+        />
 
         {tab === 'receivables'
-          ? item.receivableByCustomer.length === 0
+          ? filteredReceivables.length === 0
             ? (
                 <View style={ui.empty}>
                   <Text style={ui.emptyText}>No customer activity yet.</Text>
                 </View>
               )
-            : item.receivableByCustomer.map((row) => (
+            : receivablesPager.paged.map((row) => (
                 <RecordRow
                   key={row.customerId}
                   title={row.customerName}
@@ -105,13 +130,13 @@ export default function AccountsScreen() {
           : null}
 
         {tab === 'profit'
-          ? item.profitByJob.length === 0
+          ? filteredProfit.length === 0
             ? (
                 <View style={ui.empty}>
                   <Text style={ui.emptyText}>No jobs yet.</Text>
                 </View>
               )
-            : item.profitByJob.map((row) => (
+            : profitPager.paged.map((row) => (
                 <RecordRow
                   key={row.jobId}
                   title={row.jobNumber}
@@ -123,6 +148,26 @@ export default function AccountsScreen() {
                 />
               ))
           : null}
+        {tab === 'receivables' && filteredReceivables.length > 0 ? (
+          <Pagination
+            page={receivablesPager.page}
+            setPage={receivablesPager.setPage}
+            pageSize={receivablesPager.pageSize}
+            setPageSize={receivablesPager.setPageSize}
+            pageCount={receivablesPager.pageCount}
+            total={receivablesPager.total}
+          />
+        ) : null}
+        {tab === 'profit' && filteredProfit.length > 0 ? (
+          <Pagination
+            page={profitPager.page}
+            setPage={profitPager.setPage}
+            pageSize={profitPager.pageSize}
+            setPageSize={profitPager.setPageSize}
+            pageCount={profitPager.pageCount}
+            total={profitPager.total}
+          />
+        ) : null}
       </ScreenScroll>
     </View>
   );

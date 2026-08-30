@@ -3,7 +3,12 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { money } from '@/lib/format';
-import { usePolledItem } from '@/lib/useCollection';
+import {
+  searchItems,
+  usePagination,
+  usePolledItem,
+} from '@/lib/useCollection';
+import { Pagination, SearchBox } from '@/components/ListControls';
 import {
   BalanceStat,
   EmptyState,
@@ -22,6 +27,17 @@ type Tab = 'receivables' | 'profit';
 export default function AccountsPage() {
   const { item, error } = usePolledItem<AccountsOverview>('/accounts/overview');
   const [tab, setTab] = useState<Tab>('receivables');
+  const [query, setQuery] = useState('');
+  const filteredReceivables = searchItems(
+    item?.receivableByCustomer ?? [],
+    query,
+  );
+  const filteredProfit = searchItems(item?.profitByJob ?? [], query);
+  const receivablesPager = usePagination(
+    filteredReceivables,
+    `receivables:${query}`,
+  );
+  const profitPager = usePagination(filteredProfit, `profit:${query}`);
 
   if (!item) {
     return (
@@ -88,8 +104,18 @@ export default function AccountsPage() {
         ]}
       />
 
+      <SearchBox
+        value={query}
+        onChange={setQuery}
+        placeholder={
+          tab === 'receivables'
+            ? 'Search customers…'
+            : 'Search jobs or customers…'
+        }
+      />
+
       {tab === 'receivables' ? (
-        item.receivableByCustomer.length === 0 ? (
+        filteredReceivables.length === 0 ? (
           <EmptyState>No customer activity yet.</EmptyState>
         ) : (
           <TableScroll>
@@ -103,7 +129,7 @@ export default function AccountsPage() {
                 </tr>
               </thead>
               <tbody>
-                {item.receivableByCustomer.map((row) => (
+                {receivablesPager.paged.map((row) => (
                   <tr key={row.customerId}>
                     <td>
                       <Link
@@ -131,7 +157,7 @@ export default function AccountsPage() {
       ) : null}
 
       {tab === 'profit' ? (
-        item.profitByJob.length === 0 ? (
+        filteredProfit.length === 0 ? (
           <EmptyState>No jobs yet.</EmptyState>
         ) : (
           <TableScroll>
@@ -147,7 +173,7 @@ export default function AccountsPage() {
                 </tr>
               </thead>
               <tbody>
-                {item.profitByJob.map((row) => (
+                {profitPager.paged.map((row) => (
                   <tr key={row.jobId}>
                     <td>
                       <Link className={finance.link} href={`/jobs/${row.jobId}`}>
@@ -173,6 +199,26 @@ export default function AccountsPage() {
             </table>
           </TableScroll>
         )
+      ) : null}
+      {tab === 'receivables' && filteredReceivables.length > 0 ? (
+        <Pagination
+          page={receivablesPager.page}
+          setPage={receivablesPager.setPage}
+          pageSize={receivablesPager.pageSize}
+          setPageSize={receivablesPager.setPageSize}
+          pageCount={receivablesPager.pageCount}
+          total={receivablesPager.total}
+        />
+      ) : null}
+      {tab === 'profit' && filteredProfit.length > 0 ? (
+        <Pagination
+          page={profitPager.page}
+          setPage={profitPager.setPage}
+          pageSize={profitPager.pageSize}
+          setPageSize={profitPager.setPageSize}
+          pageCount={profitPager.pageCount}
+          total={profitPager.total}
+        />
       ) : null}
     </section>
   );

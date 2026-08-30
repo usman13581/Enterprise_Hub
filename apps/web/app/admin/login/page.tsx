@@ -11,7 +11,7 @@ import login from '../../login/login.module.css';
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('platform@prequaliq.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
