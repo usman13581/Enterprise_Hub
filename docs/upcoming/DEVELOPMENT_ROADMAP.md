@@ -34,7 +34,8 @@ step begins.
    - Added the exact API contract and integration steps for the separate
      marketing website repository.
 
-These changes are local and not committed or deployed yet.
+The application changes are committed on `main`. The API and web services
+still require the Railway rollout and production configuration below.
 
 ## Deferred
 
@@ -53,7 +54,8 @@ tenant.
   databases.
 - Verify demo provisioning, duplicate handling, credential handoff, password
   setup, session expiry, conversion protection, and cleanup dry-run.
-- Deploy the API/mobile foundation manually after reviewing the schema update.
+- Deploy the API/web foundation from `main` after reviewing the schema update.
+- Verify credential email delivery and company-admin trial cancellation.
 - Keep destructive demo cleanup disabled until dry-run output is reviewed.
 
 ### 2. Website integration
