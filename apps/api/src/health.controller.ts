@@ -14,7 +14,7 @@ export class HealthController {
       version: APP_VERSION,
       phase: 5,
       // bump: force Railway rebuild so boot runs db push + seed
-      boot: 'schema-seed-v1',
+      boot: 'schema-seed-v2-platform-seed',
     };
   }
 
