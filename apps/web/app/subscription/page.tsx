@@ -3,7 +3,12 @@
 import { FormEvent, useEffect, useState } from "react";
 import { apiFetch, apiPost, apiUpload, assetUrl } from "@/lib/api";
 import { day, money } from "@/lib/format";
-import { usePolledList } from "@/lib/useCollection";
+import {
+  searchItems,
+  usePagination,
+  usePolledList,
+} from "@/lib/useCollection";
+import { Pagination, SearchBox } from "@/components/ListControls";
 import page from "../page.module.css";
 import styles from "@/components/crud.module.css";
 
@@ -11,6 +16,8 @@ type Subscription = {
   planName: string;
   planCode: string;
   status: string;
+  isDemo: boolean;
+  demoCleanupStatus: string | null;
   startsAt: string;
   trialEndsAt: string | null;
   expiresAt: string | null;
@@ -41,10 +48,14 @@ export default function SubscriptionPage() {
   const [notes, setNotes] = useState("");
   const [depositUrl, setDepositUrl] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   const { items: requests, reload } = usePolledList<RenewalRequest>(
     "/company/subscription/renewal-requests",
   );
+  const [query, setQuery] = useState("");
+  const filteredRequests = searchItems(requests, query);
+  const requestPager = usePagination(filteredRequests, query);
 
   useEffect(() => {
     apiFetch<Subscription>("/company/subscription")
@@ -98,6 +109,26 @@ export default function SubscriptionPage() {
     }
   }
 
+  async function cancelTrial() {
+    if (!sub?.isDemo || cancelling) return;
+    if (
+      !window.confirm(
+        "Cancel this trial? All company data will be permanently removed, while the inactive registration is retained.",
+      )
+    ) {
+      return;
+    }
+    setCancelling(true);
+    setError(null);
+    try {
+      await apiPost("/company/subscription/cancel-trial", {});
+      window.location.href = "/login";
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Cancellation failed");
+      setCancelling(false);
+    }
+  }
+
   return (
     <section className={page.page}>
       <h1 className={page.title}>Subscription</h1>
@@ -126,6 +157,24 @@ export default function SubscriptionPage() {
           <p className={page.meta}>Loading…</p>
         )}
       </div>
+
+      {sub?.isDemo && sub.status === "trial" ? (
+        <div className={page.panel}>
+          <p className={page.panelTitle}>Cancel trial</p>
+          <p className={page.meta}>
+            Cancelling permanently removes this demo company and its data.
+            The inactive registration is retained.
+          </p>
+          <button
+            className={`${styles.ghost} ${styles.danger}`}
+            type="button"
+            disabled={cancelling}
+            onClick={() => void cancelTrial()}
+          >
+            {cancelling ? "Cancelling…" : "Cancel trial"}
+          </button>
+        </div>
+      ) : null}
 
       <form className={styles.form} onSubmit={onSubmit}>
         <p className={styles.formTitle}>Request renewal</p>
@@ -197,11 +246,16 @@ export default function SubscriptionPage() {
       <h2 className={page.panelTitle} style={{ marginTop: "1.5rem" }}>
         Renewal requests
       </h2>
-      {requests.length === 0 ? (
+      <SearchBox
+        value={query}
+        onChange={setQuery}
+        placeholder="Search renewal requests by status or reference…"
+      />
+      {filteredRequests.length === 0 ? (
         <div className={styles.empty}>No renewal requests yet.</div>
       ) : (
         <ul className={styles.list}>
-          {requests.map((r) => (
+          {requestPager.paged.map((r) => (
             <li key={r.id} className={styles.card}>
               <strong>
                 {money(r.amount)} · {r.status}
@@ -222,6 +276,16 @@ export default function SubscriptionPage() {
           ))}
         </ul>
       )}
+      {filteredRequests.length > 0 ? (
+        <Pagination
+          page={requestPager.page}
+          setPage={requestPager.setPage}
+          pageSize={requestPager.pageSize}
+          setPageSize={requestPager.setPageSize}
+          pageCount={requestPager.pageCount}
+          total={requestPager.total}
+        />
+      ) : null}
     </section>
   );
 }

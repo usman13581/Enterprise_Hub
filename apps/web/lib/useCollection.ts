@@ -108,7 +108,7 @@ export function useFlash(timeoutMs = 3000) {
 
 export const PAGE_SIZES = [5, 10, 25, 50];
 
-export function usePagination<T>(items: T[]) {
+export function usePagination<T>(items: T[], resetKey?: unknown) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZES[0]);
 
@@ -123,6 +123,10 @@ export function usePagination<T>(items: T[]) {
   useEffect(() => {
     if (page > pageCount) setPage(pageCount);
   }, [page, pageCount]);
+
+  useEffect(() => {
+    if (resetKey !== undefined) setPage(1);
+  }, [resetKey]);
 
   return {
     paged,

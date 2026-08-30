@@ -3,7 +3,12 @@
 import { useState } from "react";
 import { apiPatch } from "@/lib/api";
 import { day } from "@/lib/format";
-import { usePolledList } from "@/lib/useCollection";
+import {
+  searchItems,
+  usePagination,
+  usePolledList,
+} from "@/lib/useCollection";
+import { Pagination, SearchBox } from "@/components/ListControls";
 import page from "../page.module.css";
 import styles from "@/components/crud.module.css";
 
@@ -21,6 +26,7 @@ export default function TeamPage() {
   const { items, error, setError, reload } =
     usePolledList<UserRow>("/company/users");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   async function toggleActive(user: UserRow) {
     if (busyId) return;
@@ -36,6 +42,9 @@ export default function TeamPage() {
     }
   }
 
+  const filtered = searchItems(items, query);
+  const pager = usePagination(filtered, query);
+
   return (
     <section className={page.page}>
       <h1 className={page.title}>Team</h1>
@@ -45,11 +54,17 @@ export default function TeamPage() {
 
       {error ? <p className={styles.error}>{error}</p> : null}
 
-      {items.length === 0 ? (
+      <SearchBox
+        value={query}
+        onChange={setQuery}
+        placeholder="Search team by name, email, or role…"
+      />
+
+      {filtered.length === 0 ? (
         <div className={styles.empty}>No users found.</div>
       ) : (
         <ul className={styles.list}>
-          {items.map((u) => (
+          {pager.paged.map((u) => (
             <li key={u.id} className={styles.card}>
               <div className={styles.cardHead}>
                 <div className={styles.cardContent}>
@@ -85,6 +100,16 @@ export default function TeamPage() {
           ))}
         </ul>
       )}
+      {filtered.length > 0 ? (
+        <Pagination
+          page={pager.page}
+          setPage={pager.setPage}
+          pageSize={pager.pageSize}
+          setPageSize={pager.setPageSize}
+          pageCount={pager.pageCount}
+          total={pager.total}
+        />
+      ) : null}
     </section>
   );
 }

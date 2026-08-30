@@ -300,3 +300,15 @@ export const loginSchema = z.object({
   companySlug: optionalText(80),
 });
 export type LoginInput = z.infer<typeof loginSchema>;
+
+export const demoRequestSchema = z.object({
+  companyName: requiredText(200),
+  email: z.string().trim().toLowerCase().email().max(200),
+  contactName: optionalText(200),
+  phone: optionalText(50),
+  emirate: optionalText(100),
+  approxUsers: optionalText(50),
+  note: optionalText(1000),
+  honeypot: optionalText(200),
+});
+export type DemoRequestInput = z.infer<typeof demoRequestSchema>;

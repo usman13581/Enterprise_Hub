@@ -7,8 +7,12 @@ import {
 } from 'react-native';
 import { apiFetch, apiPatch, apiPost } from '../../lib/api';
 import { money } from '../../lib/format';
-import { useFlash } from '../../lib/useCollection';
-import { Toast } from '../../components/ListControls';
+import {
+  searchItems,
+  useFlash,
+  usePagination,
+} from '../../lib/useCollection';
+import { Pagination, SearchBox, Toast } from '../../components/ListControls';
 import { ScreenScroll } from '../../components/ScreenScroll';
 import {
   ActionButton,
@@ -38,6 +42,7 @@ export default function AdminPlansScreen() {
   const [maxUsers, setMaxUsers] = useState('5');
   const [trialDays, setTrialDays] = useState('14');
   const [saving, setSaving] = useState(false);
+  const [query, setQuery] = useState('');
   const { flash, notify } = useFlash();
 
   const load = useCallback(async () => {
@@ -90,11 +95,19 @@ export default function AdminPlansScreen() {
     }
   }
 
+  const filtered = searchItems(items, query);
+  const pager = usePagination(filtered, query);
+
   return (
     <ScreenScroll>
       <Text style={ui.title}>Plans</Text>
       <Text style={ui.lede}>Subscription products offered to companies.</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
+      <SearchBox
+        value={query}
+        onChange={setQuery}
+        placeholder="Search plans by name or code…"
+      />
 
       <View style={ui.card}>
         <Text style={ui.cardTitle}>New plan</Text>
@@ -149,8 +162,12 @@ export default function AdminPlansScreen() {
 
       {loading ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
+      ) : filtered.length === 0 ? (
+        <View style={ui.empty}>
+          <Text style={ui.emptyText}>No plans found.</Text>
+        </View>
       ) : (
-        items.map((plan) => (
+        pager.paged.map((plan) => (
           <RecordRow
             key={plan.id}
             title={plan.name}
@@ -172,6 +189,16 @@ export default function AdminPlansScreen() {
           </RecordRow>
         ))
       )}
+      {filtered.length > 0 ? (
+        <Pagination
+          page={pager.page}
+          setPage={pager.setPage}
+          pageSize={pager.pageSize}
+          setPageSize={pager.setPageSize}
+          pageCount={pager.pageCount}
+          total={pager.total}
+        />
+      ) : null}
       <Toast flash={flash} />
     </ScreenScroll>
   );

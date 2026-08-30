@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ScreenScroll } from '../../components/ScreenScroll';
 import { StatCard } from '../../components/Finance';
-import { apiFetch, apiPost, getApiBaseUrl } from '../../lib/api';
+import { apiFetch, apiPost } from '../../lib/api';
 import { clearAuthToken } from '../../lib/auth';
 import { colors, ui } from '../../lib/ui';
 
@@ -94,7 +94,6 @@ export default function AdminHomeScreen() {
     <ScreenScroll>
       <Text style={styles.brand}>{APP_NAME}</Text>
       <Text style={ui.lede}>Platform admin — applications and tenants.</Text>
-      <Text style={styles.api}>API {getApiBaseUrl()}</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
 
       {overview ? (
@@ -255,11 +254,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     letterSpacing: -0.5,
-  },
-  api: {
-    color: colors.soft,
-    fontSize: 12,
-    marginTop: 8,
   },
   who: {
     color: colors.muted,

@@ -43,7 +43,7 @@ export default function CustomersPage() {
   const { flash, notify } = useFlash();
   const [query, setQuery] = useState("");
   const filtered = searchItems(items, query);
-  const pager = usePagination(filtered);
+  const pager = usePagination(filtered, query);
 
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [editingId, setEditingId] = useState<string | null>(null);

@@ -3,7 +3,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { apiFetch, apiPost } from "@/lib/api";
 import { day } from "@/lib/format";
-import { usePolledList } from "@/lib/useCollection";
+import { searchItems, usePagination, usePolledList } from "@/lib/useCollection";
+import { Pagination, SearchBox } from "@/components/ListControls";
 import page from "../../page.module.css";
 import styles from "@/components/crud.module.css";
 
@@ -81,8 +82,12 @@ export default function AdminApplicationsPage() {
     }
   }
 
-  const pending = items.filter((a) => a.status === "pending");
-  const others = items.filter((a) => a.status !== "pending");
+  const [query, setQuery] = useState("");
+  const filtered = searchItems(items, query);
+  const pending = filtered.filter((a) => a.status === "pending");
+  const others = filtered.filter((a) => a.status !== "pending");
+  const pendingPager = usePagination(pending, query);
+  const othersPager = usePagination(others, query);
 
   return (
     <section className={page.page}>
@@ -140,12 +145,18 @@ export default function AdminApplicationsPage() {
         </form>
       ) : null}
 
+      <SearchBox
+        value={query}
+        onChange={setQuery}
+        placeholder="Search applications by company, contact, email…"
+      />
+
       <h2 className={page.panelTitle}>Pending</h2>
       {pending.length === 0 ? (
         <div className={styles.empty}>No pending applications.</div>
       ) : (
         <ul className={styles.list}>
-          {pending.map((a) => (
+          {pendingPager.paged.map((a) => (
             <li key={a.id} className={styles.card}>
               <div className={styles.cardHead}>
                 <div className={styles.cardContent}>
@@ -180,6 +191,16 @@ export default function AdminApplicationsPage() {
           ))}
         </ul>
       )}
+      {pending.length > 0 ? (
+        <Pagination
+          page={pendingPager.page}
+          setPage={pendingPager.setPage}
+          pageSize={pendingPager.pageSize}
+          setPageSize={pendingPager.setPageSize}
+          pageCount={pendingPager.pageCount}
+          total={pendingPager.total}
+        />
+      ) : null}
 
       {others.length > 0 ? (
         <>
@@ -187,7 +208,7 @@ export default function AdminApplicationsPage() {
             History
           </h2>
           <ul className={styles.list}>
-            {others.map((a) => (
+            {othersPager.paged.map((a) => (
               <li key={a.id} className={styles.card}>
                 <strong>
                   {a.legalName} · {a.status}
@@ -198,6 +219,14 @@ export default function AdminApplicationsPage() {
               </li>
             ))}
           </ul>
+          <Pagination
+            page={othersPager.page}
+            setPage={othersPager.setPage}
+            pageSize={othersPager.pageSize}
+            setPageSize={othersPager.setPageSize}
+            pageCount={othersPager.pageCount}
+            total={othersPager.total}
+          />
         </>
       ) : null}
     </section>

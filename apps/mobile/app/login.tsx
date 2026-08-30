@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { apiLogin, getApiBaseUrl } from '../lib/api';
+import { apiLogin } from '../lib/api';
 import { setAuthToken, setSessionKind } from '../lib/auth';
 import { ScreenScroll } from '../components/ScreenScroll';
 import { colors, ui } from '../lib/ui';
@@ -30,7 +30,9 @@ export default function LoginScreen() {
       const result = await apiLogin({ email, password });
       await setAuthToken(result.token);
       await setSessionKind('company');
-      router.replace('/' as never);
+      router.replace(
+        (result.session.mustChangePassword ? '/change-password' : '/') as never,
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sign in failed');
     } finally {
@@ -51,7 +53,6 @@ export default function LoginScreen() {
       <Text style={styles.brand}>{APP_NAME}</Text>
       <Text style={ui.title}>Sign in</Text>
       <Text style={ui.lede}>Use your company account on this device.</Text>
-      <Text style={styles.api}>API {getApiBaseUrl()}</Text>
 
       <View style={ui.card}>
         <Text style={ui.label}>Email</Text>
@@ -119,12 +120,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     letterSpacing: -0.5,
-  },
-  api: {
-    color: colors.soft,
-    fontSize: 12,
-    marginTop: 8,
-    marginBottom: 8,
   },
   adminLink: {
     alignSelf: 'center',

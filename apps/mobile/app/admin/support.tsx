@@ -7,8 +7,12 @@ import {
 } from 'react-native';
 import { apiFetch, apiPost } from '../../lib/api';
 import { day } from '../../lib/format';
-import { useFlash } from '../../lib/useCollection';
-import { Toast } from '../../components/ListControls';
+import {
+  searchItems,
+  useFlash,
+  usePagination,
+} from '../../lib/useCollection';
+import { Pagination, SearchBox, Toast } from '../../components/ListControls';
 import { ScreenScroll } from '../../components/ScreenScroll';
 import {
   ActionButton,
@@ -39,6 +43,7 @@ export default function AdminSupportScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const [query, setQuery] = useState('');
   const { flash, notify } = useFlash();
 
   const load = useCallback(async () => {
@@ -61,10 +66,12 @@ export default function AdminSupportScreen() {
     if (filter === 'all') return items;
     return items.filter((row) => row.status === filter);
   }, [items, filter]);
+  const searched = searchItems(filtered, query);
+  const pager = usePagination(searched, `${filter}:${query}`);
 
-  const grouped = useMemo(() => {
+  const pagedGrouped = useMemo(() => {
     const map = new Map<string, { name: string; rows: SupportRow[] }>();
-    for (const row of filtered) {
+    for (const row of pager.paged) {
       const key = row.company?.id ?? 'unknown';
       const name = row.company?.name ?? 'Unknown company';
       const bucket = map.get(key) ?? { name, rows: [] };
@@ -74,7 +81,7 @@ export default function AdminSupportScreen() {
     return [...map.entries()].sort((a, b) =>
       a[1].name.localeCompare(b[1].name),
     );
-  }, [filtered]);
+  }, [pager.paged]);
 
   const selected = items.find((row) => row.id === selectedId) ?? null;
 
@@ -111,15 +118,20 @@ export default function AdminSupportScreen() {
         active={filter}
         onChange={setFilter}
       />
+      <SearchBox
+        value={query}
+        onChange={setQuery}
+        placeholder="Search support by title, company, or email…"
+      />
 
       {loading ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
-      ) : grouped.length === 0 ? (
+      ) : searched.length === 0 ? (
         <View style={ui.empty}>
           <Text style={ui.emptyText}>No support requests.</Text>
         </View>
       ) : (
-        grouped.map(([companyId, group]) => (
+        pagedGrouped.map(([companyId, group]) => (
           <View key={companyId}>
             <Text style={[ui.lede, { marginTop: 14, fontWeight: '600' }]}>
               {group.name} · {group.rows.length}
@@ -140,6 +152,16 @@ export default function AdminSupportScreen() {
           </View>
         ))
       )}
+      {searched.length > 0 ? (
+        <Pagination
+          page={pager.page}
+          setPage={pager.setPage}
+          pageSize={pager.pageSize}
+          setPageSize={pager.setPageSize}
+          pageCount={pager.pageCount}
+          total={pager.total}
+        />
+      ) : null}
 
       {selected ? (
         <View style={ui.card}>

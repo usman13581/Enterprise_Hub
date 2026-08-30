@@ -103,6 +103,8 @@ export class CompanyService {
       planName: sub.plan.name,
       planCode: sub.plan.code,
       status: sub.status,
+      isDemo: sub.isDemo,
+      demoCleanupStatus: sub.demoCleanupStatus,
       startsAt: sub.startsAt,
       trialEndsAt: sub.trialEndsAt,
       expiresAt: sub.expiresAt,

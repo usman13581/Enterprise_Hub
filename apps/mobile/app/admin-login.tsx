@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { apiAdminLogin, getApiBaseUrl } from '../lib/api';
+import { apiAdminLogin } from '../lib/api';
 import { setAuthToken, setSessionKind } from '../lib/auth';
 import { ScreenScroll } from '../components/ScreenScroll';
 import { colors, ui } from '../lib/ui';
@@ -54,7 +54,6 @@ export default function AdminLoginScreen() {
         Sign in with a platform admin account. Company modules are not available
         here.
       </Text>
-      <Text style={styles.api}>API {getApiBaseUrl()}</Text>
 
       <View style={ui.card}>
         <Text style={ui.label}>Email</Text>
@@ -122,12 +121,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     letterSpacing: -0.5,
-  },
-  api: {
-    color: colors.soft,
-    fontSize: 12,
-    marginTop: 8,
-    marginBottom: 8,
   },
   backLink: {
     alignSelf: 'center',

@@ -4,7 +4,12 @@ import { FormEvent, useEffect, useState } from "react";
 import type { SessionPayload } from "@marble/types";
 import { apiFetch, apiPost } from "@/lib/api";
 import { day } from "@/lib/format";
-import { usePolledList } from "@/lib/useCollection";
+import {
+  searchItems,
+  usePagination,
+  usePolledList,
+} from "@/lib/useCollection";
+import { Pagination, SearchBox } from "@/components/ListControls";
 import page from "../page.module.css";
 import styles from "@/components/crud.module.css";
 
@@ -28,6 +33,7 @@ export default function SupportPage() {
   const [body, setBody] = useState("");
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     void apiFetch<SessionPayload>("/auth/session").then(setSession);
@@ -66,6 +72,9 @@ export default function SupportPage() {
     }
   }
 
+  const filtered = searchItems(items, query);
+  const pager = usePagination(filtered, query);
+
   return (
     <section className={page.page}>
       <h1 className={page.title}>Support</h1>
@@ -102,11 +111,17 @@ export default function SupportPage() {
         </div>
       </form>
 
-      {items.length === 0 ? (
+      <SearchBox
+        value={query}
+        onChange={setQuery}
+        placeholder="Search support by title, status, or email…"
+      />
+
+      {filtered.length === 0 ? (
         <div className={styles.empty}>No support tickets yet.</div>
       ) : (
         <ul className={styles.list}>
-          {items.map((t) => (
+          {pager.paged.map((t) => (
             <li key={t.id} className={styles.card}>
               <div className={styles.cardHead}>
                 <div className={styles.cardContent}>
@@ -140,6 +155,16 @@ export default function SupportPage() {
           ))}
         </ul>
       )}
+      {filtered.length > 0 ? (
+        <Pagination
+          page={pager.page}
+          setPage={pager.setPage}
+          pageSize={pager.pageSize}
+          setPageSize={pager.setPageSize}
+          pageCount={pager.pageCount}
+          total={pager.total}
+        />
+      ) : null}
     </section>
   );
 }

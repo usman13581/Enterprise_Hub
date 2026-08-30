@@ -9,8 +9,16 @@ import {
 } from 'react-native';
 import { apiFetch, apiPost } from '../../lib/api';
 import { day } from '../../lib/format';
-import { useFlash } from '../../lib/useCollection';
-import { Toast } from '../../components/ListControls';
+import {
+  searchItems,
+  useFlash,
+  usePagination,
+} from '../../lib/useCollection';
+import {
+  Pagination,
+  SearchBox,
+  Toast,
+} from '../../components/ListControls';
 import { ScreenScroll } from '../../components/ScreenScroll';
 import { ActionButton, RowActions } from '../../components/Finance';
 import { colors, ui } from '../../lib/ui';
@@ -38,6 +46,7 @@ export default function AdminNotificationsScreen() {
   );
   const [target, setTarget] = useState<'all' | string>('all');
   const [saving, setSaving] = useState(false);
+  const [query, setQuery] = useState('');
   const { flash, notify } = useFlash();
 
   const load = useCallback(async () => {
@@ -81,6 +90,9 @@ export default function AdminNotificationsScreen() {
       setSaving(false);
     }
   }
+
+  const filtered = searchItems(items, query);
+  const pager = usePagination(filtered, query);
 
   return (
     <ScreenScroll>
@@ -178,10 +190,19 @@ export default function AdminNotificationsScreen() {
       </View>
 
       <Text style={[ui.lede, { marginTop: 12 }]}>Recent</Text>
+      <SearchBox
+        value={query}
+        onChange={setQuery}
+        placeholder="Search notifications by title or message…"
+      />
       {loading ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: 16 }} />
+      ) : filtered.length === 0 ? (
+        <View style={ui.empty}>
+          <Text style={ui.emptyText}>No notifications found.</Text>
+        </View>
       ) : (
-        items.map((row) => (
+        pager.paged.map((row) => (
           <View key={row.id} style={styles.row}>
             <Text style={styles.rowTitle}>{row.title}</Text>
             <Text style={styles.rowBody}>{row.body}</Text>
@@ -195,6 +216,16 @@ export default function AdminNotificationsScreen() {
           </View>
         ))
       )}
+      {filtered.length > 0 ? (
+        <Pagination
+          page={pager.page}
+          setPage={pager.setPage}
+          pageSize={pager.pageSize}
+          setPageSize={pager.setPageSize}
+          pageCount={pager.pageCount}
+          total={pager.total}
+        />
+      ) : null}
       <Toast flash={flash} />
     </ScreenScroll>
   );

@@ -3,7 +3,12 @@
 import { FormEvent, useState } from "react";
 import { apiPatch, apiPost } from "@/lib/api";
 import { money } from "@/lib/format";
-import { usePolledList } from "@/lib/useCollection";
+import {
+  searchItems,
+  usePagination,
+  usePolledList,
+} from "@/lib/useCollection";
+import { Pagination, SearchBox } from "@/components/ListControls";
 import page from "../../page.module.css";
 import styles from "@/components/crud.module.css";
 
@@ -34,6 +39,7 @@ export default function AdminPlansPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [query, setQuery] = useState("");
 
   function startEdit(plan: Plan) {
     setEditingId(plan.id);
@@ -82,6 +88,9 @@ export default function AdminPlansPage() {
     }
   }
 
+  const filtered = searchItems(items, query);
+  const pager = usePagination(filtered, query);
+
   return (
     <section className={page.page}>
       <h1 className={page.title}>Plans</h1>
@@ -95,6 +104,12 @@ export default function AdminPlansPage() {
       </div>
 
       {error ? <p className={styles.error}>{error}</p> : null}
+
+      <SearchBox
+        value={query}
+        onChange={setQuery}
+        placeholder="Search plans by name or code…"
+      />
 
       {showForm ? (
         <form className={styles.form} onSubmit={onSubmit}>
@@ -201,7 +216,7 @@ export default function AdminPlansPage() {
       ) : null}
 
       <ul className={styles.list}>
-        {items.map((p) => (
+        {pager.paged.map((p) => (
           <li key={p.id} className={styles.card}>
             <div className={styles.cardHead}>
               <div className={styles.cardContent}>
@@ -225,6 +240,16 @@ export default function AdminPlansPage() {
           </li>
         ))}
       </ul>
+      {filtered.length > 0 ? (
+        <Pagination
+          page={pager.page}
+          setPage={pager.setPage}
+          pageSize={pager.pageSize}
+          setPageSize={pager.setPageSize}
+          pageCount={pager.pageCount}
+          total={pager.total}
+        />
+      ) : null}
     </section>
   );
 }

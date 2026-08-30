@@ -3,7 +3,12 @@
 import { useState } from "react";
 import { apiPost, assetUrl } from "@/lib/api";
 import { day, money } from "@/lib/format";
-import { usePolledList } from "@/lib/useCollection";
+import {
+  searchItems,
+  usePagination,
+  usePolledList,
+} from "@/lib/useCollection";
+import { Pagination, SearchBox } from "@/components/ListControls";
 import page from "../../page.module.css";
 import styles from "@/components/crud.module.css";
 
@@ -26,6 +31,7 @@ export default function AdminRenewalsPage() {
     usePolledList<Renewal>("/admin/renewal-requests");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState("");
+  const [query, setQuery] = useState("");
 
   async function approve(id: string) {
     if (busyId) return;
@@ -62,6 +68,9 @@ export default function AdminRenewalsPage() {
     }
   }
 
+  const filtered = searchItems(items, query);
+  const pager = usePagination(filtered, query);
+
   return (
     <section className={page.page}>
       <h1 className={page.title}>Renewal requests</h1>
@@ -81,11 +90,17 @@ export default function AdminRenewalsPage() {
         />
       </div>
 
-      {items.length === 0 ? (
+      <SearchBox
+        value={query}
+        onChange={setQuery}
+        placeholder="Search renewals by company, email, reference…"
+      />
+
+      {filtered.length === 0 ? (
         <div className={styles.empty}>No renewal requests.</div>
       ) : (
         <ul className={styles.list}>
-          {items.map((r) => (
+          {pager.paged.map((r) => (
             <li key={r.id} className={styles.card}>
               <div className={styles.cardHead}>
                 <div className={styles.cardContent}>
@@ -137,6 +152,16 @@ export default function AdminRenewalsPage() {
           ))}
         </ul>
       )}
+      {filtered.length > 0 ? (
+        <Pagination
+          page={pager.page}
+          setPage={pager.setPage}
+          pageSize={pager.pageSize}
+          setPageSize={pager.setPageSize}
+          pageCount={pager.pageCount}
+          total={pager.total}
+        />
+      ) : null}
     </section>
   );
 }

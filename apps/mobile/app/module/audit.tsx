@@ -23,7 +23,7 @@ export default function AuditScreen() {
   const { items, loading, error } = usePolledList<AuditRow>('/audit?limit=200');
   const [query, setQuery] = useState('');
   const filtered = searchItems(items, query);
-  const pager = usePagination(filtered);
+  const pager = usePagination(filtered, query);
 
   return (
     <ScreenScroll>

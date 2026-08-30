@@ -77,7 +77,7 @@ export default function AdminAuditScreen() {
   }, [companyId, loadAudit]);
 
   const filtered = searchItems(items, query);
-  const pager = usePagination(filtered);
+  const pager = usePagination(filtered, query);
 
   return (
     <ScreenScroll>

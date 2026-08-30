@@ -14,8 +14,13 @@ import {
 } from '@marble/types';
 import { apiFetch } from '../../lib/api';
 import { money } from '../../lib/format';
-import { usePolledList } from '../../lib/useCollection';
+import {
+  searchItems,
+  usePagination,
+  usePolledList,
+} from '../../lib/useCollection';
 import { ScreenScroll } from '../../components/ScreenScroll';
+import { Pagination, SearchBox } from '../../components/ListControls';
 import { PdfButton, StatCard } from '../../components/Finance';
 import type { Customer, JobListItem } from '../../lib/types';
 import { colors, ui } from '../../lib/ui';
@@ -172,9 +177,13 @@ export default function ReportsScreen() {
   const [applied, setApplied] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [rowQuery, setRowQuery] = useState('');
 
   const { items: customers } = usePolledList<Customer>('/customers', 30_000);
   const { items: jobs } = usePolledList<JobListItem>('/jobs', 30_000);
+  const reportRows = result?.rows ?? [];
+  const filteredRows = searchItems(reportRows, rowQuery);
+  const rowPager = usePagination(filteredRows, rowQuery);
 
   const config = selection ? paramsFor(selection) : null;
 
@@ -213,6 +222,7 @@ export default function ReportsScreen() {
       );
       setResult(data);
       setApplied(queryParams);
+      setRowQuery('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load report');
       setResult(null);
@@ -383,12 +393,26 @@ export default function ReportsScreen() {
               ))}
             </View>
 
+            {result.rows.length > 0 ? (
+              <SearchBox
+                value={rowQuery}
+                onChange={setRowQuery}
+                placeholder="Search report rows…"
+              />
+            ) : null}
+
             {result.rows.length === 0 ? (
               <View style={ui.empty}>
                 <Text style={ui.emptyText}>No rows for these parameters.</Text>
               </View>
+            ) : filteredRows.length === 0 ? (
+              <View style={ui.empty}>
+                <Text style={ui.emptyText}>
+                  No report rows match your search.
+                </Text>
+              </View>
             ) : (
-              result.rows.map((row, index) => (
+              rowPager.paged.map((row, index) => (
                 <View key={index} style={styles.rowCard}>
                   {result.columns.map((col) => {
                     const raw = row[col.key];
@@ -408,6 +432,17 @@ export default function ReportsScreen() {
                 </View>
               ))
             )}
+
+            {result.rows.length > 0 && filteredRows.length > 0 ? (
+              <Pagination
+                page={rowPager.page}
+                setPage={rowPager.setPage}
+                pageSize={rowPager.pageSize}
+                setPageSize={rowPager.setPageSize}
+                pageCount={rowPager.pageCount}
+                total={rowPager.total}
+              />
+            ) : null}
 
             {result.footerNote ? (
               <Text style={styles.footer}>{result.footerNote}</Text>

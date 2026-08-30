@@ -3,6 +3,8 @@
 import { Fragment, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { TableScroll } from "@/components/Finance";
+import { searchItems, usePagination } from "@/lib/useCollection";
+import { Pagination, SearchBox } from "@/components/ListControls";
 import page from "../../page.module.css";
 import styles from "@/components/crud.module.css";
 import finance from "@/components/finance.module.css";
@@ -27,6 +29,7 @@ export default function AdminAuditPage() {
   const [items, setItems] = useState<AuditRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     void apiFetch<CompanyRow[]>("/admin/companies")
@@ -64,6 +67,9 @@ export default function AdminAuditPage() {
     }
   }
 
+  const filtered = searchItems(items, query);
+  const pager = usePagination(filtered, `${companyId}:${query}`);
+
   return (
     <section className={page.page}>
       <h1 className={page.title}>Audit</h1>
@@ -88,7 +94,13 @@ export default function AdminAuditPage() {
         </select>
       </div>
 
-      {items.length === 0 ? (
+      <SearchBox
+        value={query}
+        onChange={setQuery}
+        placeholder="Search audit by action, actor, or entity…"
+      />
+
+      {filtered.length === 0 ? (
         <div className={styles.empty}>
           {companyId ? "No audit entries." : "Select a company."}
         </div>
@@ -105,7 +117,7 @@ export default function AdminAuditPage() {
               </tr>
             </thead>
             <tbody>
-              {items.map((r) => {
+              {pager.paged.map((r) => {
                 const actor =
                   r.actorName || r.actorEmail
                     ? [r.actorName, r.actorEmail].filter(Boolean).join(" · ")
@@ -158,6 +170,16 @@ export default function AdminAuditPage() {
           </table>
         </TableScroll>
       )}
+      {filtered.length > 0 ? (
+        <Pagination
+          page={pager.page}
+          setPage={pager.setPage}
+          pageSize={pager.pageSize}
+          setPageSize={pager.setPageSize}
+          pageCount={pager.pageCount}
+          total={pager.total}
+        />
+      ) : null}
     </section>
   );
 }

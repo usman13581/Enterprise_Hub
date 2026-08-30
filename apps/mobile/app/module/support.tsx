@@ -8,8 +8,12 @@ import {
 } from 'react-native';
 import { apiFetch, apiPost, apiUploadImage } from '../../lib/api';
 import { day } from '../../lib/format';
-import { useFlash } from '../../lib/useCollection';
-import { Toast } from '../../components/ListControls';
+import {
+  searchItems,
+  useFlash,
+  usePagination,
+} from '../../lib/useCollection';
+import { Pagination, SearchBox, Toast } from '../../components/ListControls';
 import { ScreenScroll } from '../../components/ScreenScroll';
 import {
   ActionButton,
@@ -51,6 +55,7 @@ export default function SupportScreen() {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const { flash, notify } = useFlash();
+  const [query, setQuery] = useState('');
 
   const isAdmin = session?.companyRole === 'admin';
 
@@ -83,6 +88,8 @@ export default function SupportScreen() {
     if (filter === 'all') return items;
     return items.filter((row) => row.status === filter);
   }, [items, filter]);
+  const searched = searchItems(filtered, query);
+  const pager = usePagination(searched, `${filter}:${query}`);
 
   async function pickAttachment() {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -190,15 +197,20 @@ export default function SupportScreen() {
         active={filter}
         onChange={setFilter}
       />
+      <SearchBox
+        value={query}
+        onChange={setQuery}
+        placeholder="Search support by title, status, or email…"
+      />
 
       {loading ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
-      ) : filtered.length === 0 ? (
+      ) : searched.length === 0 ? (
         <View style={ui.empty}>
           <Text style={ui.emptyText}>No support requests.</Text>
         </View>
       ) : (
-        filtered.map((row) => (
+        pager.paged.map((row) => (
           <RecordRow
             key={row.id}
             title={row.title}
@@ -223,6 +235,16 @@ export default function SupportScreen() {
           </RecordRow>
         ))
       )}
+      {searched.length > 0 ? (
+        <Pagination
+          page={pager.page}
+          setPage={pager.setPage}
+          pageSize={pager.pageSize}
+          setPageSize={pager.setPageSize}
+          pageCount={pager.pageCount}
+          total={pager.total}
+        />
+      ) : null}
       <Toast flash={flash} />
     </ScreenScroll>
   );

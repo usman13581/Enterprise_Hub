@@ -15,11 +15,15 @@ import {
   requirePlatformSession,
 } from '../auth/session.types';
 import { AdminService } from './admin.service';
+import { DemoProvisioningService } from '../public/demo-provisioning.service';
 
 @Controller('admin')
 @UseGuards(PlatformAdminGuard)
 export class AdminController {
-  constructor(private readonly admin: AdminService) {}
+  constructor(
+    private readonly admin: AdminService,
+    private readonly demos: DemoProvisioningService,
+  ) {}
 
   @Get('overview')
   overview() {
@@ -204,6 +208,16 @@ export class AdminController {
   @Get('applications/:id')
   getApplication(@Param('id') id: string) {
     return this.admin.getApplication(id);
+  }
+
+  @Get('demo-requests/:id/credentials')
+  demoCredentials(@Param('id') id: string) {
+    return this.demos.revealCredentials(id);
+  }
+
+  @Post('demo-requests/cleanup')
+  cleanupDemos(@Query('dryRun') dryRun?: string) {
+    return this.demos.cleanupExpired({ dryRun: dryRun === 'true' });
   }
 
   @Post('applications/:id/approve')

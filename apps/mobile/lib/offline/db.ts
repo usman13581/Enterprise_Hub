@@ -248,3 +248,8 @@ export async function countPendingImages() {
   );
   return row?.c ?? 0;
 }
+
+export async function clearOfflineStore() {
+  const db = await getOfflineDb();
+  await db.execAsync('DELETE FROM entities; DELETE FROM mutation_queue; DELETE FROM image_queue; DELETE FROM meta;');
+}

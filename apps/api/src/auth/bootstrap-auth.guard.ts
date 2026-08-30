@@ -1,15 +1,18 @@
 import {
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { AuthService } from './auth.service';
 import {
   SESSION_HEADER,
   SessionContext,
   isCompanySession,
 } from './session.types';
+import { ALLOW_PASSWORD_SETUP } from './password-setup.decorator';
 
 /**
  * Accepts a company JWT (from login) or the legacy bootstrap token (tests/dev).
@@ -19,7 +22,10 @@ import {
  */
 @Injectable()
 export class BootstrapAuthGuard implements CanActivate {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly reflector: Reflector,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<{
@@ -38,7 +44,7 @@ export class BootstrapAuthGuard implements CanActivate {
     }
 
     const bootstrap = process.env.BOOTSTRAP_TOKEN ?? 'binhaj-dev-token';
-    if (token === bootstrap) {
+    if (token === bootstrap && process.env.NODE_ENV !== 'production') {
       req.session = await this.auth.sessionFromBootstrap();
       return true;
     }
@@ -49,9 +55,27 @@ export class BootstrapAuthGuard implements CanActivate {
         'Company session required. Use company login.',
       );
     }
-    await this.auth.assertCompanyAccess(session.companyId, session.userId);
+    const allowPasswordSetup = this.reflector.getAllAndOverride<boolean>(
+      ALLOW_PASSWORD_SETUP,
+      [context.getHandler(), context.getClass()],
+    );
+    await this.auth.touchSession(session, Boolean(allowPasswordSetup));
+    const access = await this.auth.assertCompanyAccess(
+      session.companyId,
+      session.userId,
+    );
+    if (access.user.mustChangePassword && !allowPasswordSetup) {
+      throw new ForbiddenException({
+        code: 'PASSWORD_CHANGE_REQUIRED',
+        message: 'Change your temporary password before continuing.',
+      });
+    }
     const features = await this.auth.featuresForCompany(session.companyId);
-    req.session = { ...session, features };
+    req.session = {
+      ...session,
+      features,
+      mustChangePassword: access.user.mustChangePassword,
+    };
     return true;
   }
 }

@@ -8,8 +8,16 @@ import {
 } from 'react-native';
 import { apiFetch, apiPost, assetUrl } from '../../lib/api';
 import { day, money } from '../../lib/format';
-import { useFlash } from '../../lib/useCollection';
-import { Toast } from '../../components/ListControls';
+import {
+  searchItems,
+  useFlash,
+  usePagination,
+} from '../../lib/useCollection';
+import {
+  Pagination,
+  SearchBox,
+  Toast,
+} from '../../components/ListControls';
 import { ScreenScroll } from '../../components/ScreenScroll';
 import {
   ActionButton,
@@ -44,6 +52,7 @@ export default function AdminRenewalsScreen() {
   const [expiresAt, setExpiresAt] = useState('');
   const [rejectReason, setRejectReason] = useState('');
   const [saving, setSaving] = useState(false);
+  const [query, setQuery] = useState('');
   const { flash, notify } = useFlash();
 
   const load = useCallback(async () => {
@@ -66,6 +75,8 @@ export default function AdminRenewalsScreen() {
     if (filter === 'all') return items;
     return items.filter((row) => row.status === filter);
   }, [items, filter]);
+  const searched = searchItems(filtered, query);
+  const pager = usePagination(searched, `${filter}:${query}`);
 
   const selected = items.find((row) => row.id === selectedId) ?? null;
 
@@ -121,15 +132,20 @@ export default function AdminRenewalsScreen() {
         active={filter}
         onChange={setFilter}
       />
+      <SearchBox
+        value={query}
+        onChange={setQuery}
+        placeholder="Search renewals by company, email, or reference…"
+      />
 
       {loading ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
-      ) : filtered.length === 0 ? (
+      ) : searched.length === 0 ? (
         <View style={ui.empty}>
           <Text style={ui.emptyText}>No renewal requests.</Text>
         </View>
       ) : (
-        filtered.map((row) => (
+        pager.paged.map((row) => (
           <RecordRow
             key={row.id}
             title={`${row.company?.name ?? 'Company'} · ${money(row.amount)}`}
@@ -147,6 +163,16 @@ export default function AdminRenewalsScreen() {
           />
         ))
       )}
+      {searched.length > 0 ? (
+        <Pagination
+          page={pager.page}
+          setPage={pager.setPage}
+          pageSize={pager.pageSize}
+          setPageSize={pager.setPageSize}
+          pageCount={pager.pageCount}
+          total={pager.total}
+        />
+      ) : null}
 
       {selected ? (
         <View style={ui.card}>

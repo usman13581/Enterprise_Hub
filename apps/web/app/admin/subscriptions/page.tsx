@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { day } from "@/lib/format";
-import { searchItems, usePolledList } from "@/lib/useCollection";
-import { SearchBox } from "@/components/ListControls";
+import { searchItems, usePagination, usePolledList } from "@/lib/useCollection";
+import { Pagination, SearchBox } from "@/components/ListControls";
 import { useState } from "react";
 import page from "../../page.module.css";
 import styles from "@/components/crud.module.css";
@@ -28,6 +28,7 @@ export default function AdminSubscriptionsPage() {
   const { items, error } = usePolledList<CompanyRow>("/admin/companies");
   const [query, setQuery] = useState("");
   const filtered = searchItems(items, query);
+  const pager = usePagination(filtered, query);
 
   return (
     <section className={page.page}>
@@ -45,7 +46,7 @@ export default function AdminSubscriptionsPage() {
       />
 
       <ul className={styles.list}>
-        {filtered.map((c) => (
+        {pager.paged.map((c) => (
           <li key={c.id} className={styles.card}>
             <Link href={`/admin/companies/${c.id}`}>
               <strong>{c.name}</strong>
@@ -65,6 +66,16 @@ export default function AdminSubscriptionsPage() {
           </li>
         ))}
       </ul>
+      {filtered.length > 0 ? (
+        <Pagination
+          page={pager.page}
+          setPage={pager.setPage}
+          pageSize={pager.pageSize}
+          setPageSize={pager.setPageSize}
+          pageCount={pager.pageCount}
+          total={pager.total}
+        />
+      ) : null}
     </section>
   );
 }

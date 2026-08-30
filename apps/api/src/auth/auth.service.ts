@@ -15,19 +15,23 @@ import {
   isCompanySession,
   isPlatformSession,
 } from './session.types';
+import { createHash, randomUUID } from 'crypto';
 
 type CompanyJwtPayload = {
   kind?: 'company';
   sub: string;
+  sid?: string;
   companyId: string;
   email: string;
   companyName: string;
   companyRole?: 'admin' | 'member';
+  mustChangePassword?: boolean;
 };
 
 type PlatformJwtPayload = {
   kind: 'platform';
   sub: string;
+  sid?: string;
   email: string;
   name: string;
 };
@@ -44,11 +48,24 @@ export class AuthService {
     return process.env.JWT_EXPIRES_IN || '7d';
   }
 
-  signSession(session: SessionContext): string {
+  private idleMs() {
+    return Number(process.env.SESSION_IDLE_MINUTES ?? 30) * 60 * 1000;
+  }
+
+  private absoluteMs() {
+    return Number(process.env.SESSION_ABSOLUTE_DAYS ?? 7) * 24 * 60 * 60 * 1000;
+  }
+
+  private tokenHash(token: string) {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  signSession(session: SessionContext, sessionId?: string): string {
     if (isPlatformSession(session)) {
       const payload: PlatformJwtPayload = {
         kind: 'platform',
         sub: session.adminId,
+        sid: sessionId,
         email: session.email,
         name: session.name,
       };
@@ -59,10 +76,12 @@ export class AuthService {
     const payload: CompanyJwtPayload = {
       kind: 'company',
       sub: session.userId,
+      sid: sessionId,
       companyId: session.companyId,
       email: session.email,
       companyName: session.companyName,
       companyRole: session.companyRole,
+      mustChangePassword: session.mustChangePassword,
     };
     return jwt.sign(payload, this.jwtSecret(), {
       expiresIn: this.jwtExpires() as jwt.SignOptions['expiresIn'],
@@ -78,6 +97,7 @@ export class AuthService {
         const p = payload as PlatformJwtPayload;
         return {
           kind: 'platform',
+          sessionId: p.sid,
           adminId: p.sub,
           email: p.email,
           name: p.name,
@@ -86,23 +106,137 @@ export class AuthService {
           companyName: '',
           companyRole: 'member',
           features: [],
+          mustChangePassword: false,
         };
       }
       const c = payload as CompanyJwtPayload;
       return {
         kind: 'company',
+        sessionId: c.sid,
         userId: c.sub,
         companyId: c.companyId,
         email: c.email,
         companyName: c.companyName,
         companyRole: c.companyRole ?? 'member',
         features: [],
+        mustChangePassword: Boolean(c.mustChangePassword),
         adminId: '',
         name: '',
       };
     } catch {
       throw new UnauthorizedException('Invalid or expired session. Please sign in again.');
     }
+  }
+
+  private async createPersistedSession(
+    session: SessionContext,
+    token: string,
+    sessionId: string,
+    now = new Date(),
+  ) {
+    await this.prisma.authSession.create({
+      data: {
+        id: sessionId,
+        kind: session.kind,
+        tokenHash: this.tokenHash(token),
+        userId: isCompanySession(session) ? session.userId : null,
+        platformAdminId: isPlatformSession(session) ? session.adminId : null,
+        createdAt: now,
+        lastActivityAt: now,
+        absoluteExpiresAt: new Date(now.getTime() + this.absoluteMs()),
+      },
+    });
+  }
+
+  async issueSession(session: SessionContext) {
+    const sessionId = randomUUID();
+    const token = this.signSession(session, sessionId);
+    await this.createPersistedSession(session, token, sessionId);
+    return { token, session };
+  }
+
+  async touchSession(session: SessionContext, allowPasswordSetup = false) {
+    if (!session.sessionId) {
+      throw new UnauthorizedException({
+        code: 'SESSION_EXPIRED',
+        message: 'Session expired. Please sign in again.',
+      });
+    }
+    const stored = await this.prisma.authSession.findUnique({
+      where: { id: session.sessionId },
+    });
+    const now = new Date();
+    if (
+      !stored ||
+      stored.kind !== session.kind ||
+      stored.revokedAt ||
+      stored.absoluteExpiresAt.getTime() <= now.getTime() ||
+      stored.lastActivityAt.getTime() + this.idleMs() <= now.getTime()
+    ) {
+      throw new UnauthorizedException({
+        code: 'SESSION_EXPIRED',
+        message: 'Session expired. Please sign in again.',
+      });
+    }
+    if (isCompanySession(session)) {
+      const access = await this.assertCompanyAccess(
+        session.companyId,
+        session.userId,
+      );
+      if (access.user.mustChangePassword && !allowPasswordSetup) {
+        throw new ForbiddenException({
+          code: 'PASSWORD_CHANGE_REQUIRED',
+          message: 'Change your temporary password before continuing.',
+        });
+      }
+    } else {
+      const admin = await this.prisma.platformAdmin.findFirst({
+        where: { id: session.adminId, active: true },
+      });
+      if (!admin) throw new UnauthorizedException('Account is inactive or missing');
+    }
+    if (now.getTime() - stored.lastActivityAt.getTime() >= 60_000) {
+      await this.prisma.authSession.update({
+        where: { id: stored.id },
+        data: { lastActivityAt: now },
+      });
+    }
+    return stored;
+  }
+
+  async revokeSession(session: SessionContext) {
+    if (!session.sessionId) return;
+    await this.prisma.authSession.updateMany({
+      where: { id: session.sessionId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
+  async changePassword(session: SessionContext, password: string) {
+    if (!isCompanySession(session)) {
+      throw new BadRequestException('Password setup is only available for company users.');
+    }
+    if (password.length < 12 || password.length > 200) {
+      throw new BadRequestException('Password must be between 12 and 200 characters.');
+    }
+    const access = await this.assertCompanyAccess(session.companyId, session.userId);
+    const passwordHash = await bcrypt.hash(password, 12);
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: session.userId },
+        data: { passwordHash, mustChangePassword: false, passwordChangedAt: new Date() },
+      }),
+      this.prisma.authSession.updateMany({
+        where: { userId: session.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+    const refreshed: CompanySessionContext = {
+      ...session,
+      companyName: access.company.name,
+      mustChangePassword: false,
+    };
+    return this.issueSession(refreshed);
   }
 
   /** Features for a company from its industry category links. */
@@ -133,18 +267,30 @@ export class AuthService {
       throw new UnauthorizedException('Company not found');
     }
     if (company.suspendedAt) {
-      throw new ForbiddenException('Subscription inactive. Contact support.');
+      throw new ForbiddenException({
+        code: 'SUBSCRIPTION_INACTIVE',
+        message: 'Subscription inactive. Contact support.',
+      });
     }
     const sub = company.subscription;
     if (!sub) {
-      throw new ForbiddenException('Subscription inactive. Contact support.');
+      throw new ForbiddenException({
+        code: 'SUBSCRIPTION_INACTIVE',
+        message: 'Subscription inactive. Contact support.',
+      });
     }
     const openStatuses = new Set(['trial', 'active', 'past_due']);
     if (!openStatuses.has(sub.status)) {
-      throw new ForbiddenException('Subscription inactive. Contact support.');
+      throw new ForbiddenException({
+        code: 'SUBSCRIPTION_INACTIVE',
+        message: 'Subscription inactive. Contact support.',
+      });
     }
     if (sub.expiresAt && sub.expiresAt.getTime() < Date.now()) {
-      throw new ForbiddenException('Subscription inactive. Contact support.');
+      throw new ForbiddenException({
+        code: 'SUBSCRIPTION_INACTIVE',
+        message: 'Trial or subscription has expired. Contact support to renew.',
+      });
     }
 
     const user = await this.prisma.user.findFirst({
@@ -210,15 +356,13 @@ export class AuthService {
       email: user.email,
       companyName: user.company.name,
       companyRole: (user.companyRole as 'admin' | 'member') || 'member',
+      mustChangePassword: user.mustChangePassword,
       features,
       adminId: '',
       name: '',
     };
 
-    return {
-      token: this.signSession(session),
-      session,
-    };
+    return this.issueSession(session);
   }
 
   async adminLogin(input: { email: string; password: string }) {
@@ -242,10 +386,7 @@ export class AuthService {
       companyRole: 'member',
       features: [],
     };
-    return {
-      token: this.signSession(session),
-      session,
-    };
+    return this.issueSession(session);
   }
 
   /** Bootstrap/dev fallback used by tests and local tooling. */
@@ -327,6 +468,7 @@ export class AuthService {
       email: user.email,
       companyName: user.company.name,
       companyRole: (user.companyRole as 'admin' | 'member') || 'member',
+      mustChangePassword: user.mustChangePassword,
       features,
       unreadNotifications: unread,
       adminId: '',

@@ -35,6 +35,7 @@ export class PlatformAdminGuard implements CanActivate {
     if (!isPlatformSession(session)) {
       throw new UnauthorizedException('Platform admin session required.');
     }
+    await this.auth.touchSession(session);
     req.session = session;
     return true;
   }

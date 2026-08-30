@@ -81,7 +81,7 @@ export default function InvoicesScreen() {
           : items.filter((item) => item.status === filter);
     return searchItems(byFilter, query);
   }, [items, filter, query]);
-  const pager = usePagination(filtered);
+  const pager = usePagination(filtered, `${filter}:${query}`);
 
   const eligibleJobs = jobs.filter(
     (job) => job.customerId === draft.customerId && job.status !== 'closed',

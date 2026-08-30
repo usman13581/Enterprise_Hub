@@ -7,8 +7,12 @@ import {
 } from 'react-native';
 import { apiFetch, apiPost } from '../../lib/api';
 import { day } from '../../lib/format';
-import { useFlash } from '../../lib/useCollection';
-import { Toast } from '../../components/ListControls';
+import {
+  searchItems,
+  useFlash,
+  usePagination,
+} from '../../lib/useCollection';
+import { Pagination, SearchBox, Toast } from '../../components/ListControls';
 import { ScreenScroll } from '../../components/ScreenScroll';
 import {
   ActionButton,
@@ -47,6 +51,7 @@ export default function AdminApplicationsScreen() {
   const [planId, setPlanId] = useState('');
   const [ownerPassword, setOwnerPassword] = useState('');
   const [rejectReason, setRejectReason] = useState('');
+  const [query, setQuery] = useState('');
   const { flash, notify } = useFlash();
 
   const load = useCallback(async () => {
@@ -110,14 +115,22 @@ export default function AdminApplicationsScreen() {
     }
   }
 
-  const pending = items.filter((a) => a.status === 'pending');
-  const others = items.filter((a) => a.status !== 'pending');
+  const filtered = searchItems(items, query);
+  const pending = filtered.filter((a) => a.status === 'pending');
+  const others = filtered.filter((a) => a.status !== 'pending');
+  const pendingPager = usePagination(pending, query);
+  const othersPager = usePagination(others, query);
 
   return (
     <ScreenScroll>
       <Text style={ui.title}>Applications</Text>
       <Text style={ui.lede}>Approve or reject new company applications.</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
+      <SearchBox
+        value={query}
+        onChange={setQuery}
+        placeholder="Search applications by company, contact, email…"
+      />
 
       <View style={ui.card}>
         <Text style={ui.label}>Reject reason (for reject)</Text>
@@ -172,7 +185,7 @@ export default function AdminApplicationsScreen() {
           <Text style={ui.emptyText}>No pending applications.</Text>
         </View>
       ) : (
-        pending.map((a) => (
+        pendingPager.paged.map((a) => (
           <RecordRow
             key={a.id}
             title={a.legalName}
@@ -206,10 +219,21 @@ export default function AdminApplicationsScreen() {
         ))
       )}
 
+      {pending.length > 0 ? (
+        <Pagination
+          page={pendingPager.page}
+          setPage={pendingPager.setPage}
+          pageSize={pendingPager.pageSize}
+          setPageSize={pendingPager.setPageSize}
+          pageCount={pendingPager.pageCount}
+          total={pendingPager.total}
+        />
+      ) : null}
+
       {others.length > 0 ? (
         <>
           <Text style={[ui.lede, { marginTop: 12 }]}>History</Text>
-          {others.map((a) => (
+          {othersPager.paged.map((a) => (
             <RecordRow
               key={a.id}
               title={a.legalName}
@@ -217,6 +241,14 @@ export default function AdminApplicationsScreen() {
               status={a.status}
             />
           ))}
+          <Pagination
+            page={othersPager.page}
+            setPage={othersPager.setPage}
+            pageSize={othersPager.pageSize}
+            setPageSize={othersPager.setPageSize}
+            pageCount={othersPager.pageCount}
+            total={othersPager.total}
+          />
         </>
       ) : null}
 

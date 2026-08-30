@@ -14,7 +14,8 @@ import {
 } from './db';
 import { isOnline } from './net';
 import { getApiBaseUrl } from '../apiBase';
-import { getAuthToken } from '../auth';
+import { clearAuthToken, getAuthToken, getSessionKind } from '../auth';
+import { router } from 'expo-router';
 import { prepareUploadImage } from '../prepareUploadImage';
 
 function syncErrorMessage(error: unknown): string {
@@ -43,6 +44,12 @@ async function syncFetch<T>(
     },
     body: json !== undefined ? JSON.stringify(json) : rest.body,
   });
+  if (res.status === 401 || res.status === 403) {
+    const kind = await getSessionKind();
+    await clearAuthToken();
+    router.replace((kind === 'platform' ? '/admin-login' : '/login') as never);
+    throw new Error('Session expired. Sign in again before syncing.');
+  }
   if (!res.ok) {
     throw new Error((await res.text().catch(() => '')) || `API ${res.status}`);
   }
@@ -139,6 +146,10 @@ export async function runSync(): Promise<SyncStatus> {
   await emit();
 
   try {
+    if (!(await getAuthToken())) {
+      lastError = 'Sign in required before sync';
+      return snapshotStatus();
+    }
     if (!(await isOnline())) {
       lastError = 'Offline — changes stay queued on this device';
       return snapshotStatus();

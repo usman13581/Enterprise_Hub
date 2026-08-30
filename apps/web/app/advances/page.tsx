@@ -27,7 +27,7 @@ export default function AdvancesPage() {
   const [showForm, setShowForm] = useState(false);
 
   const filtered = useMemo(() => searchItems(items, query), [items, query]);
-  const pager = usePagination(filtered);
+  const pager = usePagination(filtered, query);
 
   const totals = useMemo(
     () =>

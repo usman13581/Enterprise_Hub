@@ -8,9 +8,10 @@ import {
 import { CompanyService } from './company.service';
 import { AuditModule } from '../audit/audit.module';
 import { LedgerModule } from '../ledger/ledger.module';
+import { PublicModule } from '../public/public.module';
 
 @Module({
-  imports: [AuditModule, LedgerModule],
+  imports: [AuditModule, LedgerModule, PublicModule],
   controllers: [
     CompanyController,
     CompanyPlatformController,

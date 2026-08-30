@@ -4,8 +4,8 @@ import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { apiPost } from "@/lib/api";
 import { day } from "@/lib/format";
-import { searchItems, usePolledList } from "@/lib/useCollection";
-import { SearchBox } from "@/components/ListControls";
+import { searchItems, usePagination, usePolledList } from "@/lib/useCollection";
+import { Pagination, SearchBox } from "@/components/ListControls";
 import page from "../../page.module.css";
 import styles from "@/components/crud.module.css";
 
@@ -34,6 +34,7 @@ export default function AdminCompaniesPage() {
   const [saving, setSaving] = useState(false);
 
   const filtered = searchItems(items, query);
+  const pager = usePagination(filtered, query);
 
   async function onCreate(event: FormEvent) {
     event.preventDefault();
@@ -114,7 +115,7 @@ export default function AdminCompaniesPage() {
         <div className={styles.empty}>No companies found.</div>
       ) : (
         <ul className={styles.list}>
-          {filtered.map((c) => (
+          {pager.paged.map((c) => (
             <li key={c.id} className={styles.card}>
               <Link href={`/admin/companies/${c.id}`}>
                 <strong>{c.name}</strong>
@@ -138,6 +139,16 @@ export default function AdminCompaniesPage() {
           ))}
         </ul>
       )}
+      {filtered.length > 0 ? (
+        <Pagination
+          page={pager.page}
+          setPage={pager.setPage}
+          pageSize={pager.pageSize}
+          setPageSize={pager.setPageSize}
+          pageCount={pager.pageCount}
+          total={pager.total}
+        />
+      ) : null}
     </section>
   );
 }

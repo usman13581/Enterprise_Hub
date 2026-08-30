@@ -7,6 +7,7 @@ export type SessionKind = 'company' | 'platform';
  */
 export type SessionContext = {
   kind: SessionKind;
+  sessionId?: string;
   email: string;
   companyId: string;
   userId: string;
@@ -14,6 +15,7 @@ export type SessionContext = {
   companyRole: 'admin' | 'member';
   features: string[];
   unreadNotifications?: number;
+  mustChangePassword?: boolean;
   adminId: string;
   name: string;
 };

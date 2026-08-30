@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { apiFetch, apiPost } from "@/lib/api";
 import { day } from "@/lib/format";
+import { searchItems, usePagination } from "@/lib/useCollection";
+import { Pagination, SearchBox } from "@/components/ListControls";
 import page from "../../page.module.css";
 import styles from "@/components/crud.module.css";
 
@@ -26,6 +28,7 @@ export default function AdminSupportPage() {
   const [items, setItems] = useState<SupportRequest[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   async function load(cid: string) {
     const qs = cid ? `?companyId=${encodeURIComponent(cid)}` : "";
@@ -68,6 +71,9 @@ export default function AdminSupportPage() {
     }
   }
 
+  const filtered = searchItems(items, query);
+  const pager = usePagination(filtered, `${companyId}:${query}`);
+
   return (
     <section className={page.page}>
       <h1 className={page.title}>Support</h1>
@@ -93,11 +99,17 @@ export default function AdminSupportPage() {
         </select>
       </div>
 
-      {items.length === 0 ? (
+      <SearchBox
+        value={query}
+        onChange={setQuery}
+        placeholder="Search support by title, company, or email…"
+      />
+
+      {filtered.length === 0 ? (
         <div className={styles.empty}>No support requests.</div>
       ) : (
         <ul className={styles.list}>
-          {items.map((t) => (
+          {pager.paged.map((t) => (
             <li key={t.id} className={styles.card}>
               <div className={styles.cardHead}>
                 <div className={styles.cardContent}>
@@ -130,6 +142,16 @@ export default function AdminSupportPage() {
           ))}
         </ul>
       )}
+      {filtered.length > 0 ? (
+        <Pagination
+          page={pager.page}
+          setPage={pager.setPage}
+          pageSize={pager.pageSize}
+          setPageSize={pager.setPageSize}
+          pageCount={pager.pageCount}
+          total={pager.total}
+        />
+      ) : null}
     </section>
   );
 }

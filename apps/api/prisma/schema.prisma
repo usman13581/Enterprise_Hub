@@ -51,6 +51,7 @@ model PlatformAdmin {
   decidedRenewals     SubscriptionRenewalRequest[] @relation("RenewalDecidedBy")
   notificationsSent   Notification[]             @relation("NotificationByAdmin")
   supportClosed       SupportRequest[]           @relation("SupportClosedByAdmin")
+  sessions             AuthSession[]
 }
 
 model Plan {
@@ -88,6 +89,8 @@ model CompanySubscription {
   lastPaymentAt      DateTime?
   lastPaymentRef     String?
   lastExpiryNoticeAt DateTime?
+  isDemo             Boolean   @default(false)
+  demoCleanupStatus  String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -124,6 +127,10 @@ model CompanyApplication {
   id               String    @id @default(cuid())
   /// pending | approved | rejected
   status           String    @default("pending")
+  /// manual | demo
+  kind             String    @default("manual")
+  /// pending | approved | rejected | provisioned | demo_expired | demo_cleaned | demo_cancelled
+  lifecycleStatus  String    @default("pending")
   rejectReason     String?
   decidedAt        DateTime?
   decidedByAdminId String?
@@ -143,6 +150,14 @@ model CompanyApplication {
   note             String?
   honeypot         String?
   ip               String?
+  provisionedAt    DateTime?
+  cleanedAt        DateTime?
+  cleanupError     String?
+  credentialStatus String?
+  credentialHandoff String?
+  credentialExpiresAt DateTime?
+  credentialRevealedAt DateTime?
+  demoEmailKey     String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -288,6 +303,8 @@ model User {
   /// admin | member
   companyRole     String    @default("member")
   accessExpiresAt DateTime?
+  mustChangePassword Boolean @default(false)
+  passwordChangedAt DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -298,9 +315,29 @@ model User {
   notificationReceipts NotificationReceipt[]
   supportCreated       SupportRequest[]             @relation("SupportCreatedBy")
   supportClosed        SupportRequest[]             @relation("SupportClosedByUser")
+  sessions              AuthSession[]
 
   @@unique([companyId, email])
   @@index([companyId, companyRole, active])
+}
+
+model AuthSession {
+  id                String    @id
+  kind              String
+  tokenHash         String    @unique
+  userId            String?
+  platformAdminId   String?
+  createdAt         DateTime  @default(now())
+  lastActivityAt    DateTime  @default(now())
+  absoluteExpiresAt DateTime
+  revokedAt         DateTime?
+
+  user          User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platformAdmin PlatformAdmin? @relation(fields: [platformAdminId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([platformAdminId, revokedAt])
+  @@index([absoluteExpiresAt])
 }
 
 model Supplier {

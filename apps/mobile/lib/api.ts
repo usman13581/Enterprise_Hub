@@ -7,6 +7,7 @@ import {
   clearAuthToken,
   getAuthToken,
   getSessionKind,
+  markSessionActivity,
   type SessionKind,
 } from './auth';
 import { listEntities, getEntity, upsertEntity } from './offline/db';
@@ -63,6 +64,15 @@ function parseApiError(detail: string, fallback: string) {
   return detail || fallback;
 }
 
+function parseApiErrorCode(detail: string) {
+  try {
+    const parsed = JSON.parse(detail) as { code?: string; message?: { code?: string } };
+    return parsed.code ?? parsed.message?.code ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function isLoginPath(path: string) {
   const base = path.split('?')[0];
   return base === '/auth/login' || base === '/auth/admin/login';
@@ -88,6 +98,9 @@ async function request<T>(
   const { json, ...rest } = init ?? {};
   const method = (rest.method ?? 'GET').toUpperCase();
   const skipAuth = isLoginPath(path);
+  if (!skipAuth && (await getAuthToken())) {
+    await markSessionActivity();
+  }
 
   try {
     const res = await fetch(`${getApiBaseUrl()}${path}`, {
@@ -99,9 +112,20 @@ async function request<T>(
       },
       body: json !== undefined ? JSON.stringify(json) : rest.body,
     });
-    if (res.status === 401 && !skipAuth) {
-      await redirectUnauthorized(path);
-      throw new Error('Session expired. Please sign in again.');
+    if ((res.status === 401 || res.status === 403) && !skipAuth) {
+      const detail = await res.text().catch(() => '');
+      const code = parseApiErrorCode(detail);
+      if (code === 'PASSWORD_CHANGE_REQUIRED') {
+        router.replace('/change-password' as never);
+        throw new Error('Change your temporary password before continuing.');
+      }
+      if (res.status === 401 || code === 'SESSION_EXPIRED' || code === 'SUBSCRIPTION_INACTIVE') {
+        await redirectUnauthorized(path);
+        throw new Error(code === 'SUBSCRIPTION_INACTIVE'
+          ? 'Your trial or subscription has expired.'
+          : 'Session expired. Please sign in again.');
+      }
+      throw new Error(parseApiError(detail, `API ${res.status}`));
     }
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
@@ -114,6 +138,9 @@ async function request<T>(
     }
     return data;
   } catch (error) {
+    if (error instanceof Error && /temporary password|session expired|trial or subscription has expired/i.test(error.message)) {
+      throw error;
+    }
     if (method === 'GET') {
       const cached = await cacheListFromPath(path);
       if (cached) {
@@ -266,6 +293,7 @@ type LoginSession = {
   companyRole?: 'admin' | 'member';
   features?: string[];
   unreadNotifications?: number;
+  mustChangePassword?: boolean;
   adminId?: string;
   name?: string;
 };
@@ -279,6 +307,13 @@ export async function apiLogin(input: {
     token: string;
     session: LoginSession;
   }>('/auth/login', { method: 'POST', json: input });
+}
+
+export async function apiChangePassword(password: string) {
+  return request<{
+    token: string;
+    session: LoginSession;
+  }>('/auth/change-password', { method: 'POST', json: { password } });
 }
 
 export async function apiAdminLogin(input: {

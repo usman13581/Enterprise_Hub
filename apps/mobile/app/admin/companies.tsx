@@ -64,7 +64,7 @@ export default function AdminCompaniesScreen() {
   }, [load]);
 
   const filtered = searchItems(items, query);
-  const pager = usePagination(filtered);
+  const pager = usePagination(filtered, query);
 
   async function create() {
     if (saving || !name.trim()) return;

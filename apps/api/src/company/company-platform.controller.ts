@@ -16,10 +16,14 @@ import {
   requireCompanySession,
 } from '../auth/session.types';
 import { CompanyService } from './company.service';
+import { DemoProvisioningService } from '../public/demo-provisioning.service';
 
 @Controller('company')
 export class CompanyPlatformController {
-  constructor(private readonly company: CompanyService) {}
+  constructor(
+    private readonly company: CompanyService,
+    private readonly demos: DemoProvisioningService,
+  ) {}
 
   @Get('dashboard')
   @UseGuards(CompanyAdminGuard)
@@ -72,6 +76,12 @@ export class CompanyPlatformController {
       requireCompanySession(session),
       body,
     );
+  }
+
+  @Post('subscription/cancel-trial')
+  @UseGuards(CompanyAdminGuard)
+  cancelTrial(@CurrentSession() session: SessionContext) {
+    return this.demos.cancelTrial(requireCompanySession(session).companyId);
   }
 }
 

@@ -77,7 +77,7 @@ export default function InvoicesPage() {
           : items.filter((item) => item.status === filter);
     return searchItems(byFilter, query);
   }, [items, filter, query]);
-  const pager = usePagination(filtered);
+  const pager = usePagination(filtered, `${filter}:${query}`);
 
   /** Only open jobs of the chosen customer can be billed. */
   const eligibleJobs = jobs.filter(

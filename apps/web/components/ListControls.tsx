@@ -30,6 +30,7 @@ export function SearchBox({
     <input
       className={styles.search}
       type="search"
+      aria-label="Search records"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder ?? "Search…"}
@@ -53,10 +54,12 @@ export function Pagination({
   total: number;
 }) {
   if (total === 0) return null;
+  const first = (page - 1) * pageSize + 1;
+  const last = Math.min(page * pageSize, total);
   return (
     <div className={styles.pagination}>
       <span className={styles.count}>
-        {total} record{total === 1 ? "" : "s"}
+        {first}–{last} of {total} record{total === 1 ? "" : "s"}
       </span>
       <div className={styles.pageControls}>
         <label className={styles.count}>

@@ -2,14 +2,19 @@ import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { apiFetch, apiPost, apiUploadImage } from '../../lib/api';
 import { day, label, money } from '../../lib/format';
-import { useFlash } from '../../lib/useCollection';
-import { Toast } from '../../components/ListControls';
+import {
+  searchItems,
+  useFlash,
+  usePagination,
+} from '../../lib/useCollection';
+import { Pagination, SearchBox, Toast } from '../../components/ListControls';
 import { ScreenScroll } from '../../components/ScreenScroll';
 import {
   ActionButton,
@@ -19,11 +24,15 @@ import {
   UploadChip,
 } from '../../components/Finance';
 import { colors, ui } from '../../lib/ui';
+import { clearAuthToken } from '../../lib/auth';
+import { router } from 'expo-router';
 
 type Subscription = {
   planName: string;
   planCode: string;
   status: string;
+  isDemo: boolean;
+  demoCleanupStatus: string | null;
   startsAt: string;
   trialEndsAt: string | null;
   expiresAt: string | null;
@@ -61,6 +70,7 @@ export default function SubscriptionScreen() {
   const [depositUrl, setDepositUrl] = useState('');
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [query, setQuery] = useState('');
   const { flash, notify } = useFlash();
 
   const isAdmin = session?.companyRole === 'admin';
@@ -138,7 +148,36 @@ export default function SubscriptionScreen() {
     }
   }
 
+  function cancelTrial() {
+    if (!sub?.isDemo || sub.status !== 'trial' || saving) return;
+    Alert.alert(
+      'Cancel trial?',
+      'All company data will be permanently removed. The inactive registration will be retained.',
+      [
+        { text: 'Keep trial', style: 'cancel' },
+        {
+          text: 'Cancel trial',
+          style: 'destructive',
+          onPress: () => {
+            setSaving(true);
+            void apiPost('/company/subscription/cancel-trial', {})
+              .then(async () => {
+                await clearAuthToken();
+                router.replace('/login' as never);
+              })
+              .catch((e) => {
+                setError(e instanceof Error ? e.message : 'Cancellation failed');
+              })
+              .finally(() => setSaving(false));
+          },
+        },
+      ],
+    );
+  }
+
   const pending = renewals.find((r) => r.status === 'pending');
+  const filteredRenewals = searchItems(renewals, query);
+  const renewalPager = usePagination(filteredRenewals, query);
 
   return (
     <ScreenScroll>
@@ -183,6 +222,24 @@ export default function SubscriptionScreen() {
             {money(pending.amount)} · paid {day(pending.paidAt)}
           </Text>
           <StatusPill status={pending.status} />
+        </View>
+      ) : null}
+
+      {isAdmin && sub?.isDemo && sub.status === 'trial' ? (
+        <View style={ui.card}>
+          <Text style={ui.cardTitle}>Cancel trial</Text>
+          <Text style={ui.cardMeta}>
+            This permanently removes the demo company and its data. The
+            inactive registration is retained.
+          </Text>
+          <RowActions>
+            <ActionButton
+              label={saving ? 'Cancelling…' : 'Cancel trial'}
+              tone="danger"
+              disabled={saving}
+              onPress={cancelTrial}
+            />
+          </RowActions>
         </View>
       ) : null}
 
@@ -248,7 +305,12 @@ export default function SubscriptionScreen() {
       {isAdmin && renewals.length > 0 ? (
         <>
           <Text style={[ui.lede, { marginTop: 16 }]}>Renewal history</Text>
-          {renewals.map((row) => (
+          <SearchBox
+            value={query}
+            onChange={setQuery}
+            placeholder="Search renewal history…"
+          />
+          {renewalPager.paged.map((row) => (
             <RecordRow
               key={row.id}
               title={money(row.amount)}
@@ -262,6 +324,14 @@ export default function SubscriptionScreen() {
               status={row.status}
             />
           ))}
+          <Pagination
+            page={renewalPager.page}
+            setPage={renewalPager.setPage}
+            pageSize={renewalPager.pageSize}
+            setPageSize={renewalPager.setPageSize}
+            pageCount={renewalPager.pageCount}
+            total={renewalPager.total}
+          />
         </>
       ) : null}
 

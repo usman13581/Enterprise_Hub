@@ -7,10 +7,15 @@ import { BootstrapAuthGuard } from './bootstrap-auth.guard';
 import { PlatformAdminGuard } from './platform-admin.guard';
 import { CurrentSession } from './current-session.decorator';
 import { SessionContext, isCompanySession } from './session.types';
+import { AllowPasswordSetup } from './password-setup.decorator';
 
 const adminLoginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+});
+
+const changePasswordSchema = z.object({
+  password: z.string().min(12).max(200),
 });
 
 @Controller('auth')
@@ -31,6 +36,7 @@ export class AuthController {
 
   @Get('session')
   @UseGuards(BootstrapAuthGuard)
+  @AllowPasswordSetup()
   async session(@CurrentSession() session: SessionContext) {
     if (!isCompanySession(session)) {
       return session;
@@ -41,8 +47,20 @@ export class AuthController {
   /** Client clears the token; endpoint exists for symmetry and future revoke lists. */
   @Post('logout')
   @UseGuards(BootstrapAuthGuard)
-  logout() {
+  @AllowPasswordSetup()
+  async logout(@CurrentSession() session: SessionContext) {
+    await this.auth.revokeSession(session);
     return { ok: true };
+  }
+
+  @Post('change-password')
+  @UseGuards(BootstrapAuthGuard)
+  @AllowPasswordSetup()
+  changePassword(
+    @CurrentSession() session: SessionContext,
+    @Body(zodBody(changePasswordSchema)) body: z.infer<typeof changePasswordSchema>,
+  ) {
+    return this.auth.changePassword(session, body.password);
   }
 }
 

@@ -23,7 +23,7 @@ export default function JobsPage() {
       filter === 'all' ? items : items.filter((item) => item.status === filter);
     return searchItems(byStatus, query);
   }, [items, filter, query]);
-  const pager = usePagination(filtered);
+  const pager = usePagination(filtered, `${filter}:${query}`);
 
   return (
     <section className={page.page}>

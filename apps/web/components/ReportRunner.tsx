@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 import { money } from '@/lib/format';
-import { usePolledList } from '@/lib/useCollection';
+import { searchItems, usePagination, usePolledList } from '@/lib/useCollection';
+import { Pagination, SearchBox } from '@/components/ListControls';
 import {
   BackLink,
   EmptyState,
@@ -99,9 +100,13 @@ export function ReportRunner({
   const [result, setResult] = useState<ReportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [rowQuery, setRowQuery] = useState('');
 
   const { items: customers } = usePolledList<Customer>('/customers', 30_000);
   const { items: jobs } = usePolledList<JobListItem>('/jobs', 30_000);
+  const reportRows = result?.rows ?? [];
+  const filteredRows = searchItems(reportRows, rowQuery);
+  const rowPager = usePagination(filteredRows, rowQuery);
 
   const queryParams = useMemo(() => {
     const params: Record<string, string> = {};
@@ -141,6 +146,7 @@ export function ReportRunner({
       );
       setResult(data);
       setApplied(params);
+      setRowQuery('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load report');
       setResult(null);
@@ -292,8 +298,18 @@ export function ReportRunner({
             ))}
           </div>
 
+          {result.rows.length > 0 ? (
+            <SearchBox
+              value={rowQuery}
+              onChange={setRowQuery}
+              placeholder="Search report rows…"
+            />
+          ) : null}
+
           {result.rows.length === 0 ? (
             <EmptyState>No rows for these parameters.</EmptyState>
+          ) : filteredRows.length === 0 ? (
+            <EmptyState>No report rows match your search.</EmptyState>
           ) : (
             <TableScroll>
               <table className={finance.table}>
@@ -312,7 +328,7 @@ export function ReportRunner({
                   </tr>
                 </thead>
                 <tbody>
-                  {result.rows.map((row, index) => (
+                  {rowPager.paged.map((row, index) => (
                     <tr key={index}>
                       {result.columns.map((col) => {
                         const raw = row[col.key];
@@ -341,6 +357,17 @@ export function ReportRunner({
               </table>
             </TableScroll>
           )}
+
+          {result.rows.length > 0 && filteredRows.length > 0 ? (
+            <Pagination
+              page={rowPager.page}
+              setPage={rowPager.setPage}
+              pageSize={rowPager.pageSize}
+              setPageSize={rowPager.setPageSize}
+              pageCount={rowPager.pageCount}
+              total={rowPager.total}
+            />
+          ) : null}
 
           {result.footerNote ? (
             <p className={finance.footerNote}>{result.footerNote}</p>

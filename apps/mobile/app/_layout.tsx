@@ -2,8 +2,15 @@ import { APP_NAME } from '@marble/types';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
-import { getAuthToken, getSessionKind } from '../lib/auth';
+import { ActivityIndicator, Alert, AppState, View } from 'react-native';
+import { apiFetch } from '../lib/api';
+import {
+  clearAuthToken,
+  getAuthToken,
+  getLastSessionActivity,
+  getSessionKind,
+  markSessionActivity,
+} from '../lib/auth';
 import { colors } from '../lib/ui';
 
 export default function RootLayout() {
@@ -12,6 +19,7 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [kind, setKind] = useState<'company' | 'platform' | null>(null);
+  const [needsPassword, setNeedsPassword] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -19,9 +27,58 @@ export default function RootLayout() {
       const sessionKind = await getSessionKind();
       setAuthed(Boolean(token));
       setKind(sessionKind);
+      if (token) await markSessionActivity();
+      if (token && sessionKind === 'company') {
+        const session = await apiFetch<{ mustChangePassword?: boolean }>('/auth/session').catch(() => null);
+        setNeedsPassword(Boolean(session?.mustChangePassword));
+      }
       setReady(true);
     })();
   }, [segments]);
+
+  useEffect(() => {
+    if (!ready || !authed) return;
+    let warningShown = false;
+    const checkSession = async () => {
+      const lastActivity = await getLastSessionActivity();
+      const elapsed = Date.now() - lastActivity;
+      if (elapsed >= 30 * 60 * 1000) {
+        await apiFetch('/auth/session').catch(() => undefined);
+        return;
+      }
+      if (elapsed >= 28 * 60 * 1000 && !warningShown) {
+        warningShown = true;
+        Alert.alert(
+          'Your session is about to expire',
+          'Stay signed in to continue working safely.',
+          [
+            {
+              text: 'Sign out',
+              style: 'cancel',
+              onPress: () => {
+                void clearAuthToken().then(() => router.replace('/login' as never));
+              },
+            },
+            {
+              text: 'Stay signed in',
+              onPress: () => {
+                void apiFetch('/auth/session').then(() => markSessionActivity());
+              },
+            },
+          ],
+        );
+      }
+    };
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void checkSession();
+    });
+    const timer = setInterval(() => void checkSession(), 30_000);
+    void checkSession();
+    return () => {
+      subscription.remove();
+      clearInterval(timer);
+    };
+  }, [authed, ready]);
 
   useEffect(() => {
     if (!ready) return;
@@ -48,12 +105,16 @@ export default function RootLayout() {
       return;
     }
 
+    if (needsPassword && root !== 'change-password') {
+      router.replace('/change-password' as never);
+      return;
+    }
     if (onCompanyLogin) {
       router.replace('/' as never);
     } else if (inAdmin || onAdminLogin) {
       router.replace('/' as never);
     }
-  }, [ready, authed, kind, segments, router]);
+  }, [ready, authed, kind, needsPassword, segments, router]);
 
   if (!ready) {
     return (
@@ -77,6 +138,7 @@ export default function RootLayout() {
       >
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="admin-login" options={{ headerShown: false }} />
+        <Stack.Screen name="change-password" options={{ title: 'Set password' }} />
         <Stack.Screen name="index" options={{ title: APP_NAME }} />
         <Stack.Screen name="admin/index" options={{ title: 'Platform admin' }} />
         <Stack.Screen name="admin/companies" options={{ title: 'Companies' }} />

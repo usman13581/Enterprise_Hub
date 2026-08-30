@@ -174,7 +174,7 @@ export default function QuotationsScreen() {
       filter === 'all' ? items : items.filter((item) => item.status === filter);
     return searchItems(byStatus, query);
   }, [items, filter, query]);
-  const pager = usePagination(filtered);
+  const pager = usePagination(filtered, `${filter}:${query}:${pageTab}`);
 
   const payloadLines = draft.lines.map((line) => ({
     productId: line.productId || null,

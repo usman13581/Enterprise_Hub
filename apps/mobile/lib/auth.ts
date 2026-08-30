@@ -1,7 +1,9 @@
 import * as SecureStore from 'expo-secure-store';
+import { clearOfflineStore } from './offline/db';
 
 const TOKEN_KEY = 'marble_auth_token';
 const KIND_KEY = 'marble_session_kind';
+const ACTIVITY_KEY = 'marble_session_activity';
 
 export type SessionKind = 'company' | 'platform';
 
@@ -21,6 +23,7 @@ export async function getAuthToken(): Promise<string | null> {
 export async function setAuthToken(token: string) {
   memoryToken = token;
   await SecureStore.setItemAsync(TOKEN_KEY, token);
+  await markSessionActivity();
 }
 
 export async function getSessionKind(): Promise<SessionKind | null> {
@@ -53,8 +56,32 @@ export async function clearAuthToken() {
   } catch {
     // ignore
   }
+  try {
+    await SecureStore.deleteItemAsync(ACTIVITY_KEY);
+  } catch {
+    // ignore
+  }
+  await clearOfflineStore().catch(() => undefined);
 }
 
 export function peekAuthToken() {
   return memoryToken ?? null;
+}
+
+export async function markSessionActivity() {
+  try {
+    await SecureStore.setItemAsync(ACTIVITY_KEY, String(Date.now()));
+  } catch {
+    // ignore storage failures; the server remains authoritative
+  }
+}
+
+export async function getLastSessionActivity() {
+  try {
+    const value = await SecureStore.getItemAsync(ACTIVITY_KEY);
+    const timestamp = Number(value);
+    return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : Date.now();
+  } catch {
+    return Date.now();
+  }
 }

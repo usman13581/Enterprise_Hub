@@ -26,6 +26,15 @@ function redirectToLogin() {
   }
 }
 
+function errorCode(detail: string) {
+  try {
+    const parsed = JSON.parse(detail) as { code?: string; message?: { code?: string } };
+    return parsed.code ?? parsed.message?.code ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function request<T>(
   path: string,
   init?: RequestInit & { json?: unknown },
@@ -42,9 +51,17 @@ async function request<T>(
     body: json !== undefined ? JSON.stringify(json) : rest.body,
     cache: 'no-store',
   });
-  if (res.status === 401 && !skipAuth) {
-    redirectToLogin();
-    throw new Error('Session expired. Please sign in again.');
+  if ((res.status === 401 || res.status === 403) && !skipAuth) {
+    const detail = await res.text().catch(() => '');
+    if (errorCode(detail) === 'PASSWORD_CHANGE_REQUIRED') {
+      if (typeof window !== 'undefined') window.location.href = '/change-password';
+      throw new Error('Change your temporary password before continuing.');
+    }
+    if (res.status === 401 || errorCode(detail) === 'SESSION_EXPIRED') {
+      redirectToLogin();
+      throw new Error('Session expired. Please sign in again.');
+    }
+    throw new Error(detail || `API ${res.status} for ${path}`);
   }
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
@@ -140,8 +157,23 @@ export async function apiLogin(input: {
       companyRole?: 'admin' | 'member';
       features?: string[];
       unreadNotifications?: number;
+      mustChangePassword?: boolean;
     };
   }>('/auth/login', { method: 'POST', json: input });
+}
+
+export async function apiChangePassword(password: string) {
+  return request<{
+    token: string;
+    session: {
+      companyId: string;
+      userId: string;
+      email: string;
+      companyName: string;
+      companyRole?: 'admin' | 'member';
+      mustChangePassword?: boolean;
+    };
+  }>('/auth/change-password', { method: 'POST', json: { password } });
 }
 
 export async function apiAdminLogin(input: {

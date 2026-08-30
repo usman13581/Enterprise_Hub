@@ -11,7 +11,7 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://marble-api-production.up.railway.app",
-        "EXPO_PUBLIC_BOOTSTRAP_TOKEN": "set-via-eas-secret-or-local-eas-json"
+        "EXPO_PUBLIC_BOOTSTRAP_TOKEN": "binhaj-dev-token"
       }
     },
     "production": {
@@ -20,7 +20,7 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://marble-api-production.up.railway.app",
-        "EXPO_PUBLIC_BOOTSTRAP_TOKEN": "set-via-eas-secret-or-local-eas-json"
+        "EXPO_PUBLIC_BOOTSTRAP_TOKEN": "binhaj-dev-token"
       }
     }
   },

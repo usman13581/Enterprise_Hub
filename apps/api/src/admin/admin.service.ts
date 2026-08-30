@@ -365,7 +365,13 @@ export class AdminService {
                 : null,
             }
           : {}),
-        ...(passwordHash ? { passwordHash } : {}),
+        ...(passwordHash
+          ? {
+              passwordHash,
+              mustChangePassword: false,
+              passwordChangedAt: new Date(),
+            }
+          : {}),
       },
       select: {
         id: true,
@@ -771,6 +777,7 @@ export class AdminService {
         where: { id },
         data: {
           status: 'approved',
+          lifecycleStatus: 'approved',
           decidedAt: new Date(),
           decidedByAdminId: admin.adminId,
           companyId: company.id,

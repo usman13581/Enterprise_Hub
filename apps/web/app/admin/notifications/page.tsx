@@ -3,7 +3,12 @@
 import { FormEvent, useEffect, useState } from "react";
 import { apiFetch, apiPost } from "@/lib/api";
 import { day } from "@/lib/format";
-import { usePolledList } from "@/lib/useCollection";
+import {
+  searchItems,
+  usePagination,
+  usePolledList,
+} from "@/lib/useCollection";
+import { Pagination, SearchBox } from "@/components/ListControls";
 import page from "../../page.module.css";
 import styles from "@/components/crud.module.css";
 
@@ -35,6 +40,7 @@ export default function AdminNotificationsPage() {
   const [target, setTarget] = useState<"all" | "selected">("all");
   const [selected, setSelected] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     void apiFetch<CompanyRow[]>("/admin/companies").then(setCompanies);
@@ -68,6 +74,9 @@ export default function AdminNotificationsPage() {
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
   }
+
+  const filtered = searchItems(items, query);
+  const pager = usePagination(filtered, query);
 
   return (
     <section className={page.page}>
@@ -170,11 +179,16 @@ export default function AdminNotificationsPage() {
       <h2 className={page.panelTitle} style={{ marginTop: "1.25rem" }}>
         History
       </h2>
-      {items.length === 0 ? (
+      <SearchBox
+        value={query}
+        onChange={setQuery}
+        placeholder="Search notifications by title or message…"
+      />
+      {filtered.length === 0 ? (
         <div className={styles.empty}>No notifications sent yet.</div>
       ) : (
         <ul className={styles.list}>
-          {items.map((n) => (
+          {pager.paged.map((n) => (
             <li key={n.id} className={styles.card}>
               <strong>{n.title}</strong>
               <p className={styles.cardMeta}>
@@ -185,6 +199,16 @@ export default function AdminNotificationsPage() {
           ))}
         </ul>
       )}
+      {filtered.length > 0 ? (
+        <Pagination
+          page={pager.page}
+          setPage={pager.setPage}
+          pageSize={pager.pageSize}
+          setPageSize={pager.setPageSize}
+          pageCount={pager.pageCount}
+          total={pager.total}
+        />
+      ) : null}
     </section>
   );
 }

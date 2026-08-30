@@ -9,7 +9,7 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ScreenScroll } from '../components/ScreenScroll';
-import { apiFetch, apiPost, getApiBaseUrl } from '../lib/api';
+import { apiFetch, apiPost } from '../lib/api';
 import { clearAuthToken } from '../lib/auth';
 import { day, money } from '../lib/format';
 import {
@@ -147,7 +147,6 @@ export default function HomeScreen() {
           </Pressable>
         ) : null}
       </View>
-      <Text style={styles.api}>API {getApiBaseUrl()}</Text>
 
       {error ? <Text style={ui.error}>{error}</Text> : null}
       {session ? (
@@ -389,11 +388,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 10,
     fontWeight: '700',
-  },
-  api: {
-    color: colors.soft,
-    fontSize: 12,
-    marginTop: 8,
   },
   cardLabel: {
     color: colors.accent,

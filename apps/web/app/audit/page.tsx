@@ -25,7 +25,7 @@ export default function AuditPage() {
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const filtered = searchItems(items, query);
-  const pager = usePagination(filtered);
+  const pager = usePagination(filtered, query);
 
   return (
     <section className={page.page}>

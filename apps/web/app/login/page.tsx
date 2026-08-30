@@ -25,7 +25,7 @@ export default function LoginPage() {
     try {
       const result = await apiLogin({ email, password });
       setAuthToken(result.token);
-      router.replace('/');
+      router.replace(result.session.mustChangePassword ? '/change-password' : '/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign in failed');
     } finally {

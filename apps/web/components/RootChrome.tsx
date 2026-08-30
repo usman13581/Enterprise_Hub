@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
 import { AdminShell } from '@/components/AdminShell';
 import { isAuthenticated } from '@/lib/auth';
+import { SessionGuard } from './SessionGuard';
 
 export function RootChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -14,9 +15,10 @@ export function RootChrome({ children }: { children: React.ReactNode }) {
   const isAdminLogin = pathname === '/admin/login';
   const isAdmin = pathname.startsWith('/admin');
   const isPublicGetStarted = pathname === '/get-started';
+  const isPasswordChange = pathname === '/change-password';
 
   useEffect(() => {
-    if (isLogin || isAdminLogin || isPublicGetStarted) {
+    if (isLogin || isAdminLogin || isPublicGetStarted || isPasswordChange) {
       if (isLogin && isAuthenticated()) router.replace('/');
       if (isAdminLogin && isAuthenticated()) router.replace('/admin');
       setReady(true);
@@ -27,15 +29,17 @@ export function RootChrome({ children }: { children: React.ReactNode }) {
       return;
     }
     setReady(true);
-  }, [isLogin, isAdminLogin, isPublicGetStarted, isAdmin, pathname, router]);
+  }, [isLogin, isAdminLogin, isPublicGetStarted, isPasswordChange, isAdmin, pathname, router]);
 
-  if (isLogin || isAdminLogin || isPublicGetStarted) return <>{children}</>;
+  if (isLogin || isAdminLogin || isPublicGetStarted || isPasswordChange) return <>{children}</>;
   if (!ready) {
     return (
       <div style={{ padding: '2rem', color: '#5d6b78' }}>Loading session…</div>
     );
   }
 
-  if (isAdmin) return <AdminShell>{children}</AdminShell>;
-  return <AppShell>{children}</AppShell>;
+  if (isAdmin) {
+    return <SessionGuard><AdminShell>{children}</AdminShell></SessionGuard>;
+  }
+  return <SessionGuard><AppShell>{children}</AppShell></SessionGuard>;
 }

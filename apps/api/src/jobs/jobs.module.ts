@@ -5,11 +5,13 @@ import { LedgerModule } from '../ledger/ledger.module';
 import { JobsController } from './jobs.controller';
 import { JobsService } from './jobs.service';
 import { ExpiryNoticesService } from './expiry-notices.service';
+import { DemoCleanupService } from './demo-cleanup.service';
+import { PublicModule } from '../public/public.module';
 
 @Module({
-  imports: [PrismaModule, AuditModule, LedgerModule],
+  imports: [PrismaModule, AuditModule, LedgerModule, PublicModule],
   controllers: [JobsController],
-  providers: [JobsService, ExpiryNoticesService],
+  providers: [JobsService, ExpiryNoticesService, DemoCleanupService],
   exports: [JobsService],
 })
 export class JobsModule {}

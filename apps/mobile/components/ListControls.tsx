@@ -29,6 +29,7 @@ export function SearchBox({
   return (
     <TextInput
       style={styles.search}
+      accessibilityLabel="Search records"
       value={value}
       onChangeText={onChange}
       placeholder={placeholder}
@@ -57,10 +58,12 @@ export function Pagination({
 }) {
   if (total === 0) return null;
 
+  const first = (page - 1) * pageSize + 1;
+  const last = Math.min(page * pageSize, total);
   return (
     <View style={styles.pagination}>
       <Text style={ui.count}>
-        Page {page} of {pageCount} · {total} records
+        {first}–{last} of {total} records · Page {page} of {pageCount}
       </Text>
       <View style={styles.sizeRow}>
         <Text style={ui.count}>Rows</Text>
