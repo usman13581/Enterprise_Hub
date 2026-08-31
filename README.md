@@ -12,7 +12,9 @@ Multi-company marble business SaaS — web (Next.js) + mobile (Expo) + NestJS AP
 | 3 Accounts + invoicing + PDFs | Done |
 | 4 Offline mobile sync | Done |
 | 5 Binhaj pilot polish | Done |
-| Later auth product | Deferred |
+| Later auth product | Implemented on origin |
+| HR module | Planned — see [docs/HR_MODULE.md](docs/HR_MODULE.md) |
+| Advances navigation | Planned — see [docs/ADVANCES_NAVIGATION.md](docs/ADVANCES_NAVIGATION.md) |
 
 ## Local run
 
