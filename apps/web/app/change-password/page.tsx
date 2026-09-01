@@ -43,9 +43,6 @@ export default function ChangePasswordPage() {
       <div className={login.card}>
         <p className={login.brand}>Enterprise Hub</p>
         <h1 className={page.title}>Change password</h1>
-        <p className={page.lede}>
-          Choose a new password for your account.
-        </p>
         <form className={styles.form} onSubmit={onSubmit}>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="new-password">New password</label>

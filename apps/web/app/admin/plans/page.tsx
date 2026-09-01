@@ -94,7 +94,6 @@ export default function AdminPlansPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Plans</h1>
-      <p className={page.lede}>Subscription plans offered to companies.</p>
 
       <div className={styles.toolbar}>
         <span className={styles.count}>{items.length} plans</span>

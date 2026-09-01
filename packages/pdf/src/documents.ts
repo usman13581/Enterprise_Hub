@@ -7,8 +7,10 @@ import { Document, Page, Text, View } from '@react-pdf/renderer';
  * renderToBuffer.
  */
 type PdfDocumentElement = ReactElement<ComponentProps<typeof Document>>;
-import { formatMoney } from '@marble/domain';
+import { formatAmount, moneyColumn } from '@marble/domain';
 import {
+  amountsInCurrency,
+  buildDiscountTotalRows,
   companyHeader,
   compactSection,
   counterTopIntro,
@@ -26,6 +28,7 @@ import {
   section,
   signatureBlock,
   splitQuotationTerms,
+  withSignatureClosing,
   text,
   totalsBlock,
 } from './elements';
@@ -56,12 +59,7 @@ function CounterTopQuotationDocument(
   ];
   if (data.validUntil) meta.push(['Valid until', date(data.validUntil)]);
 
-  const totalRows: Array<[string, number]> = [];
-  if ((data.discount ?? 0) > 0) {
-    totalRows.push(['Discount', data.discount ?? 0]);
-  }
-  totalRows.push(['Taxable Amount', data.subtotal]);
-  totalRows.push([vatLabel(data.vatRate), data.vatAmount]);
+  const totalRows = buildDiscountTotalRows(data);
 
   const termsBody = data.terms || data.bankDetails || null;
 
@@ -73,7 +71,9 @@ function CounterTopQuotationDocument(
       { size: 'A4', style: styles.page, wrap: true },
       data.status === 'cancelled'
         ? el(Text, { style: styles.watermark, fixed: true }, 'CANCELLED')
-        : null,
+        : data.status === 'draft'
+          ? el(Text, { style: styles.watermark, fixed: true }, 'DRAFT')
+          : null,
       companyHeader(data.company, 'Quotation', data.number, meta),
       counterTopIntro({
         contactName: data.contactName,
@@ -81,6 +81,7 @@ function CounterTopQuotationDocument(
         location: data.location,
         customerName: data.customer.name,
       }),
+      amountsInCurrency(data.company.currency),
       ...(data.sections ?? []).map((sectionRow, index) =>
         counterTopSectionBlock(
           sectionRow,
@@ -91,15 +92,19 @@ function CounterTopQuotationDocument(
       data.notes
         ? el(Text, { style: styles.ctNotes, wrap: true }, data.notes)
         : null,
-      counterTopTotalsBlock(
-        totalRows,
-        ['Grand Total', data.total],
-        data.company.currency,
+      withSignatureClosing(
+        counterTopTotalsBlock(
+          totalRows,
+          ['Grand Total', data.total],
+          data.company.currency,
+        ),
+        [
+          termsBody
+            ? compactSection('Terms & Conditions', termsBody, 'terms')
+            : null,
+        ],
+        [quotationSignatureRow(data.company)],
       ),
-      termsBody
-        ? compactSection('Terms & Conditions', termsBody, 'terms')
-        : null,
-      keepTogether([quotationSignatureRow(data.company)], 130),
       footer(data.company, 'This quotation is not a tax invoice'),
     ),
   );
@@ -118,11 +123,7 @@ function GeneralQuotationDocument(data: QuotationPdfData): PdfDocumentElement {
   const paymentTerms = data.paymentTerms || termsSplit.payment;
   const conditions = termsSplit.conditions;
 
-  const totalRows: Array<[string, number]> = [
-    ['Taxable Amount', data.subtotal],
-    ['Total without V.A.T.', data.subtotal],
-    [vatLabel(data.vatRate), data.vatAmount],
-  ];
+  const totalRows = buildDiscountTotalRows(data);
 
   return el(
     Document,
@@ -132,7 +133,9 @@ function GeneralQuotationDocument(data: QuotationPdfData): PdfDocumentElement {
       { size: 'A4', style: styles.page, wrap: true },
       data.status === 'cancelled'
         ? el(Text, { style: styles.watermark, fixed: true }, 'CANCELLED')
-        : null,
+        : data.status === 'draft'
+          ? el(Text, { style: styles.watermark, fixed: true }, 'DRAFT')
+          : null,
       companyHeader(data.company, 'Quotation', data.number, meta),
       generalIntro({
         customerName: data.customer.name,
@@ -140,22 +143,23 @@ function GeneralQuotationDocument(data: QuotationPdfData): PdfDocumentElement {
         location: data.location || data.customer.address,
         subject: data.title,
       }),
-      generalLineTable(data.lines),
-      counterTopTotalsBlock(
-        totalRows,
-        ['Grand Total', data.total],
-        data.company.currency,
-      ),
-      paymentTerms
-        ? compactSection('Payment Terms', paymentTerms, 'pay')
-        : null,
-      data.notes ? compactSection('Notes', data.notes, 'notes') : null,
-      keepTogether(
+      generalLineTable(data.lines, data.company.currency),
+      withSignatureClosing(
+        counterTopTotalsBlock(
+          totalRows,
+          ['Grand Total', data.total],
+          data.company.currency,
+        ),
+        [
+          paymentTerms
+            ? compactSection('Payment Terms', paymentTerms, 'pay')
+            : null,
+          data.notes ? compactSection('Notes', data.notes, 'notes') : null,
+        ],
         [
           generalThankYouBlock(data.company),
           quotationSignatureRow(data.company),
         ],
-        140,
       ),
       conditions
         ? compactSection('Terms and Conditions', conditions, 'terms')
@@ -188,7 +192,9 @@ export function QuotationDocument(data: QuotationPdfData): PdfDocumentElement {
       { size: 'A4', style: styles.page, wrap: true },
       data.status === 'cancelled'
         ? el(Text, { style: styles.watermark, fixed: true }, 'CANCELLED')
-        : null,
+        : data.status === 'draft'
+          ? el(Text, { style: styles.watermark, fixed: true }, 'DRAFT')
+          : null,
       companyHeader(data.company, 'Quotation', data.number, meta),
       el(
         View,
@@ -197,19 +203,20 @@ export function QuotationDocument(data: QuotationPdfData): PdfDocumentElement {
       ),
       data.title ? section('Subject', data.title, 'subject') : null,
       lineTable(data.lines, data.company.currency, true),
-      totalsBlock(
+      withSignatureClosing(
+        totalsBlock(
+          buildDiscountTotalRows(data),
+          ['Total', data.total],
+          data.company.currency,
+        ),
         [
-          ['Subtotal', data.subtotal],
-          [vatLabel(data.vatRate), data.vatAmount],
+          data.notes ? section('Notes', data.notes, 'notes') : null,
+          data.company.bankDetails
+            ? section('Bank details', data.company.bankDetails, 'bank')
+            : null,
         ],
-        ['Total', data.total],
-        data.company.currency,
+        [signatureBlock(data.company)],
       ),
-      data.notes ? section('Notes', data.notes, 'notes') : null,
-      data.company.bankDetails
-        ? section('Bank details', data.company.bankDetails, 'bank')
-        : null,
-      keepTogether([signatureBlock(data.company)], 100),
       footer(data.company, 'This quotation is not a tax invoice'),
     ),
   );
@@ -230,13 +237,10 @@ export function InvoiceDocument(data: InvoicePdfData): PdfDocumentElement {
   if (!isCreditNote) meta.push(['Due date', date(data.dueDate)]);
   if (data.jobNumber) meta.push(['Job', data.jobNumber]);
 
-  const totalRows: Array<[string, number]> = [
-    ['Taxable amount', data.subtotal],
-    [vatLabel(data.vatRate), data.vatAmount],
-  ];
+  const totalRows = buildDiscountTotalRows(data);
   if (!isCreditNote && data.advanceApplied > 0) {
     totalRows.push(['Total', data.total]);
-    totalRows.push(['Advance adjusted', -data.advanceApplied]);
+    totalRows.push(['Advance adjusted', data.advanceApplied]);
   }
 
   const grand: [string, number] = isCreditNote
@@ -247,9 +251,8 @@ export function InvoiceDocument(data: InvoicePdfData): PdfDocumentElement {
     ? data.allocations
         .map(
           (allocation) =>
-            `${allocation.number} (${date(allocation.receivedAt)}): ${formatMoney(
+            `${allocation.number} (${date(allocation.receivedAt)}): ${formatAmount(
               allocation.amount,
-              data.company.currency,
             )}`,
         )
         .join('\n')
@@ -263,7 +266,9 @@ export function InvoiceDocument(data: InvoicePdfData): PdfDocumentElement {
       { size: 'A4', style: styles.page, wrap: true },
       data.status === 'cancelled'
         ? el(Text, { style: styles.watermark, fixed: true }, 'CANCELLED')
-        : null,
+        : data.status === 'draft'
+          ? el(Text, { style: styles.watermark, fixed: true }, 'DRAFT')
+          : null,
       companyHeader(
         data.company,
         INVOICE_TITLE[data.kind] ?? 'Tax Invoice',
@@ -277,15 +282,19 @@ export function InvoiceDocument(data: InvoicePdfData): PdfDocumentElement {
         partyBlock('Recipient', data.customer, 'buyer'),
       ),
       lineTable(data.lines, data.company.currency, false),
-      totalsBlock(totalRows, grand, data.company.currency),
-      allocationNote
-        ? section('Advances adjusted', allocationNote, 'alloc')
-        : null,
-      data.notes ? section('Notes', data.notes, 'notes') : null,
-      data.company.bankDetails
-        ? section('Payment details', data.company.bankDetails, 'bank')
-        : null,
-      keepTogether([signatureBlock(data.company)], 100),
+      withSignatureClosing(
+        totalsBlock(totalRows, grand, data.company.currency),
+        [
+          allocationNote
+            ? section('Advances adjusted', allocationNote, 'alloc')
+            : null,
+          data.notes ? section('Notes', data.notes, 'notes') : null,
+          data.company.bankDetails
+            ? section('Payment details', data.company.bankDetails, 'bank')
+            : null,
+        ],
+        [signatureBlock(data.company)],
+      ),
       footer(
         data.company,
         isCreditNote
@@ -321,10 +330,10 @@ export function AdvanceReceiptDocument(
       el(
         View,
         { style: styles.section },
-        text(styles.sectionTitle, 'AMOUNT RECEIVED', 'amt-l'),
+        text(styles.sectionTitle, moneyColumn('Amount received', data.company.currency).toUpperCase(), 'amt-l'),
         text(
           { fontSize: 22, fontFamily: 'Helvetica-Bold' },
-          formatMoney(data.amount, data.company.currency),
+          formatAmount(data.amount),
           'amt-v',
         ),
       ),
@@ -334,7 +343,7 @@ export function AdvanceReceiptDocument(
           'Received as an advance against work in progress. This receipt is not a tax invoice; VAT is accounted for on the tax invoice that adjusts this advance.',
         'note',
       ),
-      keepTogether([signatureBlock(data.company)], 100),
+      keepTogether([signatureBlock(data.company)]),
       footer(data.company, 'Advance receipt'),
     ),
   );
@@ -343,11 +352,11 @@ export function AdvanceReceiptDocument(
 function cellValue(
   value: string | number | null | undefined,
   money: boolean | undefined,
-  currency: string,
+  _currency: string,
 ): string {
   if (value == null || value === '') return '—';
   if (money && typeof value === 'number') {
-    return formatMoney(value, currency);
+    return formatAmount(value);
   }
   return String(value);
 }
@@ -369,7 +378,9 @@ export function ReportDocument(data: ReportPdfData): PdfDocumentElement {
             paddingHorizontal: 2,
           },
         ],
-        col.label.toUpperCase(),
+        col.money
+          ? moneyColumn(col.label, data.company.currency).toUpperCase()
+          : col.label.toUpperCase(),
         `rh${index}`,
       ),
     ),
@@ -438,13 +449,15 @@ export function ReportDocument(data: ReportPdfData): PdfDocumentElement {
                   letterSpacing: 0.5,
                   marginBottom: 2,
                 },
-                stat.label.toUpperCase(),
+                stat.money
+                  ? moneyColumn(stat.label, data.company.currency).toUpperCase()
+                  : stat.label.toUpperCase(),
                 `sl${index}`,
               ),
               text(
                 { fontSize: 11, fontFamily: 'Helvetica-Bold' },
                 typeof stat.value === 'number' && stat.money
-                  ? formatMoney(stat.value, data.company.currency)
+                  ? formatAmount(stat.value)
                   : String(stat.value),
                 `sv${index}`,
               ),
@@ -459,6 +472,7 @@ export function ReportDocument(data: ReportPdfData): PdfDocumentElement {
       Page,
       { size: 'A4', style: styles.page, orientation: 'landscape' as never, wrap: true },
       companyHeader(data.company, data.title, data.subtitle ?? 'Report', data.meta),
+      amountsInCurrency(data.company.currency, 'rcur'),
       summaryBlock,
       el(View, null, head, ...rows),
       data.footerNote

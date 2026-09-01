@@ -1,6 +1,7 @@
 'use client';
 
 import type { QuotationLookup } from '@marble/types';
+import { moneyHeader } from '@/lib/format';
 import styles from '@/components/crud.module.css';
 
 export type SpecItemDraft = { label: string; value: string; amount: string };
@@ -83,7 +84,7 @@ export function SpecItemRow({
         <input
           className={styles.input}
           inputMode="decimal"
-          placeholder="Amount (AED)"
+          placeholder={moneyHeader('Amount')}
           value={item.amount}
           onChange={(e) => onAmountChange(e.target.value)}
         />

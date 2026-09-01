@@ -106,7 +106,6 @@ export default function AdminSupportScreen() {
   return (
     <ScreenScroll>
       <Text style={ui.title}>Support</Text>
-      <Text style={ui.lede}>All company tickets, grouped by tenant.</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
 
       <FilterChips

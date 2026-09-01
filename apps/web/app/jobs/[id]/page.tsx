@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { apiPost } from '@/lib/api';
-import { day, label, money, qty } from '@/lib/format';
+import { amount, day, label, moneyHeader, qty } from '@/lib/format';
 import { useFlash, usePolledItem } from '@/lib/useCollection';
 import { Toast } from '@/components/ListControls';
 import {
@@ -78,6 +78,26 @@ export default function JobHubPage() {
     }
   }
 
+  async function issueInvoice(id: string) {
+    try {
+      await apiPost(`/invoices/${id}/issue`, {});
+      await reload();
+      notify('Invoice issued');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not issue');
+    }
+  }
+
+  async function approveAdvance(id: string) {
+    try {
+      await apiPost(`/advances/${id}/approve`, {});
+      await reload();
+      notify('Advance approved');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not approve');
+    }
+  }
+
   async function afterWrite(message: string) {
     setPanel(null);
     await reload();
@@ -105,23 +125,23 @@ export default function JobHubPage() {
       {error ? <p className={styles.error}>{error}</p> : null}
 
       <div className={finance.statGrid}>
-        <Stat title="Job value" value={money(financials.jobValue)} hint="Incl. VAT" />
+        <Stat title={moneyHeader('Job value')} value={amount(financials.jobValue)} hint="Incl. VAT" />
         <Stat
-          title="Invoiced to date"
-          value={money(financials.invoicedToDate)}
+          title={moneyHeader('Invoiced to date')}
+          value={amount(financials.invoicedToDate)}
         />
         <BalanceStat
           title="Left to invoice"
           amount={financials.balanceRemaining}
         />
         <Stat
-          title="Advances applied"
-          value={money(financials.advancesApplied)}
+          title={moneyHeader('Advances applied')}
+          value={amount(financials.advancesApplied)}
         />
         <Stat
-          title="Planned margin"
-          value={money(financials.profit)}
-          hint={`Cost ${money(financials.purchaseTotal)}`}
+          title={moneyHeader('Planned margin')}
+          value={amount(financials.profit)}
+          hint={`Cost ${amount(financials.purchaseTotal)}`}
         />
       </div>
 
@@ -229,9 +249,9 @@ export default function JobHubPage() {
                   <th>Kind</th>
                   <th>Issued</th>
                   <th>Status</th>
-                  <th className={finance.numeric}>Total</th>
-                  <th className={finance.numeric}>Advance</th>
-                  <th className={finance.numeric}>Net payable</th>
+                  <th className={finance.numeric}>{moneyHeader('Total')}</th>
+                  <th className={finance.numeric}>{moneyHeader('Advance')}</th>
+                  <th className={finance.numeric}>{moneyHeader('Net payable')}</th>
                   <th className={finance.actions} aria-label="Actions" />
                 </tr>
               </thead>
@@ -246,12 +266,12 @@ export default function JobHubPage() {
                     <td>
                       <StatusBadge status={invoice.status} />
                     </td>
-                    <td className={finance.numeric}>{money(invoice.total)}</td>
+                    <td className={finance.numeric}>{amount(invoice.total)}</td>
                     <td className={finance.numeric}>
-                      {money(invoice.advanceApplied)}
+                      {amount(invoice.advanceApplied)}
                     </td>
                     <td className={finance.numeric}>
-                      {money(invoice.netPayable)}
+                      {amount(invoice.netPayable)}
                     </td>
                     <td className={finance.actions}>
                       <RowActionsBar>
@@ -259,7 +279,15 @@ export default function JobHubPage() {
                           path={`/documents/invoices/${invoice.id}.pdf`}
                           onError={setError}
                         />
-                        {invoice.status === 'issued' ? (
+                        {invoice.status === 'draft' ? (
+                          <button
+                            className={styles.button}
+                            onClick={() => void issueInvoice(invoice.id)}
+                          >
+                            Issue
+                          </button>
+                        ) : null}
+                        {invoice.status === 'issued' || invoice.status === 'draft' ? (
                           <button
                             className={`${styles.ghost} ${styles.danger}`}
                             onClick={() => void cancelInvoice(invoice.id)}
@@ -288,9 +316,10 @@ export default function JobHubPage() {
                   <th>Receipt</th>
                   <th>Received</th>
                   <th>Method</th>
-                  <th className={finance.numeric}>Amount</th>
-                  <th className={finance.numeric}>Applied</th>
-                  <th className={finance.numeric}>Spare</th>
+                  <th>Status</th>
+                  <th className={finance.numeric}>{moneyHeader('Amount')}</th>
+                  <th className={finance.numeric}>{moneyHeader('Applied')}</th>
+                  <th className={finance.numeric}>{moneyHeader('Spare')}</th>
                   <th className={finance.actions} aria-label="Actions" />
                 </tr>
               </thead>
@@ -302,12 +331,20 @@ export default function JobHubPage() {
                     </td>
                     <td>{day(advance.receivedAt)}</td>
                     <td>{label(advance.method)}</td>
-                    <td className={finance.numeric}>{money(advance.amount)}</td>
+                    <td>
+                      <StatusBadge
+                        status={
+                          advance.status ??
+                          (advance.cancelledAt ? 'cancelled' : 'posted')
+                        }
+                      />
+                    </td>
+                    <td className={finance.numeric}>{amount(advance.amount)}</td>
                     <td className={finance.numeric}>
-                      {money(advance.allocatedAmount)}
+                      {amount(advance.allocatedAmount)}
                     </td>
                     <td className={finance.numeric}>
-                      {money(advance.unallocatedAmount)}
+                      {amount(advance.unallocatedAmount)}
                     </td>
                     <td className={finance.actions}>
                       <RowActionsBar>
@@ -317,6 +354,14 @@ export default function JobHubPage() {
                         >
                           Receipt
                         </PdfButton>
+                        {advance.status === 'draft' ? (
+                          <button
+                            className={styles.button}
+                            onClick={() => void approveAdvance(advance.id)}
+                          >
+                            Approve
+                          </button>
+                        ) : null}
                       </RowActionsBar>
                     </td>
                   </tr>
@@ -340,10 +385,10 @@ export default function JobHubPage() {
                   <th>Description</th>
                   <th>Unit</th>
                   <th className={finance.numeric}>Qty</th>
-                  <th className={finance.numeric}>Purchase</th>
-                  <th className={finance.numeric}>Sell</th>
-                  <th className={finance.numeric}>Amount</th>
-                  <th className={finance.numeric}>Margin</th>
+                  <th className={finance.numeric}>{moneyHeader('Purchase')}</th>
+                  <th className={finance.numeric}>{moneyHeader('Sell')}</th>
+                  <th className={finance.numeric}>{moneyHeader('Amount')}</th>
+                  <th className={finance.numeric}>{moneyHeader('Margin')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -353,12 +398,12 @@ export default function JobHubPage() {
                     <td>{line.unit}</td>
                     <td className={finance.numeric}>{qty(line.qty)}</td>
                     <td className={finance.numeric}>
-                      {money(line.purchasePrice)}
+                      {amount(line.purchasePrice)}
                     </td>
-                    <td className={finance.numeric}>{money(line.sellPrice)}</td>
-                    <td className={finance.numeric}>{money(line.lineTotal)}</td>
+                    <td className={finance.numeric}>{amount(line.sellPrice)}</td>
+                    <td className={finance.numeric}>{amount(line.lineTotal)}</td>
                     <td className={finance.numeric}>
-                      {money((line.sellPrice - line.purchasePrice) * line.qty)}
+                      {amount((line.sellPrice - line.purchasePrice) * line.qty)}
                     </td>
                   </tr>
                 ))}

@@ -79,9 +79,6 @@ export default function SupportPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Support</h1>
-      <p className={page.lede}>
-        Open a ticket for billing, access, or product help.
-      </p>
       <div className={styles.actions}>
         <Link className={styles.ghost} href="/change-password">
           Change password

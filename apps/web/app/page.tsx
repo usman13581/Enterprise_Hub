@@ -7,7 +7,7 @@ import {
   type SessionPayload,
 } from "@marble/types";
 import { apiFetch, apiPost } from "@/lib/api";
-import { day, money } from "@/lib/format";
+import { amount, day, moneyHeader } from "@/lib/format";
 import {
   DashboardHero,
   DashboardMetric,
@@ -148,11 +148,6 @@ export default function HomePage() {
   return (
     <section className={styles.page}>
       <h1 className={styles.title}>{isAdmin ? "Dashboard" : "Home"}</h1>
-      <p className={styles.lede}>
-        {isAdmin
-          ? "Company overview and shortcuts into each module."
-          : "Open a module to continue your work."}
-      </p>
 
       {error ? <p className={styles.error}>{error}</p> : null}
 
@@ -201,7 +196,7 @@ export default function HomePage() {
                 href="/invoices"
                 label="Outstanding"
                 value={dashboard.outstandingInvoiceCount}
-                hint={`AR ${money(dashboard.arTotal)}`}
+                hint={`${moneyHeader('AR')} ${amount(dashboard.arTotal)}`}
               />
               <DashboardMetric
                 href="/invoices"

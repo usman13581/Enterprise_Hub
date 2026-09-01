@@ -3,7 +3,8 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { PAYMENT_METHODS } from '@marble/types';
 import { apiFetch, apiPost } from '@/lib/api';
-import { day, label, money } from '@/lib/format';
+import { dueDateIso, todayIso } from '@/lib/dates';
+import { amount, day, label } from '@/lib/format';
 import type { AvailableAdvance } from '@/lib/types';
 import { SearchableSelect } from './SearchableSelect';
 import { TotalsBlock } from './Finance';
@@ -66,7 +67,7 @@ export function AllocationPicker({
             {advance.job ? ` · job ${advance.job.number}` : ''}
           </span>
           <span className={styles.count}>
-            {money(advance.unallocatedAmount)} available
+            {amount(advance.unallocatedAmount)} available
           </span>
           <input
             className={`${styles.input} ${finance.allocAmount}`}
@@ -83,8 +84,8 @@ export function AllocationPicker({
         </div>
       ))}
       <p className={finance.panelNote}>
-        Applying {money(applied)} against an invoice total of{' '}
-        {money(invoiceTotal)}.
+        Applying {amount(applied)} against an invoice total of{' '}
+        {amount(invoiceTotal)}.
         {applied > invoiceTotal
           ? ' That is more than the invoice — the API will reject it.'
           : ''}
@@ -119,7 +120,7 @@ export function AdvanceForm({
     amount: '',
     method: 'cash',
     reference: '',
-    receivedAt: new Date().toISOString().slice(0, 10),
+    receivedAt: todayIso(),
     notes: '',
   });
   const [saving, setSaving] = useState(false);
@@ -138,7 +139,7 @@ export function AdvanceForm({
         receivedAt: draft.receivedAt || null,
         notes: draft.notes,
       });
-      onSaved('Advance recorded');
+      onSaved('Advance saved as draft');
     } catch (error) {
       onError(error instanceof Error ? error.message : 'Could not save');
     } finally {
@@ -218,7 +219,7 @@ export function AdvanceForm({
       </div>
       <div className={styles.actions}>
         <button className={styles.button} type="submit" disabled={saving}>
-          {saving ? 'Saving…' : 'Record advance'}
+          {saving ? 'Saving…' : 'Save draft'}
         </button>
         <button className={styles.ghost} type="button" onClick={onCancel}>
           Cancel
@@ -254,9 +255,9 @@ export function JobInvoiceForm({
 }) {
   const [mode, setMode] = useState<'percentage' | 'amount'>('percentage');
   const [percentage, setPercentage] = useState('30');
-  const [amount, setAmount] = useState('');
+  const [amountValue, setAmountValue] = useState('');
   const [description, setDescription] = useState('');
-  const [dueDate, setDueDate] = useState('');
+  const [dueDate, setDueDate] = useState(dueDateIso());
   const [notes, setNotes] = useState('');
   const [allocations, setAllocations] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -266,7 +267,7 @@ export function JobInvoiceForm({
       ? balanceRemaining
       : mode === 'percentage'
         ? (jobValue * num(percentage)) / 100
-        : num(amount);
+        : num(amountValue);
 
   const net = Math.round((gross / 1.05) * 100) / 100;
   const vat = Math.round((gross - net) * 100) / 100;
@@ -291,14 +292,14 @@ export function JobInvoiceForm({
           ? {}
           : mode === 'percentage'
             ? { percentage: num(percentage) }
-            : { amount: num(amount) }),
+            : { amount: num(amountValue) }),
         description: description || null,
         dueDate: dueDate || null,
         notes: notes || null,
         allocations: allocationPayload(allocations),
       });
       onSaved(
-        kind === 'final' ? 'Final invoice issued' : 'Invoice issued',
+        kind === 'final' ? 'Final invoice saved as draft' : 'Invoice saved as draft',
       );
     } catch (error) {
       onError(error instanceof Error ? error.message : 'Could not issue');
@@ -319,7 +320,7 @@ export function JobInvoiceForm({
 
       {kind === 'final' ? (
         <p className={finance.panelNote}>
-          This bills the {money(balanceRemaining)} still un-invoiced on the job.
+          This bills the {amount(balanceRemaining)} still un-invoiced on the job.
         </p>
       ) : (
         <>
@@ -367,8 +368,8 @@ export function JobInvoiceForm({
                   type="number"
                   min="0.01"
                   step="0.01"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  value={amountValue}
+                  onChange={(e) => setAmountValue(e.target.value)}
                   required
                 />
               </div>
@@ -427,7 +428,7 @@ export function JobInvoiceForm({
 
       <div className={styles.actions}>
         <button className={styles.button} type="submit" disabled={saving}>
-          {saving ? 'Issuing…' : 'Issue invoice'}
+          {saving ? 'Saving…' : 'Save draft'}
         </button>
         <button className={styles.ghost} type="button" onClick={onCancel}>
           Cancel

@@ -3,8 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { canRecordAdvanceForJob, unallocatedAmount } from '@marble/domain';
-import type { AdvanceInput, JobStatus } from '@marble/types';
+import { canApproveAdvance, canRecordAdvanceForJob, unallocatedAmount } from '@marble/domain';
+import type { AdvanceInput, AdvanceStatus, JobStatus } from '@marble/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { LedgerService } from '../ledger/ledger.service';
@@ -96,19 +96,9 @@ export class AdvancesService {
           reference: input.reference,
           receivedAt,
           notes: input.notes,
+          status: 'draft',
         },
         include: INCLUDE,
-      });
-
-      await this.ledger.record(tx, {
-        companyId: session.companyId,
-        customerId: created.customerId,
-        jobId: created.jobId,
-        advanceId: created.id,
-        entryType: 'advance_received',
-        amount: created.amount,
-        occurredAt: receivedAt,
-        memo: `Advance ${created.number}`,
       });
 
       return created;
@@ -137,10 +127,16 @@ export class AdvancesService {
       include: { allocations: true },
     });
     if (!before) throw new NotFoundException('Advance not found');
-    if (before.allocations.length > 0) {
+    if (before.cancelledAt || before.status === 'cancelled') {
+      throw new ConflictException('This advance is already cancelled');
+    }
+    if (before.status === 'posted' && before.allocations.length > 0) {
       throw new ConflictException(
         'This advance is already applied to an invoice and can no longer be edited',
       );
+    }
+    if (before.status !== 'draft' && before.status !== 'posted') {
+      throw new ConflictException('This advance can no longer be edited');
     }
 
     await this.assertCustomer(session.companyId, input.customerId);
@@ -171,17 +167,19 @@ export class AdvancesService {
         include: INCLUDE,
       });
 
-      await tx.ledgerEntry.deleteMany({ where: { advanceId: id } });
-      await this.ledger.record(tx, {
-        companyId: session.companyId,
-        customerId: updated.customerId,
-        jobId: updated.jobId,
-        advanceId: updated.id,
-        entryType: 'advance_received',
-        amount: updated.amount,
-        occurredAt: receivedAt,
-        memo: `Advance ${updated.number}`,
-      });
+      if (before.status === 'posted') {
+        await tx.ledgerEntry.deleteMany({ where: { advanceId: id } });
+        await this.ledger.record(tx, {
+          companyId: session.companyId,
+          customerId: updated.customerId,
+          jobId: updated.jobId,
+          advanceId: updated.id,
+          entryType: 'advance_received',
+          amount: updated.amount,
+          occurredAt: receivedAt,
+          memo: `Advance ${updated.number}`,
+        });
+      }
 
       return updated;
     });
@@ -192,6 +190,47 @@ export class AdvancesService {
       entityType: 'AdvancePayment',
       entityId: id,
       action: 'update',
+      before,
+      after: advance,
+    });
+
+    return { ...advance, unallocatedAmount: unallocatedAmount(advance) };
+  }
+
+  async approve(session: SessionContext, id: string) {
+    const before = await this.prisma.advancePayment.findFirst({
+      where: { id, companyId: session.companyId },
+    });
+    if (!before) throw new NotFoundException('Advance not found');
+    if (!canApproveAdvance(before.status as AdvanceStatus)) {
+      throw new ConflictException('Only a draft advance can be approved');
+    }
+
+    const advance = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.advancePayment.update({
+        where: { id },
+        data: { status: 'posted' },
+        include: INCLUDE,
+      });
+      await this.ledger.record(tx, {
+        companyId: session.companyId,
+        customerId: updated.customerId,
+        jobId: updated.jobId,
+        advanceId: updated.id,
+        entryType: 'advance_received',
+        amount: updated.amount,
+        occurredAt: updated.receivedAt,
+        memo: `Advance ${updated.number}`,
+      });
+      return updated;
+    });
+
+    await this.audit.write({
+      companyId: session.companyId,
+      actorId: session.userId,
+      entityType: 'AdvancePayment',
+      entityId: id,
+      action: 'approve',
       before,
       after: advance,
     });
@@ -214,22 +253,25 @@ export class AdvancesService {
       );
     }
 
+    const wasPosted = before.status === 'posted';
     const advance = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.advancePayment.update({
         where: { id },
-        data: { cancelledAt: new Date() },
+        data: { cancelledAt: new Date(), status: 'cancelled' },
         include: INCLUDE,
       });
 
-      await this.ledger.record(tx, {
-        companyId: session.companyId,
-        customerId: updated.customerId,
-        jobId: updated.jobId,
-        advanceId: updated.id,
-        entryType: 'advance_refunded',
-        amount: updated.amount,
-        memo: `Cancelled advance ${updated.number}`,
-      });
+      if (wasPosted) {
+        await this.ledger.record(tx, {
+          companyId: session.companyId,
+          customerId: updated.customerId,
+          jobId: updated.jobId,
+          advanceId: updated.id,
+          entryType: 'advance_refunded',
+          amount: updated.amount,
+          memo: `Cancelled advance ${updated.number}`,
+        });
+      }
 
       return updated;
     });

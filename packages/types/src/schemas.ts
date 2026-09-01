@@ -1,5 +1,7 @@
 import { z } from 'zod';
+import { isCountryCode } from './countries';
 import {
+  DISCOUNT_MODES,
   INVOICE_KINDS,
   PAYMENT_METHODS,
   QUOTATION_KINDS,
@@ -61,6 +63,29 @@ export const quantity = numeric.refine((value) => value > 0, {
   message: 'must be greater than zero',
 });
 
+export const discountModeSchema = z.enum(DISCOUNT_MODES).default('none');
+
+/** Reusable line or document discount fields. */
+export const discountFieldsSchema = z
+  .object({
+    discountMode: discountModeSchema,
+    discountValue: money.default(0),
+    /** Legacy counter-top fixed discount (AED). */
+    discount: money.default(0).optional(),
+  })
+  .transform((data) => {
+    if (data.discountMode !== 'none' || data.discountValue > 0) {
+      return {
+        discountMode: data.discountMode,
+        discountValue: data.discountValue,
+      };
+    }
+    if ((data.discount ?? 0) > 0) {
+      return { discountMode: 'fixed' as const, discountValue: data.discount! };
+    }
+    return { discountMode: 'none' as const, discountValue: 0 };
+  });
+
 const isoDate = z
   .string()
   .trim()
@@ -112,7 +137,15 @@ export const companyProfileSchema = z.object({
   jobPrefix: z.string().trim().min(1).max(12).default('JOB'),
   advancePrefix: z.string().trim().min(1).max(12).default('ADV'),
   creditNotePrefix: z.string().trim().min(1).max(12).default('CN'),
-  currency: z.string().trim().length(3).default('AED'),
+  country: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .length(2)
+    .refine(isCountryCode, { message: 'must be a supported country' })
+    .optional(),
+  /** Ignored when country is present; currency is always derived from country. */
+  currency: z.string().trim().length(3).optional(),
 });
 export type CompanyProfileInput = z.infer<typeof companyProfileSchema>;
 
@@ -123,6 +156,8 @@ export const quotationLineSchema = z.object({
   qty: quantity,
   purchasePrice: money,
   sellPrice: money,
+  discountMode: discountModeSchema,
+  discountValue: money.default(0),
 });
 export type QuotationLineInput = z.infer<typeof quotationLineSchema>;
 
@@ -130,6 +165,8 @@ export const quotationSectionItemSchema = z.object({
   label: requiredText(120),
   value: z.string().trim().max(500).default(''),
   amount: money.default(0),
+  discountMode: discountModeSchema,
+  discountValue: money.default(0),
 });
 export type QuotationSectionItemInput = z.infer<
   typeof quotationSectionItemSchema
@@ -139,6 +176,8 @@ export const quotationSectionSchema = z.object({
   productId: optionalText(60),
   productName: requiredText(200),
   amount: money,
+  discountMode: discountModeSchema,
+  discountValue: money.default(0),
   items: z.array(quotationSectionItemSchema).default([]),
 });
 export type QuotationSectionInput = z.infer<typeof quotationSectionSchema>;
@@ -153,12 +192,21 @@ export const quotationSchema = z
     contactPhone: optionalText(60),
     location: optionalText(200),
     validUntil: isoDate,
-    discount: money.default(0),
+    discountMode: discountModeSchema,
+    discountValue: money.default(0),
+    discount: money.default(0).optional(),
     lookupIds: z.array(requiredText(60)).default([]),
     lines: z.array(quotationLineSchema).default([]),
     sections: z.array(quotationSectionSchema).default([]),
   })
   .superRefine((data, ctx) => {
+    if (data.discountMode === 'percent' && data.discountValue > 100) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'document discount percent cannot exceed 100',
+        path: ['discountValue'],
+      });
+    }
     if (data.kind === 'general' && data.lines.length < 1) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -194,6 +242,8 @@ export const invoiceLineSchema = z.object({
   qty: quantity,
   unitPrice: money,
   purchasePrice: money.default(0),
+  discountMode: discountModeSchema,
+  discountValue: money.default(0),
 });
 export type InvoiceLineInput = z.infer<typeof invoiceLineSchema>;
 
@@ -204,6 +254,8 @@ export const invoiceSchema = z.object({
   issueDate: isoDate,
   dueDate: isoDate,
   notes: optionalText(2000),
+  discountMode: discountModeSchema,
+  discountValue: money.default(0),
   lines: z.array(invoiceLineSchema).min(1, 'at least one line is required'),
   /** Advances to show as settled on this invoice. */
   allocations: z
@@ -220,6 +272,8 @@ export type InvoiceInput = z.infer<typeof invoiceSchema>;
 export const creditNoteSchema = z.object({
   invoiceId: requiredText(60),
   reason: requiredText(500),
+  discountMode: discountModeSchema,
+  discountValue: money.default(0),
   lines: z.array(invoiceLineSchema).min(1, 'at least one line is required'),
 });
 export type CreditNoteInput = z.infer<typeof creditNoteSchema>;
@@ -301,17 +355,43 @@ export const loginSchema = z.object({
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
+const countryCode = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .length(2)
+  .refine(isCountryCode, { message: 'must be a supported country' });
+
 export const demoRequestSchema = z.object({
   companyName: requiredText(200),
   email: z.string().trim().toLowerCase().email().max(200),
   contactName: optionalText(200),
   phone: optionalText(50),
+  country: countryCode,
   emirate: optionalText(100),
   approxUsers: optionalText(50),
   note: optionalText(1000),
   honeypot: optionalText(200),
 });
 export type DemoRequestInput = z.infer<typeof demoRequestSchema>;
+
+export const companyApplicationSchema = z.object({
+  legalName: requiredText(200),
+  contactName: requiredText(200),
+  email: z.string().trim().toLowerCase().email().max(200),
+  phone: requiredText(60),
+  country: countryCode,
+  emirate: optionalText(100),
+  tradeName: optionalText(200),
+  trn: optionalText(60),
+  approxUsers: optionalText(50),
+  planInterest: optionalText(100),
+  needs: optionalText(2000),
+  heardFrom: optionalText(200),
+  note: optionalText(2000),
+  honeypot: optionalText(200),
+});
+export type CompanyApplicationInput = z.infer<typeof companyApplicationSchema>;
 
 export const hrEmployeeSchema = z.object({
   firstName: requiredText(100),
@@ -423,12 +503,16 @@ export const lpoLineSchema = z.object({
   orderedQty: numeric.refine((value) => value > 0, { message: 'must be greater than zero' }),
   unitCost: money,
   vatRate: numeric.refine((value) => value >= 0 && value <= 1, { message: 'must be between 0 and 1' }).default(0.05),
+  discountMode: discountModeSchema,
+  discountValue: money.default(0),
 });
 
 export const lpoSchema = z.object({
   supplierId: requiredText(80),
   requestedDeliveryDate: optionalText(50),
   notes: optionalText(2000),
+  discountMode: discountModeSchema,
+  discountValue: money.default(0),
   lines: z.array(lpoLineSchema).min(1).max(200),
 });
 
@@ -450,6 +534,8 @@ export const purchaseInvoiceLineSchema = z.object({
   qty: numeric.refine((value) => value > 0, { message: 'must be greater than zero' }),
   unitCost: money,
   vatRate: numeric.refine((value) => value >= 0 && value <= 1, { message: 'must be between 0 and 1' }).default(0.05),
+  discountMode: discountModeSchema,
+  discountValue: money.default(0),
 });
 
 export const purchaseInvoiceSchema = z.object({
@@ -460,6 +546,8 @@ export const purchaseInvoiceSchema = z.object({
   dueDate: optionalText(50),
   taxInclusive: z.boolean().default(false),
   notes: optionalText(2000),
+  discountMode: discountModeSchema,
+  discountValue: money.default(0),
   lines: z.array(purchaseInvoiceLineSchema).min(1).max(200),
 });
 

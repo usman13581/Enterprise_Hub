@@ -48,9 +48,6 @@ export default function TeamPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Team</h1>
-      <p className={page.lede}>
-        Company users and seat status. Deactivate to free a seat.
-      </p>
 
       {error ? <p className={styles.error}>{error}</p> : null}
 

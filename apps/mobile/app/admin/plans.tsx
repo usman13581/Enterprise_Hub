@@ -130,7 +130,6 @@ export default function AdminPlansScreen() {
   return (
     <ScreenScroll>
       <Text style={ui.title}>Plans</Text>
-      <Text style={ui.lede}>Subscription products offered to companies.</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
       <SearchBox
         value={query}

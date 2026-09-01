@@ -28,9 +28,6 @@ export default function AuditScreen() {
   return (
     <ScreenScroll>
       <Text style={ui.title}>Audit</Text>
-      <Text style={ui.lede}>
-        Creates, updates, and status changes for this company.
-      </Text>
 
       {error ? <Text style={ui.error}>{error}</Text> : null}
 

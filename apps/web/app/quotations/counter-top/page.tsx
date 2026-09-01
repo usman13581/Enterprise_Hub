@@ -7,8 +7,18 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { computeCounterTopTotals } from '@marble/domain';
 import { QUOTATION_KIND_LABELS } from '@marble/types';
 import { apiFetch, apiPost, apiPut } from '@/lib/api';
-import { money } from '@/lib/format';
+import { dueDateIso } from '@/lib/dates';
+import { amount } from '@/lib/format';
 import { usePolledList } from '@/lib/useCollection';
+import {
+  discountFromStored,
+  discountPayload,
+  discountTotalsRows,
+  DocumentDiscountFields,
+  EMPTY_DISCOUNT,
+  type DiscountDraft,
+} from '@/components/DiscountFields';
+import { TotalsBlock } from '@/components/Finance';
 import { LookupAttachPicker } from '@/components/QuotationLookups';
 import {
   SpecItemRow,
@@ -22,19 +32,32 @@ import type { Customer, Product, Quotation, QuotationLookup } from '@/lib/types'
 import page from '../../page.module.css';
 import styles from '@/components/crud.module.css';
 
-type ItemDraft = SpecItemDraft;
+type ItemDraft = SpecItemDraft & {
+  discountMode: DiscountDraft['discountMode'];
+  discountValue: string;
+};
 type SectionDraft = {
   productId: string;
   productName: string;
   amount: string;
+  discountMode: DiscountDraft['discountMode'];
+  discountValue: string;
   items: ItemDraft[];
 };
 
-const EMPTY_ITEM: ItemDraft = { label: '', value: '', amount: '' };
+const EMPTY_ITEM: ItemDraft = {
+  label: '',
+  value: '',
+  amount: '',
+  discountMode: 'none',
+  discountValue: '0',
+};
 const EMPTY_SECTION: SectionDraft = {
   productId: '',
   productName: '',
   amount: '0',
+  discountMode: 'none',
+  discountValue: '0',
   items: [{ ...EMPTY_ITEM }],
 };
 
@@ -49,8 +72,10 @@ export default function CounterTopQuotationPage() {
   const [contactName, setContactName] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [location, setLocation] = useState('');
-  const [validUntil, setValidUntil] = useState('');
-  const [discount, setDiscount] = useState('0');
+  const [validUntil, setValidUntil] = useState(dueDateIso());
+  const [documentDiscount, setDocumentDiscount] = useState<DiscountDraft>({
+    ...EMPTY_DISCOUNT,
+  });
   const [notes, setNotes] = useState('');
   const [lookupIds, setLookupIds] = useState<string[]>([]);
   const [sections, setSections] = useState<SectionDraft[]>([
@@ -81,7 +106,9 @@ export default function CounterTopQuotationPage() {
         setContactPhone(quotation.contactPhone ?? '');
         setLocation(quotation.location ?? '');
         setValidUntil(quotation.validUntil?.slice(0, 10) ?? '');
-        setDiscount(String(quotation.discount ?? 0));
+        setDocumentDiscount(
+          discountFromStored(quotation.discountMode, quotation.discountValue),
+        );
         setNotes(quotation.notes ?? '');
         setLookupIds((quotation.lookups ?? []).map((l) => l.id));
         setSections(
@@ -89,11 +116,18 @@ export default function CounterTopQuotationPage() {
             productId: section.productId ?? '',
             productName: section.productName,
             amount: String(section.amount),
+            discountMode:
+              (section.discountMode as DiscountDraft['discountMode']) ?? 'none',
+            discountValue: String(section.discountValue ?? 0),
             items: section.items.length
               ? section.items.map((item) => ({
                   label: item.label,
                   value: item.value,
                   amount: String(item.amount ?? 0),
+                  discountMode:
+                    (item.discountMode as DiscountDraft['discountMode']) ??
+                    'none',
+                  discountValue: String(item.discountValue ?? 0),
                 }))
               : [{ ...EMPTY_ITEM }],
           })),
@@ -106,11 +140,25 @@ export default function CounterTopQuotationPage() {
   }, [editId]);
 
   const totals = useMemo(() => {
-    const amounts = sections.map((section) =>
-      sectionAmountFromItems(section.items, Number(section.amount) || 0),
+    return computeCounterTopTotals(
+      sections.map((section) => ({
+        amount: sectionAmountFromItems(
+          section.items,
+          Number(section.amount) || 0,
+        ),
+        discountMode: section.discountMode,
+        discountValue: Number(section.discountValue) || 0,
+        items: section.items
+          .filter((item) => item.label.trim())
+          .map((item) => ({
+            amount: Number(item.amount) || 0,
+            discountMode: item.discountMode,
+            discountValue: Number(item.discountValue) || 0,
+          })),
+      })),
+      discountPayload(documentDiscount),
     );
-    return computeCounterTopTotals(amounts, Number(discount) || 0);
-  }, [sections, discount]);
+  }, [sections, documentDiscount]);
 
   function patchSection(index: number, changes: Partial<SectionDraft>) {
     setSections((prev) =>
@@ -163,7 +211,7 @@ export default function CounterTopQuotationPage() {
       contactPhone,
       location,
       validUntil: validUntil || null,
-      discount: Number(discount) || 0,
+      ...discountPayload(documentDiscount),
       lookupIds,
       lines: [],
       sections: sections.map((section) => {
@@ -173,6 +221,8 @@ export default function CounterTopQuotationPage() {
             label: item.label.trim(),
             value: item.value.trim(),
             amount: Number(item.amount) || 0,
+            discountMode: item.discountMode,
+            discountValue: Number(item.discountValue) || 0,
           }));
         return {
           productId: section.productId || null,
@@ -181,6 +231,8 @@ export default function CounterTopQuotationPage() {
             section.items,
             Number(section.amount) || 0,
           ),
+          discountMode: section.discountMode,
+          discountValue: Number(section.discountValue) || 0,
           items,
         };
       }),
@@ -216,10 +268,6 @@ export default function CounterTopQuotationPage() {
           {editId ? 'Edit ' : ''}
           {QUOTATION_KIND_LABELS.counter_top}
         </h1>
-        <p className={page.lede}>
-          Add sections with a product name, flexible spec rows, and a section
-          amount. Totals follow the same VAT pattern as general quotations.
-        </p>
       </header>
       {error ? <p className={styles.error}>{error}</p> : null}
 
@@ -343,12 +391,12 @@ export default function CounterTopQuotationPage() {
                 const emptyIndex = items.findIndex((row) => !row.label.trim());
                 if (emptyIndex >= 0) {
                   items[emptyIndex] = {
+                    ...items[emptyIndex],
                     label,
                     value: hint ?? items[emptyIndex].value,
-                    amount: items[emptyIndex].amount,
                   };
                 } else {
-                  items.push({ label, value: hint ?? '', amount: '' });
+                  items.push({ ...EMPTY_ITEM, label, value: hint ?? '' });
                 }
                 patchSection(sectionIndex, { items });
               }}
@@ -399,7 +447,7 @@ export default function CounterTopQuotationPage() {
             </button>
             <p className={styles.count} style={{ marginTop: 10 }}>
               Section amount{' '}
-              {money(
+              {amount(
                 sectionAmountFromItems(
                   section.items,
                   Number(section.amount) || 0,
@@ -423,22 +471,15 @@ export default function CounterTopQuotationPage() {
           + Add counter section
         </button>
 
-        <div className={styles.grid} style={{ marginTop: '1rem' }}>
-          <div className={styles.field}>
-            <label className={styles.label}>Discount (AED)</label>
-            <input
-              className={styles.input}
-              inputMode="decimal"
-              value={discount}
-              onChange={(e) => setDiscount(e.target.value)}
-            />
-          </div>
-        </div>
+        <DocumentDiscountFields
+          value={documentDiscount}
+          onChange={setDocumentDiscount}
+        />
 
-        <p className={styles.count} style={{ marginTop: '0.75rem' }}>
-          Taxable {money(totals.subtotal)} · VAT {money(totals.vatAmount)} ·
-          Grand total {money(totals.total)}
-        </p>
+        <TotalsBlock
+          rows={discountTotalsRows(totals)}
+          grand={['Grand total', totals.total]}
+        />
 
         <div className={styles.field} style={{ marginTop: '1rem' }}>
           <label className={styles.label}>Extra notes</label>
@@ -464,7 +505,7 @@ export default function CounterTopQuotationPage() {
               ? 'Saving…'
               : editId
                 ? 'Save changes'
-                : 'Create Counter Top quotation'}
+                : 'Save draft'}
           </button>
           <Link href="/quotations" className={styles.ghost}>
             Cancel

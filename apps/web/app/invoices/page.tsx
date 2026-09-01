@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { FormEvent, useMemo, useState } from 'react';
-import { apiPost } from '@/lib/api';
-import { day, label, money } from '@/lib/format';
+import { apiPatch, apiPost } from '@/lib/api';
+import { dueDateIso } from '@/lib/dates';
+import { amount, day, label, moneyHeader } from '@/lib/format';
 import {
   searchItems,
   useFlash,
@@ -13,6 +14,7 @@ import {
 import { Pagination, SearchBox, Toast } from '@/components/ListControls';
 import {
   EmptyState,
+  EditIconButton,
   FilterBar,
   PdfButton,
   RowActionsBar,
@@ -20,6 +22,12 @@ import {
   TableScroll,
 } from '@/components/Finance';
 import { SearchableSelect } from '@/components/SearchableSelect';
+import {
+  discountFromStored,
+  discountPayload,
+  EMPTY_DISCOUNT,
+  type DiscountDraft,
+} from '@/components/DiscountFields';
 import {
   EMPTY_INVOICE_LINE,
   InvoiceLineEditor,
@@ -36,7 +44,7 @@ import page from '../page.module.css';
 import styles from '@/components/crud.module.css';
 import finance from '@/components/finance.module.css';
 
-type Filter = 'all' | 'issued' | 'cancelled' | 'credit_note';
+type Filter = 'all' | 'draft' | 'issued' | 'cancelled' | 'credit_note';
 
 type Draft = {
   kind: 'progressive' | 'custom' | 'final';
@@ -45,15 +53,17 @@ type Draft = {
   dueDate: string;
   notes: string;
   lines: InvoiceLineDraft[];
+  documentDiscount: DiscountDraft;
 };
 
 const EMPTY: Draft = {
   kind: 'custom',
   customerId: '',
   jobId: '',
-  dueDate: '',
+  dueDate: dueDateIso(),
   notes: '',
   lines: [{ ...EMPTY_INVOICE_LINE }],
+  documentDiscount: { ...EMPTY_DISCOUNT },
 };
 
 export default function InvoicesPage() {
@@ -66,7 +76,9 @@ export default function InvoicesPage() {
   const [query, setQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [showPurchaseForm, setShowPurchaseForm] = useState(false);
+  const [savingPurchase, setSavingPurchase] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [allocations, setAllocations] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [creditFor, setCreditFor] = useState<Invoice | null>(null);
@@ -88,8 +100,46 @@ export default function InvoicesPage() {
   );
 
   function startCreate() {
-    setDraft({ ...EMPTY, lines: [{ ...EMPTY_INVOICE_LINE }] });
+    setDraft({
+      ...EMPTY,
+      dueDate: dueDateIso(),
+      lines: [{ ...EMPTY_INVOICE_LINE }],
+    });
     setAllocations({});
+    setEditingId(null);
+    setShowForm(true);
+  }
+
+  function startEdit(invoice: Invoice) {
+    setDraft({
+      kind: invoice.kind === 'credit_note' ? 'custom' : invoice.kind,
+      customerId: invoice.customerId,
+      jobId: invoice.jobId ?? '',
+      dueDate: invoice.dueDate ? invoice.dueDate.slice(0, 10) : '',
+      notes: invoice.notes ?? '',
+      lines:
+        invoice.lines.length > 0
+          ? invoice.lines.map((line) => ({
+              description: line.description,
+              unit: line.unit,
+              qty: String(line.qty),
+              unitPrice: String(line.unitPrice),
+              purchasePrice: String(line.purchasePrice),
+              discountMode: line.discountMode,
+              discountValue: String(line.discountValue ?? 0),
+            }))
+          : [{ ...EMPTY_INVOICE_LINE }],
+      documentDiscount: discountFromStored(
+        invoice.discountMode,
+        invoice.discountValue,
+      ),
+    });
+    const next: Record<string, string> = {};
+    for (const allocation of invoice.allocations ?? []) {
+      next[allocation.advanceId] = String(allocation.amount);
+    }
+    setAllocations(next);
+    setEditingId(invoice.id);
     setShowForm(true);
   }
 
@@ -97,23 +147,41 @@ export default function InvoicesPage() {
     event.preventDefault();
     if (saving) return;
     setSaving(true);
+    const payload = {
+      kind: draft.kind,
+      customerId: draft.customerId,
+      jobId: draft.jobId || null,
+      dueDate: draft.dueDate || null,
+      notes: draft.notes || null,
+      ...discountPayload(draft.documentDiscount),
+      lines: invoiceLinePayload(draft.lines),
+      allocations: allocationPayload(allocations),
+    };
     try {
-      await apiPost('/invoices', {
-        kind: draft.kind,
-        customerId: draft.customerId,
-        jobId: draft.jobId || null,
-        dueDate: draft.dueDate || null,
-        notes: draft.notes || null,
-        lines: invoiceLinePayload(draft.lines),
-        allocations: allocationPayload(allocations),
-      });
+      if (editingId) {
+        await apiPatch(`/invoices/${editingId}`, payload);
+        notify('Draft saved');
+      } else {
+        await apiPost('/invoices', payload);
+        notify('Invoice saved as draft');
+      }
       setShowForm(false);
+      setEditingId(null);
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onIssue(id: string) {
+    try {
+      await apiPost(`/invoices/${id}/issue`, {});
       await reload();
       notify('Invoice issued');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not issue');
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -135,10 +203,6 @@ export default function InvoicesPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Invoices</h1>
-      <p className={page.lede}>
-        UAE tax invoices with 5% VAT and advance adjustment. Raise one here, from
-        a job, or from a customer.
-      </p>
 
       {error ? <p className={styles.error}>{error}</p> : null}
 
@@ -148,7 +212,7 @@ export default function InvoicesPage() {
           onSaved={async () => {
             setCreditFor(null);
             await reload();
-            notify('Credit note issued');
+            notify('Credit note saved as draft');
           }}
           onError={setError}
           onCancel={() => setCreditFor(null)}
@@ -157,11 +221,22 @@ export default function InvoicesPage() {
 
       {showPurchaseForm ? (
         <PurchaseInvoiceForm
-          onSaved={async () => {
-            setShowPurchaseForm(false);
-            notify('Purchase invoice saved');
+          saving={savingPurchase}
+          onSave={async (payload) => {
+            if (savingPurchase) return;
+            setSavingPurchase(true);
+            try {
+              await apiPost('/purchase-invoices', payload);
+              setShowPurchaseForm(false);
+              notify('Purchase invoice saved as draft');
+            } catch (err) {
+              setError(
+                err instanceof Error ? err.message : 'Could not save purchase invoice',
+              );
+            } finally {
+              setSavingPurchase(false);
+            }
           }}
-          onError={setError}
           onCancel={() => setShowPurchaseForm(false)}
         />
       ) : showForm ? (
@@ -228,6 +303,10 @@ export default function InvoicesPage() {
               (total, entry) => total + entry.amount,
               0,
             )}
+            documentDiscount={draft.documentDiscount}
+            onDocumentDiscountChange={(documentDiscount) =>
+              setDraft({ ...draft, documentDiscount })
+            }
           />
 
           {draft.customerId ? (
@@ -254,7 +333,7 @@ export default function InvoicesPage() {
 
           <div className={styles.actions}>
             <button className={styles.button} type="submit" disabled={saving}>
-              {saving ? 'Issuing…' : 'Issue invoice'}
+              {saving ? 'Saving…' : editingId ? 'Save changes' : 'Save draft'}
             </button>
             <button
               className={styles.ghost}
@@ -297,6 +376,7 @@ export default function InvoicesPage() {
             onChange={setFilter}
             options={[
               { key: 'all', label: 'All' },
+              { key: 'draft', label: 'Draft' },
               { key: 'issued', label: 'Issued' },
               { key: 'cancelled', label: 'Cancelled' },
               { key: 'credit_note', label: 'Credit notes' },
@@ -320,20 +400,30 @@ export default function InvoicesPage() {
               <table className={finance.table}>
                 <thead>
                   <tr>
+                    <th className={finance.rowLead} aria-label="Edit" />
                     <th>Number</th>
                     <th>Customer</th>
                     <th>Job</th>
                     <th>Kind</th>
                     <th>Issued</th>
                     <th>Status</th>
-                    <th className={finance.numeric}>Total</th>
-                    <th className={finance.numeric}>Net payable</th>
+                    <th className={finance.numeric}>{moneyHeader('Total')}</th>
+                    <th className={finance.numeric}>{moneyHeader('Net payable')}</th>
                     <th className={finance.actions} aria-label="Actions" />
                   </tr>
                 </thead>
                 <tbody>
                   {pager.paged.map((invoice) => (
                     <tr key={invoice.id}>
+                      <td className={finance.rowLead}>
+                        {invoice.status === 'draft' &&
+                        invoice.kind !== 'credit_note' ? (
+                          <EditIconButton
+                            label="Edit invoice"
+                            onClick={() => startEdit(invoice)}
+                          />
+                        ) : null}
+                      </td>
                       <td>
                         <strong>{invoice.number}</strong>
                       </td>
@@ -355,9 +445,9 @@ export default function InvoicesPage() {
                       <td>
                         <StatusBadge status={invoice.status} />
                       </td>
-                      <td className={finance.numeric}>{money(invoice.total)}</td>
+                      <td className={finance.numeric}>{amount(invoice.total)}</td>
                       <td className={finance.numeric}>
-                        {money(invoice.netPayable)}
+                        {amount(invoice.netPayable)}
                       </td>
                       <td className={finance.actions}>
                         <RowActionsBar>
@@ -365,6 +455,22 @@ export default function InvoicesPage() {
                             path={`/documents/invoices/${invoice.id}.pdf`}
                             onError={setError}
                           />
+                          {invoice.status === 'draft' ? (
+                            <>
+                              <button
+                                className={styles.button}
+                                onClick={() => void onIssue(invoice.id)}
+                              >
+                                Issue
+                              </button>
+                              <button
+                                className={`${styles.ghost} ${styles.danger}`}
+                                onClick={() => void onCancel(invoice.id)}
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : null}
                           {invoice.status === 'issued' &&
                           invoice.kind !== 'credit_note' ? (
                             <>
@@ -422,6 +528,9 @@ function CreditNoteForm({
   const [lines, setLines] = useState<InvoiceLineDraft[]>([
     { ...EMPTY_INVOICE_LINE },
   ]);
+  const [documentDiscount, setDocumentDiscount] = useState<DiscountDraft>({
+    ...EMPTY_DISCOUNT,
+  });
   const [saving, setSaving] = useState(false);
 
   async function submit(event: FormEvent) {
@@ -432,6 +541,7 @@ function CreditNoteForm({
       await apiPost('/invoices/credit-notes', {
         invoiceId: invoice.id,
         reason,
+        ...discountPayload(documentDiscount),
         lines: invoiceLinePayload(lines),
       });
       await onSaved();
@@ -449,7 +559,7 @@ function CreditNoteForm({
       </p>
       <p className={finance.panelNote}>
         The original invoice stays on the ledger. This adds a credit, so it
-        cannot exceed the {money(invoice.total)} originally billed.
+        cannot exceed {amount(invoice.total)} originally billed.
       </p>
       <div className={styles.field} style={{ marginTop: '0.9rem' }}>
         <label className={styles.label}>Reason *</label>
@@ -465,10 +575,12 @@ function CreditNoteForm({
         lines={lines}
         onChange={setLines}
         advanceApplied={0}
+        documentDiscount={documentDiscount}
+        onDocumentDiscountChange={setDocumentDiscount}
       />
       <div className={styles.actions}>
         <button className={styles.button} type="submit" disabled={saving}>
-          {saving ? 'Issuing…' : 'Issue credit note'}
+          {saving ? 'Saving…' : 'Save draft'}
         </button>
         <button className={styles.ghost} type="button" onClick={onCancel}>
           Cancel

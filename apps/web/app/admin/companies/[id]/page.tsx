@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { apiFetch, apiPatch, apiPost } from "@/lib/api";
 import { beginReadOnlyWorkspace, getAuthToken } from "@/lib/auth";
+import { todayIso } from "@/lib/dates";
 import { day, money } from "@/lib/format";
 import page from "../../../page.module.css";
 import styles from "@/components/crud.module.css";
@@ -72,9 +73,7 @@ export default function AdminCompanyDetailPage() {
   const [expiresAt, setExpiresAt] = useState("");
   const [seatsOverride, setSeatsOverride] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
-  const [paymentDate, setPaymentDate] = useState(
-    new Date().toISOString().slice(0, 10),
-  );
+  const [paymentDate, setPaymentDate] = useState(todayIso());
   const [paymentReference, setPaymentReference] = useState("");
 
   const [userName, setUserName] = useState("");

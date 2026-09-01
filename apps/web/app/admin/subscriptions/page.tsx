@@ -33,9 +33,6 @@ export default function AdminSubscriptionsPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Subscriptions</h1>
-      <p className={page.lede}>
-        All company subscriptions. Open a company to edit.
-      </p>
 
       {error ? <p className={styles.error}>{error}</p> : null}
 

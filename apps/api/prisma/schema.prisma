@@ -199,6 +199,8 @@ model CompanyApplication {
   contactName      String
   email            String
   phone            String
+  /// ISO 3166-1 alpha-2 from the shared countries list.
+  country          String   @default("AE")
   emirate          String
   trn              String?
   approxUsers      String?
@@ -344,6 +346,8 @@ model CompanyProfile {
   lpoPrefix        String   @default("LPO")
   purchaseInvoicePrefix String @default("PINV")
   supplierPaymentPrefix String @default("SPAY")
+  /// ISO 3166-1 alpha-2. Currency below is derived from this at signup/profile save.
+  country          String   @default("AE")
   currency         String   @default("AED")
   vatRate          Float    @default(0.05)
   /// Bumped on every sync-visible write for offline conflict checks.
@@ -948,6 +952,10 @@ model Lpo {
   status               String   @default("draft")
   requestedDeliveryDate DateTime?
   notes                String?
+  discountMode         String   @default("none")
+  discountValue        Float    @default(0)
+  discount             Float    @default(0)
+  lineDiscountTotal    Float    @default(0)
   subtotal             Float    @default(0)
   inputVat             Float    @default(0)
   total                Float    @default(0)
@@ -983,6 +991,8 @@ model LpoLine {
   invoicedQty     Float    @default(0)
   unitCost        Float
   vatRate         Float    @default(0.05)
+  discountMode    String   @default("none")
+  discountValue   Float    @default(0)
   lineTotal       Float
   sortOrder       Int      @default(0)
   createdAt       DateTime @default(now())
@@ -1054,6 +1064,10 @@ model PurchaseInvoice {
   currency             String   @default("AED")
   attachmentUrl        String?
   notes                String?
+  discountMode         String   @default("none")
+  discountValue        Float    @default(0)
+  discount             Float    @default(0)
+  lineDiscountTotal    Float    @default(0)
   postedAt             DateTime?
   cancelledAt          DateTime?
   version              Int      @default(1)
@@ -1084,6 +1098,8 @@ model PurchaseInvoiceLine {
   qty            Float
   unitCost       Float
   vatRate        Float    @default(0.05)
+  discountMode   String   @default("none")
+  discountValue  Float    @default(0)
   lineTotal      Float
   createdAt      DateTime @default(now())
 
@@ -1107,7 +1123,7 @@ model SupplierPayment {
   reference     String?
   notes         String?
   unappliedAmount Float  @default(0)
-  status        String   @default("posted")
+  status        String   @default("draft")
   reversedAt    DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -1319,8 +1335,11 @@ model Quotation {
   contactPhone  String?
   location      String?
   validUntil    DateTime?
-  /// Quote-level discount (mainly Counter Top); applied before VAT.
+  discountMode  String    @default("none")
+  discountValue Float     @default(0)
+  /// Applied document discount (AED), denormalized at save.
   discount      Float     @default(0)
+  lineDiscountTotal Float @default(0)
   // Totals are denormalised so list screens and ledgers never re-derive money
   // from lines that a later product re-pricing could have changed.
   subtotal      Float     @default(0)
@@ -1358,6 +1377,8 @@ model QuotationLine {
   // Captured per deal. Job P&L reads these, never the live catalog price.
   purchasePrice Float
   sellPrice     Float
+  discountMode  String  @default("none")
+  discountValue Float   @default(0)
   lineTotal     Float
   sortOrder     Int     @default(0)
 
@@ -1375,6 +1396,8 @@ model QuotationSection {
   /// Catalog name or free-text product label shown at the top of the section.
   productName String
   amount      Float  @default(0)
+  discountMode String @default("none")
+  discountValue Float @default(0)
   sortOrder   Int    @default(0)
 
   quotation Quotation              @relation(fields: [quotationId], references: [id], onDelete: Cascade)
@@ -1392,6 +1415,8 @@ model QuotationSectionItem {
   value     String @default("")
   /// Line amount for internal costing; summed into section.amount (not shown on PDF).
   amount    Float  @default(0)
+  discountMode String @default("none")
+  discountValue Float @default(0)
   sortOrder Int    @default(0)
 
   section QuotationSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
@@ -1479,12 +1504,16 @@ model Invoice {
   jobId      String?
   number     String
   kind       String
-  status     String  @default("issued")
+  status     String  @default("draft")
 
   issueDate DateTime  @default(now())
   dueDate   DateTime?
   notes     String?
 
+  discountMode      String @default("none")
+  discountValue     Float  @default(0)
+  discount          Float  @default(0)
+  lineDiscountTotal Float  @default(0)
   subtotal       Float @default(0)
   vatAmount      Float @default(0)
   total          Float @default(0)
@@ -1525,6 +1554,8 @@ model InvoiceLine {
   unitPrice     Float
   /// Snapshot of cost so invoice-level margin survives catalog changes.
   purchasePrice Float  @default(0)
+  discountMode  String @default("none")
+  discountValue Float  @default(0)
   lineTotal     Float
   sortOrder     Int    @default(0)
 
@@ -1548,6 +1579,7 @@ model AdvancePayment {
   reference       String?
   receivedAt      DateTime @default(now())
   notes           String?
+  status          String   @default("draft")
   cancelledAt     DateTime?
   version         Int      @default(1)
   createdAt       DateTime @default(now())

@@ -94,6 +94,12 @@ export function SearchablePicker({
     [listOptions, query],
   );
   const hiddenCount = Math.max(0, listOptions.length - suggestions.length);
+  const chipOptions = useMemo(() => {
+    if (!selected?.id || suggestions.some((option) => option.id === selected.id)) {
+      return suggestions;
+    }
+    return [selected, ...suggestions].slice(0, suggestionLimit + 1);
+  }, [selected, suggestions, suggestionLimit]);
 
   function pick(id: string) {
     onChange(id);
@@ -106,11 +112,6 @@ export function SearchablePicker({
   if (variant === 'search') {
     return (
       <View style={styles.wrap}>
-        {selected ? (
-          <Text style={styles.selectedMeta}>Selected · {selected.label}</Text>
-        ) : allowEmpty ? (
-          <Text style={styles.selectedMeta}>{emptyLabel}</Text>
-        ) : null}
         <View style={styles.panel}>
           <TextInput
             style={styles.search}
@@ -172,7 +173,7 @@ export function SearchablePicker({
             </Text>
           </Pressable>
         ) : null}
-        {suggestions.map((option) => {
+        {chipOptions.map((option) => {
           const active = option.id === value;
           return (
             <Pressable
@@ -190,12 +191,6 @@ export function SearchablePicker({
           );
         })}
       </View>
-
-      {selected &&
-      selected.id !== '' &&
-      !suggestions.some((option) => option.id === value) ? (
-        <Text style={styles.selectedMeta}>Selected · {selected.label}</Text>
-      ) : null}
 
       <Pressable
         style={({ pressed }) => [styles.browseBtn, pressed && styles.pressed]}
@@ -292,10 +287,6 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: '#fff',
     fontWeight: '600',
-  },
-  selectedMeta: {
-    color: colors.soft,
-    fontSize: 12,
   },
   browseBtn: {
     alignSelf: 'flex-start',

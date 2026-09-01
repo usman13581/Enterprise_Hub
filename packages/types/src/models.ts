@@ -1,4 +1,6 @@
 import type {
+  AdvanceStatus,
+  DiscountMode,
   InvoiceKind,
   InvoiceStatus,
   JobStatus,
@@ -94,6 +96,7 @@ export type CompanyProfile = {
   jobPrefix: string;
   advancePrefix: string;
   creditNotePrefix: string;
+  country: string;
   currency: string;
 };
 
@@ -112,6 +115,8 @@ export type QuotationLine = {
   qty: number;
   purchasePrice: number;
   sellPrice: number;
+  discountMode: DiscountMode;
+  discountValue: number;
   lineTotal: number;
   sortOrder: number;
 };
@@ -121,6 +126,8 @@ export type QuotationSectionItem = {
   label: string;
   value: string;
   amount: number;
+  discountMode: DiscountMode;
+  discountValue: number;
   sortOrder: number;
 };
 
@@ -129,6 +136,8 @@ export type QuotationSection = {
   productId: string | null;
   productName: string;
   amount: number;
+  discountMode: DiscountMode;
+  discountValue: number;
   sortOrder: number;
   items: QuotationSectionItem[];
 };
@@ -158,7 +167,11 @@ export type Quotation = {
   contactPhone: string | null;
   location: string | null;
   validUntil: string | null;
+  discountMode: DiscountMode;
+  discountValue: number;
+  /** Applied document discount amount, denormalized at save. */
   discount: number;
+  lineDiscountTotal: number;
   subtotal: number;
   vatAmount: number;
   total: number;
@@ -197,6 +210,8 @@ export type InvoiceLine = {
   qty: number;
   unitPrice: number;
   purchasePrice: number;
+  discountMode: DiscountMode;
+  discountValue: number;
   lineTotal: number;
   sortOrder: number;
 };
@@ -221,6 +236,10 @@ export type Invoice = {
   issueDate: string;
   dueDate: string | null;
   notes: string | null;
+  discountMode: DiscountMode;
+  discountValue: number;
+  discount: number;
+  lineDiscountTotal: number;
   subtotal: number;
   vatAmount: number;
   total: number;
@@ -245,6 +264,7 @@ export type AdvancePayment = {
   reference: string | null;
   receivedAt: string;
   notes: string | null;
+  status: AdvanceStatus;
   cancelledAt: string | null;
 };
 
@@ -412,6 +432,8 @@ export type LpoLine = {
   invoicedQty: number;
   unitCost: number;
   vatRate: number;
+  discountMode: DiscountMode;
+  discountValue: number;
   lineTotal: number;
 };
 
@@ -421,6 +443,10 @@ export type Lpo = {
   supplierId: string;
   status: string;
   requestedDeliveryDate: string | null;
+  discountMode: DiscountMode;
+  discountValue: number;
+  discount: number;
+  lineDiscountTotal: number;
   subtotal: number;
   inputVat: number;
   total: number;
@@ -440,6 +466,10 @@ export type PurchaseInvoice = {
   issueDate: string;
   dueDate: string | null;
   status: string;
+  discountMode: DiscountMode;
+  discountValue: number;
+  discount: number;
+  lineDiscountTotal: number;
   subtotal: number;
   inputVat: number;
   total: number;

@@ -30,10 +30,6 @@ export default function AuditPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Audit</h1>
-      <p className={page.lede}>
-        Strong history of creates, updates, and status changes. Updates
-        automatically.
-      </p>
 
       {error ? <p className={styles.error}>{error}</p> : null}
 

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
 import { AdminShell } from '@/components/AdminShell';
 import { isAuthenticated } from '@/lib/auth';
+import { CompanyCurrencyProvider } from '@/lib/company-currency';
 import { SessionGuard } from './SessionGuard';
 
 export function RootChrome({ children }: { children: React.ReactNode }) {
@@ -39,5 +40,11 @@ export function RootChrome({ children }: { children: React.ReactNode }) {
   if (isAdmin) {
     return <SessionGuard><AdminShell>{children}</AdminShell></SessionGuard>;
   }
-  return <SessionGuard><AppShell>{children}</AppShell></SessionGuard>;
+  return (
+    <SessionGuard>
+      <CompanyCurrencyProvider>
+        <AppShell>{children}</AppShell>
+      </CompanyCurrencyProvider>
+    </SessionGuard>
+  );
 }

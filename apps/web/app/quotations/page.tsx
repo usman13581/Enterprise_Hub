@@ -12,7 +12,8 @@ import {
   type SessionPayload,
 } from '@marble/types';
 import { apiFetch, apiPost, apiPut } from '@/lib/api';
-import { day, money } from '@/lib/format';
+import { dueDateIso } from '@/lib/dates';
+import { amount, day, moneyHeader } from '@/lib/format';
 import {
   searchItems,
   useFlash,
@@ -28,6 +29,12 @@ import {
   RowActionsBar,
   TableScroll,
 } from '@/components/Finance';
+import {
+  discountFromStored,
+  discountPayload,
+  EMPTY_DISCOUNT,
+  type DiscountDraft,
+} from '@/components/DiscountFields';
 import {
   EMPTY_QUOTATION_LINE,
   QuotationLineEditor,
@@ -55,15 +62,17 @@ type Draft = {
   validUntil: string;
   lines: QuotationLineDraft[];
   lookupIds: string[];
+  documentDiscount: DiscountDraft;
 };
 
 const EMPTY: Draft = {
   customerId: '',
   title: '',
   notes: '',
-  validUntil: '',
+  validUntil: dueDateIso(),
   lines: [{ ...EMPTY_QUOTATION_LINE }],
   lookupIds: [],
+  documentDiscount: { ...EMPTY_DISCOUNT },
 };
 
 export default function QuotationsPage() {
@@ -114,7 +123,12 @@ export default function QuotationsPage() {
       router.push('/quotations/counter-top');
       return;
     }
-    setDraft({ ...EMPTY, lines: [{ ...EMPTY_QUOTATION_LINE }], lookupIds: [] });
+    setDraft({
+      ...EMPTY,
+      validUntil: dueDateIso(),
+      lines: [{ ...EMPTY_QUOTATION_LINE }],
+      lookupIds: [],
+    });
     setStep('general-form');
   }
 
@@ -135,8 +149,14 @@ export default function QuotationsPage() {
         qty: String(line.qty),
         purchasePrice: String(line.purchasePrice),
         sellPrice: String(line.sellPrice),
+        discountMode: (line.discountMode as DiscountDraft['discountMode']) ?? 'none',
+        discountValue: String(line.discountValue ?? 0),
       })),
       lookupIds: (quotation.lookups ?? []).map((lookup) => lookup.id),
+      documentDiscount: discountFromStored(
+        quotation.discountMode,
+        quotation.discountValue,
+      ),
     });
     setEditingId(quotation.id);
     setStep('general-form');
@@ -158,7 +178,7 @@ export default function QuotationsPage() {
       title: draft.title,
       notes: draft.notes,
       validUntil: draft.validUntil || null,
-      discount: 0,
+      ...discountPayload(draft.documentDiscount),
       lookupIds: draft.lookupIds,
       lines: quotationLinePayload(draft.lines),
       sections: [],
@@ -195,10 +215,6 @@ export default function QuotationsPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Quotations</h1>
-      <p className={page.lede}>
-        Quote a customer with per-line purchase and sell prices, or build a
-        Counter Top quotation. Approving opens the job.
-      </p>
 
       <FilterBar
         active={pageTab}
@@ -308,6 +324,10 @@ export default function QuotationsPage() {
             lines={draft.lines}
             onChange={(lines) => setDraft({ ...draft, lines })}
             products={products}
+            documentDiscount={draft.documentDiscount}
+            onDocumentDiscountChange={(documentDiscount) =>
+              setDraft({ ...draft, documentDiscount })
+            }
           />
 
           <div className={styles.field} style={{ marginTop: '0.9rem' }}>
@@ -330,7 +350,7 @@ export default function QuotationsPage() {
 
           <div className={styles.actions}>
             <button className={styles.button} type="submit" disabled={saving}>
-              {saving ? 'Saving…' : editingId ? 'Save changes' : 'Create'}
+              {saving ? 'Saving…' : editingId ? 'Save changes' : 'Save draft'}
             </button>
             <button
               className={styles.ghost}
@@ -394,7 +414,7 @@ export default function QuotationsPage() {
                     <th>Customer</th>
                     <th>Type</th>
                     <th>Subject</th>
-                    <th className={finance.numeric}>Total</th>
+                    <th className={finance.numeric}>{moneyHeader('Total')}</th>
                     <th>Job</th>
                     <th className={finance.actions} aria-label="Actions" />
                   </tr>
@@ -426,7 +446,7 @@ export default function QuotationsPage() {
                       </td>
                       <td>{quotation.title ?? '—'}</td>
                       <td className={finance.numeric}>
-                        {money(quotation.total)}
+                        {amount(quotation.total)}
                       </td>
                       <td>
                         {quotation.job ? (

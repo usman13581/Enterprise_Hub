@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { apiFetch, apiPost, apiUpload, assetUrl } from "@/lib/api";
+import { todayIso } from "@/lib/dates";
 import { day, money } from "@/lib/format";
 import {
   searchItems,
@@ -43,7 +44,7 @@ export default function SubscriptionPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [amount, setAmount] = useState("");
-  const [paidAt, setPaidAt] = useState("");
+  const [paidAt, setPaidAt] = useState(todayIso());
   const [bankReference, setBankReference] = useState("");
   const [notes, setNotes] = useState("");
   const [depositUrl, setDepositUrl] = useState("");
@@ -132,9 +133,6 @@ export default function SubscriptionPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Subscription</h1>
-      <p className={page.lede}>
-        Plan dates and renewal deposit requests for your company.
-      </p>
 
       {error ? <p className={styles.error}>{error}</p> : null}
 

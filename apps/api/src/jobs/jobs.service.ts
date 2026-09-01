@@ -82,7 +82,7 @@ export class JobsService {
     ]);
 
     const advancesApplied = invoices
-      .filter((invoice) => invoice.status !== 'cancelled')
+      .filter((invoice) => invoice.status === 'issued')
       .reduce((total, invoice) => total + invoice.advanceApplied, 0);
 
     return {

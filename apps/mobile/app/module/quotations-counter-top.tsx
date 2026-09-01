@@ -9,8 +9,16 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { computeCounterTopTotals, resolveCounterTopSectionAmount } from '@marble/domain';
 import { QUOTATION_KIND_LABELS, type QuotationLookup } from '@marble/types';
+import {
+  discountFromStored,
+  discountPayload,
+  DiscountInput,
+  EMPTY_DISCOUNT,
+  type DiscountDraft,
+} from '../../components/DiscountInput';
 import { apiFetch, apiPost, apiPut } from '../../lib/api';
-import { money } from '../../lib/format';
+import { dueDateIso } from '../../lib/dates';
+import { money, moneyHeader } from '../../lib/format';
 import { usePolledList } from '../../lib/useCollection';
 import { FormPicker } from '../../components/FormField';
 import { SearchablePicker } from '../../components/SearchablePicker';
@@ -54,8 +62,10 @@ export default function CounterTopQuotationScreen() {
   const [contactName, setContactName] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [location, setLocation] = useState('');
-  const [validUntil, setValidUntil] = useState('');
-  const [discount, setDiscount] = useState('0');
+  const [validUntil, setValidUntil] = useState(dueDateIso());
+  const [documentDiscount, setDocumentDiscount] = useState<DiscountDraft>({
+    ...EMPTY_DISCOUNT,
+  });
   const [notes, setNotes] = useState('');
   const [lookupIds, setLookupIds] = useState<string[]>([]);
   const [lookups, setLookups] = useState<QuotationLookup[]>([]);
@@ -110,7 +120,9 @@ export default function CounterTopQuotationScreen() {
         setContactPhone(quotation.contactPhone ?? '');
         setLocation(quotation.location ?? '');
         setValidUntil(quotation.validUntil?.slice(0, 10) ?? '');
-        setDiscount(String(quotation.discount ?? 0));
+        setDocumentDiscount(
+          discountFromStored(quotation.discountMode, quotation.discountValue),
+        );
         setNotes(quotation.notes ?? '');
         setLookupIds((quotation.lookups ?? []).map((l) => l.id));
         setSections(
@@ -137,12 +149,18 @@ export default function CounterTopQuotationScreen() {
   const totals = useMemo(
     () =>
       computeCounterTopTotals(
-        sections.map((section) =>
-          sectionAmountFromItems(section.items, Number(section.amount) || 0),
-        ),
-        Number(discount) || 0,
+        sections.map((section) => ({
+          amount: sectionAmountFromItems(
+            section.items,
+            Number(section.amount) || 0,
+          ),
+          items: section.items
+            .filter((item) => item.label.trim())
+            .map((item) => ({ amount: Number(item.amount) || 0 })),
+        })),
+        discountPayload(documentDiscount),
       ),
-    [sections, discount],
+    [sections, documentDiscount],
   );
 
   function patchSection(index: number, changes: Partial<SectionDraft>) {
@@ -174,7 +192,7 @@ export default function CounterTopQuotationScreen() {
       contactPhone,
       location,
       validUntil: validUntil || null,
-      discount: Number(discount) || 0,
+      ...discountPayload(documentDiscount),
       lookupIds,
       lines: [],
       sections: sections.map((section) => {
@@ -397,7 +415,7 @@ export default function CounterTopQuotationScreen() {
               />
               <TextInput
                 style={[ui.input, { marginTop: 6 }]}
-                placeholder="Amount (AED)"
+                placeholder={moneyHeader('Amount')}
                 placeholderTextColor={colors.soft}
                 keyboardType="decimal-pad"
                 value={item.amount}
@@ -473,14 +491,16 @@ export default function CounterTopQuotationScreen() {
       </Pressable>
 
       <View style={ui.card}>
-        <Text style={ui.label}>Discount</Text>
-        <TextInput
-          style={ui.input}
-          keyboardType="decimal-pad"
-          value={discount}
-          onChangeText={setDiscount}
+        <DiscountInput
+          label="Document discount"
+          value={documentDiscount}
+          onChange={setDocumentDiscount}
         />
         <Text style={[ui.cardMeta, { marginTop: 10 }]}>
+          {totals.lineDiscountTotal > 0
+            ? `Line disc. ${money(totals.lineDiscountTotal)} · `
+            : ''}
+          {totals.discount > 0 ? `Doc disc. ${money(totals.discount)} · ` : ''}
           Taxable {money(totals.subtotal)} · VAT {money(totals.vatAmount)} ·
           Total {money(totals.total)}
         </Text>

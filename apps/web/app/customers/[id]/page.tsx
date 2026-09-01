@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
-import { day, label, money } from '@/lib/format';
+import { amount, day, label, moneyHeader } from '@/lib/format';
 import { useFlash, usePolledItem } from '@/lib/useCollection';
 import { Toast } from '@/components/ListControls';
 import {
@@ -74,19 +74,19 @@ export default function CustomerHubPage() {
       {error ? <p className={styles.error}>{error}</p> : null}
 
       <div className={finance.statGrid}>
-        <Stat title="Total billed" value={money(summary.billed)} />
+        <Stat title={moneyHeader('Total billed')} value={amount(summary.billed)} />
         <Stat
-          title="Advances received"
-          value={money(summary.advancesReceived)}
+          title={moneyHeader('Advances received')}
+          value={amount(summary.advancesReceived)}
         />
         <BalanceStat title="Balance due" amount={summary.balanceDue} />
         <Stat
-          title="Unapplied advances"
-          value={money(summary.unallocatedAdvances)}
+          title={moneyHeader('Unapplied advances')}
+          value={amount(summary.unallocatedAdvances)}
           hint="Can be adjusted on the next invoice"
         />
         {summary.credited > 0 ? (
-          <Stat title="Credit notes" value={money(summary.credited)} />
+          <Stat title={moneyHeader('Credit notes')} value={amount(summary.credited)} />
         ) : null}
       </div>
 
@@ -128,10 +128,10 @@ export default function CustomerHubPage() {
                 <th>Job</th>
                 <th>Quotation</th>
                 <th>Status</th>
-                <th className={finance.numeric}>Job value</th>
-                <th className={finance.numeric}>Invoiced</th>
-                <th className={finance.numeric}>Advances</th>
-                <th className={finance.numeric}>Balance</th>
+                <th className={finance.numeric}>{moneyHeader('Job value')}</th>
+                <th className={finance.numeric}>{moneyHeader('Invoiced')}</th>
+                <th className={finance.numeric}>{moneyHeader('Advances')}</th>
+                <th className={finance.numeric}>{moneyHeader('Balance')}</th>
               </tr>
             </thead>
             <tbody>
@@ -146,15 +146,15 @@ export default function CustomerHubPage() {
                   <td>
                     <StatusBadge status={row.status} />
                   </td>
-                  <td className={finance.numeric}>{money(row.jobValue)}</td>
-                  <td className={finance.numeric}>{money(row.invoiced)}</td>
-                  <td className={finance.numeric}>{money(row.advances)}</td>
+                  <td className={finance.numeric}>{amount(row.jobValue)}</td>
+                  <td className={finance.numeric}>{amount(row.invoiced)}</td>
+                  <td className={finance.numeric}>{amount(row.advances)}</td>
                   <td
                     className={`${finance.numeric} ${
                       row.balance > 0 ? finance.due : finance.clear
                     }`}
                   >
-                    {money(row.balance)}
+                    {amount(row.balance)}
                   </td>
                 </tr>
               ))}
@@ -187,7 +187,7 @@ export default function CustomerHubPage() {
                   <th>Subject</th>
                   <th>Status</th>
                   <th>Opened</th>
-                  <th className={finance.numeric}>Job value</th>
+                  <th className={finance.numeric}>{moneyHeader('Job value')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -203,7 +203,7 @@ export default function CustomerHubPage() {
                       <StatusBadge status={job.status} />
                     </td>
                     <td>{day(job.createdAt)}</td>
-                    <td className={finance.numeric}>{money(job.jobValue)}</td>
+                    <td className={finance.numeric}>{amount(job.jobValue)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -223,7 +223,7 @@ export default function CustomerHubPage() {
                   <th>Number</th>
                   <th>Subject</th>
                   <th>Status</th>
-                  <th className={finance.numeric}>Total</th>
+                  <th className={finance.numeric}>{moneyHeader('Total')}</th>
                   <th>Job</th>
                   <th className={finance.actions} aria-label="Actions" />
                 </tr>
@@ -238,7 +238,7 @@ export default function CustomerHubPage() {
                     <td>
                       <StatusBadge status={quotation.status} />
                     </td>
-                    <td className={finance.numeric}>{money(quotation.total)}</td>
+                    <td className={finance.numeric}>{amount(quotation.total)}</td>
                     <td>
                       {quotation.job ? (
                         <Link
@@ -280,8 +280,8 @@ export default function CustomerHubPage() {
                   <th>Job</th>
                   <th>Issued</th>
                   <th>Status</th>
-                  <th className={finance.numeric}>Total</th>
-                  <th className={finance.numeric}>Net payable</th>
+                  <th className={finance.numeric}>{moneyHeader('Total')}</th>
+                  <th className={finance.numeric}>{moneyHeader('Net payable')}</th>
                   <th className={finance.actions} aria-label="Actions" />
                 </tr>
               </thead>
@@ -308,9 +308,9 @@ export default function CustomerHubPage() {
                     <td>
                       <StatusBadge status={invoice.status} />
                     </td>
-                    <td className={finance.numeric}>{money(invoice.total)}</td>
+                    <td className={finance.numeric}>{amount(invoice.total)}</td>
                     <td className={finance.numeric}>
-                      {money(invoice.netPayable)}
+                      {amount(invoice.netPayable)}
                     </td>
                     <td className={finance.actions}>
                       <RowActionsBar>
@@ -340,8 +340,8 @@ export default function CustomerHubPage() {
                   <th>Job</th>
                   <th>Received</th>
                   <th>Method</th>
-                  <th className={finance.numeric}>Amount</th>
-                  <th className={finance.numeric}>Spare</th>
+                  <th className={finance.numeric}>{moneyHeader('Amount')}</th>
+                  <th className={finance.numeric}>{moneyHeader('Spare')}</th>
                   <th className={finance.actions} aria-label="Actions" />
                 </tr>
               </thead>
@@ -365,9 +365,9 @@ export default function CustomerHubPage() {
                     </td>
                     <td>{day(advance.receivedAt)}</td>
                     <td>{label(advance.method)}</td>
-                    <td className={finance.numeric}>{money(advance.amount)}</td>
+                    <td className={finance.numeric}>{amount(advance.amount)}</td>
                     <td className={finance.numeric}>
-                      {money(advance.unallocatedAmount)}
+                      {amount(advance.unallocatedAmount)}
                     </td>
                     <td className={finance.actions}>
                       <RowActionsBar>

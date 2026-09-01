@@ -104,9 +104,6 @@ export default function NotificationsPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Notifications</h1>
-      <p className={page.lede}>
-        Company and platform messages. Mark as read when handled.
-      </p>
 
       {error ? <p className={styles.error}>{error}</p> : null}
 

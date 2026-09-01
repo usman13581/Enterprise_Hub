@@ -11,6 +11,7 @@ import {
   canEditQuotation,
   computeCounterTopTotals,
   computeQuotationTotals,
+  normalizeDiscount,
   resolveCounterTopSectionAmount,
 } from '@marble/domain';
 import type { QuotationInput, QuotationStatus } from '@marble/types';
@@ -107,7 +108,7 @@ export class QuotationsService {
           contactPhone: input.contactPhone,
           location: input.location,
           validUntil: input.validUntil ? new Date(input.validUntil) : null,
-          discount: totals.discount,
+          ...this.discountHeader(input, totals),
           subtotal: totals.subtotal,
           vatAmount: totals.vatAmount,
           total: totals.total,
@@ -122,6 +123,8 @@ export class QuotationsService {
                     qty: line.qty,
                     purchasePrice: line.purchasePrice,
                     sellPrice: line.sellPrice,
+                    discountMode: line.discountMode ?? 'none',
+                    discountValue: line.discountValue ?? 0,
                     lineTotal: totals.lineTotals[index],
                     sortOrder: index,
                   })),
@@ -137,12 +140,16 @@ export class QuotationsService {
                       section.items,
                       section.amount,
                     ),
+                    discountMode: section.discountMode ?? 'none',
+                    discountValue: section.discountValue ?? 0,
                     sortOrder: index,
                     items: {
                       create: section.items.map((item, itemIndex) => ({
                         label: item.label,
                         value: item.value,
                         amount: item.amount ?? 0,
+                        discountMode: item.discountMode ?? 'none',
+                        discountValue: item.discountValue ?? 0,
                         sortOrder: itemIndex,
                       })),
                     },
@@ -214,7 +221,7 @@ export class QuotationsService {
           contactPhone: input.contactPhone,
           location: input.location,
           validUntil: input.validUntil ? new Date(input.validUntil) : null,
-          discount: totals.discount,
+          ...this.discountHeader(input, totals),
           subtotal: totals.subtotal,
           vatAmount: totals.vatAmount,
           total: totals.total,
@@ -229,6 +236,8 @@ export class QuotationsService {
                     qty: line.qty,
                     purchasePrice: line.purchasePrice,
                     sellPrice: line.sellPrice,
+                    discountMode: line.discountMode ?? 'none',
+                    discountValue: line.discountValue ?? 0,
                     lineTotal: totals.lineTotals[index],
                     sortOrder: index,
                   })),
@@ -244,12 +253,16 @@ export class QuotationsService {
                       section.items,
                       section.amount,
                     ),
+                    discountMode: section.discountMode ?? 'none',
+                    discountValue: section.discountValue ?? 0,
                     sortOrder: index,
                     items: {
                       create: section.items.map((item, itemIndex) => ({
                         label: item.label,
                         value: item.value,
                         amount: item.amount ?? 0,
+                        discountMode: item.discountMode ?? 'none',
+                        discountValue: item.discountValue ?? 0,
                         sortOrder: itemIndex,
                       })),
                     },
@@ -383,18 +396,26 @@ export class QuotationsService {
     return this.cancel(session, id);
   }
 
+  private discountHeader(
+    input: QuotationInput,
+    totals: { discount: number; lineDiscountTotal: number },
+  ) {
+    const doc = normalizeDiscount(input);
+    return {
+      discountMode: doc.discountMode,
+      discountValue: doc.discountValue,
+      discount: totals.discount,
+      lineDiscountTotal: totals.lineDiscountTotal,
+    };
+  }
+
   private totalsFor(input: QuotationInput) {
+    const docDiscount = normalizeDiscount(input);
     if (input.kind === 'counter_top') {
-      const totals = computeCounterTopTotals(
-        input.sections.map((section) =>
-          resolveCounterTopSectionAmount(section.items, section.amount),
-        ),
-        input.discount ?? 0,
-      );
+      const totals = computeCounterTopTotals(input.sections, docDiscount);
       return { ...totals, lineTotals: [] as number[] };
     }
-    const totals = computeQuotationTotals(input.lines);
-    return { ...totals, discount: 0 };
+    return computeQuotationTotals(input.lines, docDiscount);
   }
 
   private shape<

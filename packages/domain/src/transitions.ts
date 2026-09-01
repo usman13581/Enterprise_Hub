@@ -1,5 +1,7 @@
 export type QuotationStatus = 'draft' | 'approved' | 'cancelled';
 export type JobStatus = 'open' | 'completed' | 'closed';
+export type InvoiceStatus = 'draft' | 'issued' | 'cancelled';
+export type AdvanceStatus = 'draft' | 'posted' | 'cancelled';
 
 /** Only drafts are editable; approving one creates the job. */
 export function canEditQuotation(status: QuotationStatus): boolean {
@@ -34,4 +36,20 @@ export function canInvoiceJob(status: JobStatus): boolean {
 
 export function canRecordAdvanceForJob(status: JobStatus): boolean {
   return status === 'open' || status === 'completed';
+}
+
+export function canEditInvoice(status: InvoiceStatus): boolean {
+  return status === 'draft';
+}
+
+export function canIssueInvoice(status: InvoiceStatus): boolean {
+  return status === 'draft';
+}
+
+export function canEditAdvance(status: AdvanceStatus): boolean {
+  return status === 'draft';
+}
+
+export function canApproveAdvance(status: AdvanceStatus): boolean {
+  return status === 'draft';
 }

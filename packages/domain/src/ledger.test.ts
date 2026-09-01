@@ -177,6 +177,21 @@ describe('jobFinancials', () => {
     expect(result.balanceRemaining).toBe(250);
   });
 
+  it('keeps draft invoices off invoiced-to-date but reserved against remaining', () => {
+    const result = jobFinancials({
+      jobValue: 1000,
+      jobNet: 952.38,
+      purchaseTotal: 500,
+      advancesApplied: 0,
+      invoices: [
+        { total: 400, kind: 'progressive', status: 'issued' },
+        { total: 300, kind: 'progressive', status: 'draft' },
+      ],
+    });
+    expect(result.invoicedToDate).toBe(400);
+    expect(result.balanceRemaining).toBe(300);
+  });
+
   it('reports a negative remainder when a job is over-invoiced', () => {
     const result = jobFinancials({
       jobValue: 1000,

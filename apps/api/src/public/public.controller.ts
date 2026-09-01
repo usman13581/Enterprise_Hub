@@ -1,6 +1,11 @@
-import { Body, Controller, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
-import { demoRequestSchema, type DemoRequestInput } from '@marble/types';
+import {
+  companyApplicationSchema,
+  demoRequestSchema,
+  type CompanyApplicationInput,
+  type DemoRequestInput,
+} from '@marble/types';
 import { zodBody } from '../common/zod-validation.pipe';
 import { DemoProvisioningService } from './demo-provisioning.service';
 import { PublicService } from './public.service';
@@ -11,6 +16,11 @@ export class PublicController {
     private readonly publicService: PublicService,
     private readonly demoProvisioning: DemoProvisioningService,
   ) {}
+
+  @Get('countries')
+  countries() {
+    return this.publicService.listCountries();
+  }
 
   @Post('demo-requests')
   createDemoRequest(
@@ -26,22 +36,7 @@ export class PublicController {
 
   @Post('applications')
   createApplication(
-    @Body()
-    body: {
-      legalName: string;
-      contactName: string;
-      email: string;
-      phone: string;
-      emirate: string;
-      tradeName?: string;
-      trn?: string;
-      approxUsers?: string;
-      planInterest?: string;
-      needs?: string;
-      heardFrom?: string;
-      note?: string;
-      honeypot?: string;
-    },
+    @Body(zodBody(companyApplicationSchema)) body: CompanyApplicationInput,
     @Req() req: Request,
   ) {
     const ip =

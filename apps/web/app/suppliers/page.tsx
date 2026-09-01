@@ -116,9 +116,6 @@ export default function SuppliersPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Suppliers</h1>
-      <p className={page.lede}>
-        Supplier directory. Products can optionally be tagged to a supplier.
-      </p>
 
       {error ? <p className={styles.error}>{error}</p> : null}
 

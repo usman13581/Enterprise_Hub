@@ -7,6 +7,7 @@ import {
   View,
 } from 'react-native';
 import { apiFetch, apiPatch, apiPost } from '../../../lib/api';
+import { todayIso } from '../../../lib/dates';
 import { day, label } from '../../../lib/format';
 import { useFlash } from '../../../lib/useCollection';
 import { Toast } from '../../../components/ListControls';
@@ -74,7 +75,7 @@ export default function AdminCompanyDetailScreen() {
   const [expiresAt, setExpiresAt] = useState('');
   const [payAmount, setPayAmount] = useState('');
   const [payReference, setPayReference] = useState('');
-  const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
+  const [payDate, setPayDate] = useState(todayIso());
   const [saving, setSaving] = useState(false);
   const { flash, notify } = useFlash();
 

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   calcVat,
   extendFils,
+  formatAmount,
   formatMoney,
+  moneyColumn,
   fromFils,
   roundMoney,
   sumFils,
@@ -67,6 +69,19 @@ describe('VAT', () => {
     expect(result.vat).toBe(100);
     expect(result.total).toBe(2099.99);
     expect(roundMoney(result.taxable + result.vat)).toBe(result.total);
+  });
+});
+
+describe('formatAmount', () => {
+  it('formats the number without a currency prefix', () => {
+    expect(formatAmount(1234.5)).toBe('1,234.50');
+    expect(formatAmount(0)).toBe('0.00');
+  });
+});
+
+describe('moneyColumn', () => {
+  it('puts the currency on the heading', () => {
+    expect(moneyColumn('Total')).toBe('Total (AED)');
   });
 });
 

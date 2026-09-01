@@ -125,7 +125,6 @@ export default function NotificationsScreen() {
   return (
     <ScreenScroll>
       <Text style={ui.title}>Notifications</Text>
-      <Text style={ui.lede}>Inbox for this company account.</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
 
       {isAdmin ? (

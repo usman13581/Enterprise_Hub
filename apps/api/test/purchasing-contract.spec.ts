@@ -27,6 +27,46 @@ describe('Supplier purchasing contracts', () => {
     }).lines[0].qty).toBe(3);
   });
 
+  it('accepts discount fields on LPO and purchase invoice payloads', () => {
+    expect(
+      lpoSchema.parse({
+        supplierId: 'supplier-1',
+        discountMode: 'fixed',
+        discountValue: '50',
+        lines: [
+          {
+            productName: 'Marble slab',
+            orderedQty: '2',
+            unitCost: '100',
+            discountMode: 'percent',
+            discountValue: '5',
+          },
+        ],
+      }),
+    ).toMatchObject({
+      discountMode: 'fixed',
+      discountValue: 50,
+      lines: [{ discountMode: 'percent', discountValue: 5 }],
+    });
+    expect(
+      purchaseInvoiceSchema.parse({
+        supplierId: 'supplier-1',
+        issueDate: '2026-08-31',
+        discountMode: 'percent',
+        discountValue: '10',
+        lines: [
+          {
+            productName: 'Adhesive',
+            qty: '3',
+            unitCost: '25',
+            discountMode: 'fixed',
+            discountValue: '5',
+          },
+        ],
+      }).discountMode,
+    ).toBe('percent');
+  });
+
   it('does not allow payment allocations above the payment amount contract', () => {
     expect(supplierPaymentSchema.parse({
       supplierId: 'supplier-1',

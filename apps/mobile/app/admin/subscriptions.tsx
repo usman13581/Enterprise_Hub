@@ -55,7 +55,6 @@ export default function AdminSubscriptionsScreen() {
   return (
     <ScreenScroll>
       <Text style={ui.title}>Subscriptions</Text>
-      <Text style={ui.lede}>All company plans, trial states, and expiry dates.</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
       <SearchBox value={query} onChange={setQuery} placeholder="Search companies…" />
       {loading ? (

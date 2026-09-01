@@ -27,6 +27,7 @@ import { FormChipSelect, FormField } from '../../components/FormField';
 import { ScreenScroll } from '../../components/ScreenScroll';
 import { FilterChips, RecordRow, StatCard } from '../../components/Finance';
 import { HRLookupsSection } from '../../components/HRLookupsSection';
+import { dateInputValue, todayIso } from '../../lib/dates';
 import { day, label, money } from '../../lib/format';
 import { colors, ui } from '../../lib/ui';
 
@@ -88,8 +89,6 @@ const HR_TABS: Array<{ key: Tab; label: string }> = [
   { key: 'lookups', label: 'Lookups' },
 ];
 
-const today = () => new Date().toISOString().slice(0, 10);
-
 type EmployeeDraft = {
   firstName: string;
   lastName: string;
@@ -118,7 +117,7 @@ const EMPTY_EMPLOYEE = (): EmployeeDraft => ({
   status: 'active',
   departmentId: '',
   designationId: '',
-  joiningDate: today(),
+  joiningDate: todayIso(),
   emiratesIdNumber: '',
   emiratesIdExpiry: '',
   passportNumber: '',
@@ -127,10 +126,6 @@ const EMPTY_EMPLOYEE = (): EmployeeDraft => ({
   workPermitExpiry: '',
   notes: '',
 });
-
-function toDateInput(value: string | null | undefined) {
-  return value ? value.slice(0, 10) : '';
-}
 
 function employeeLabel(
   employee?: {
@@ -267,13 +262,13 @@ export default function HrScreen() {
         status: detail.status,
         departmentId: detail.departmentId ?? '',
         designationId: detail.designationId ?? '',
-        joiningDate: toDateInput(detail.joiningDate),
+        joiningDate: dateInputValue(detail.joiningDate),
         emiratesIdNumber: detail.emiratesIdNumber ?? '',
-        emiratesIdExpiry: toDateInput(detail.emiratesIdExpiry),
+        emiratesIdExpiry: dateInputValue(detail.emiratesIdExpiry),
         passportNumber: detail.passportNumber ?? '',
-        passportExpiry: toDateInput(detail.passportExpiry),
-        visaExpiry: toDateInput(detail.visaExpiry),
-        workPermitExpiry: toDateInput(detail.workPermitExpiry),
+        passportExpiry: dateInputValue(detail.passportExpiry),
+        visaExpiry: dateInputValue(detail.visaExpiry),
+        workPermitExpiry: dateInputValue(detail.workPermitExpiry),
         notes: detail.notes ?? '',
       });
       setEditingId(item.id);
@@ -425,9 +420,6 @@ export default function HrScreen() {
     <View style={ui.screen}>
       <ScreenScroll>
         <Text style={ui.title}>Human Resource</Text>
-        <Text style={ui.lede}>
-          People, attendance, leave, and payroll for your company.
-        </Text>
         {error ? <Text style={ui.error}>{error}</Text> : null}
 
         <FilterChips

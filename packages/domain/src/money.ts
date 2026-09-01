@@ -62,10 +62,17 @@ export function calcVat(taxableAmount: number, rate = UAE_VAT_RATE) {
   };
 }
 
-export function formatMoney(amount: number, currency = 'AED'): string {
-  const value = roundMoney(amount).toLocaleString('en-AE', {
+export function formatAmount(amount: number): string {
+  return roundMoney(amount).toLocaleString('en-AE', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  return `${currency} ${value}`;
+}
+
+export function moneyColumn(label: string, currency = 'AED'): string {
+  return `${label} (${currency})`;
+}
+
+export function formatMoney(amount: number, currency = 'AED'): string {
+  return `${currency} ${formatAmount(amount)}`;
 }

@@ -34,6 +34,17 @@ export type CounterTopSectionPdf = {
   items: Array<{ label: string; value: string }>;
 };
 
+export type PdfDiscountBreakdown = {
+  lineGrossTotal?: number;
+  lineDiscountTotal?: number;
+  /** Applied document-level discount amount. */
+  discount?: number;
+  subtotal: number;
+  vatAmount: number;
+  total: number;
+  vatRate: number;
+};
+
 export type QuotationPdfData = {
   company: PdfCompany;
   customer: PdfParty;
@@ -48,6 +59,8 @@ export type QuotationPdfData = {
   vatAmount: number;
   total: number;
   vatRate: number;
+  lineGrossTotal?: number;
+  lineDiscountTotal?: number;
   /** Counter Top layout — sections, contact block, and split lookup blocks. */
   kind?: 'general' | 'counter_top';
   contactName?: string | null;
@@ -78,6 +91,9 @@ export type InvoicePdfData = {
   advanceApplied: number;
   netPayable: number;
   vatRate: number;
+  lineGrossTotal?: number;
+  lineDiscountTotal?: number;
+  discount?: number;
   allocations: Array<{ number: string; amount: number; receivedAt: string }>;
 };
 

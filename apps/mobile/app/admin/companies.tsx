@@ -88,7 +88,6 @@ export default function AdminCompaniesScreen() {
   return (
     <ScreenScroll>
       <Text style={ui.title}>Companies</Text>
-      <Text style={ui.lede}>Tenants, seats, and subscription status.</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
 
       <View style={ui.card}>

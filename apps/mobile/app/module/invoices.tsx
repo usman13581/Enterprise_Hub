@@ -9,7 +9,8 @@ import {
 } from 'react-native';
 import { computeInvoiceTotals } from '@marble/domain';
 import { apiPost } from '../../lib/api';
-import { day, label, money } from '../../lib/format';
+import { dueDateIso } from '../../lib/dates';
+import { amount, day, label } from '../../lib/format';
 import {
   searchItems,
   useFlash,
@@ -36,10 +37,15 @@ import {
   invoiceLinePayload,
   type InvoiceLineDraft,
 } from '../../components/MoneyForms';
+import {
+  discountPayload,
+  EMPTY_DISCOUNT,
+  type DiscountDraft,
+} from '../../components/DiscountInput';
 import type { Customer, Invoice, JobListItem } from '../../lib/types';
 import { colors, ui } from '../../lib/ui';
 
-type Filter = 'all' | 'issued' | 'cancelled' | 'credit_note';
+type Filter = 'all' | 'draft' | 'issued' | 'cancelled' | 'credit_note';
 type Kind = 'progressive' | 'custom' | 'final';
 
 type Draft = {
@@ -49,15 +55,17 @@ type Draft = {
   dueDate: string;
   notes: string;
   lines: InvoiceLineDraft[];
+  documentDiscount: DiscountDraft;
 };
 
 const EMPTY: Draft = {
   kind: 'custom',
   customerId: '',
   jobId: '',
-  dueDate: '',
+  dueDate: dueDateIso(),
   notes: '',
   lines: [{ ...EMPTY_INVOICE_LINE }],
+  documentDiscount: { ...EMPTY_DISCOUNT },
 };
 
 export default function InvoicesScreen() {
@@ -91,10 +99,19 @@ export default function InvoicesScreen() {
   );
   const invoiceTotal = computeInvoiceTotals(
     invoiceLinePayload(draft.lines),
+    allocationPayload(allocations).reduce(
+      (total, entry) => total + entry.amount,
+      0,
+    ),
+    discountPayload(draft.documentDiscount),
   ).total;
 
   function startCreate() {
-    setDraft({ ...EMPTY, lines: [{ ...EMPTY_INVOICE_LINE }] });
+    setDraft({
+      ...EMPTY,
+      dueDate: dueDateIso(),
+      lines: [{ ...EMPTY_INVOICE_LINE }],
+    });
     setAllocations({});
     setShowForm(true);
   }
@@ -109,16 +126,27 @@ export default function InvoicesScreen() {
         jobId: draft.jobId || null,
         dueDate: draft.dueDate || null,
         notes: draft.notes,
+        ...discountPayload(draft.documentDiscount),
         lines: invoiceLinePayload(draft.lines),
         allocations: allocationPayload(allocations),
       });
       setShowForm(false);
       await reload();
-      notify('Invoice issued');
+      notify('Invoice saved as draft');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not issue');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function issue(id: string) {
+    try {
+      await apiPost(`/invoices/${id}/issue`, {});
+      await reload();
+      notify('Invoice issued');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not issue');
     }
   }
 
@@ -144,9 +172,6 @@ export default function InvoicesScreen() {
     <View style={ui.screen}>
       <ScreenScroll>
         <Text style={ui.title}>Invoices</Text>
-        <Text style={ui.lede}>
-          UAE tax invoices with 5% VAT. Raise one here or from a job.
-        </Text>
         {error ? <Text style={ui.error}>{error}</Text> : null}
 
         {creditFor ? (
@@ -212,6 +237,10 @@ export default function InvoicesScreen() {
             <InvoiceLineEditor
               lines={draft.lines}
               onChange={(lines) => setDraft({ ...draft, lines })}
+              documentDiscount={draft.documentDiscount}
+              onDocumentDiscountChange={(documentDiscount) =>
+                setDraft({ ...draft, documentDiscount })
+              }
             />
             <AllocationPicker
               customerId={draft.customerId}
@@ -229,7 +258,7 @@ export default function InvoicesScreen() {
             />
             <RowActions>
               <ActionButton
-                label={saving ? 'Issuing…' : 'Issue'}
+                label={saving ? 'Saving…' : 'Save draft'}
                 tone="primary"
                 disabled={saving}
                 onPress={() => void save()}
@@ -258,6 +287,7 @@ export default function InvoicesScreen() {
               onChange={setFilter}
               options={[
                 { key: 'all', label: 'All' },
+                { key: 'draft', label: 'Draft' },
                 { key: 'issued', label: 'Issued' },
                 { key: 'cancelled', label: 'Cancelled' },
                 { key: 'credit_note', label: 'Credit notes' },
@@ -289,13 +319,26 @@ export default function InvoicesScreen() {
                   meta={[
                     invoice.customer?.name,
                     label(invoice.kind),
-                    money(invoice.netPayable),
+                    amount(invoice.netPayable),
                     invoice.job ? `Job ${invoice.job.number}` : null,
                     day(invoice.issueDate),
                   ]
                     .filter(Boolean)
                     .join(' · ')}
                 >
+                  {invoice.status === 'draft' ? (
+                    <>
+                      <LinkAction
+                        label="Issue"
+                        onPress={() => void issue(invoice.id)}
+                      />
+                      <LinkAction
+                        label="Cancel"
+                        tone="danger"
+                        onPress={() => void cancel(invoice.id)}
+                      />
+                    </>
+                  ) : null}
                   {invoice.status === 'issued' &&
                   invoice.kind !== 'credit_note' ? (
                     <>

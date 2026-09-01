@@ -95,7 +95,6 @@ export default function AdminHomeScreen() {
   return (
     <ScreenScroll>
       <Text style={styles.brand}>{APP_NAME}</Text>
-      <Text style={ui.lede}>Platform admin — applications and tenants.</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
 
       {overview ? (

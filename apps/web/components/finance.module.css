@@ -257,7 +257,7 @@
 .lineHead,
 .lineRow {
   display: grid;
-  grid-template-columns: minmax(160px, 2.2fr) 80px 82px 104px 104px 104px 36px;
+  grid-template-columns: minmax(140px, 2fr) 72px 72px 92px 92px minmax(108px, 1fr) 92px 36px;
   gap: 0.5rem;
   align-items: center;
   padding: 0.55rem 0.7rem;
@@ -301,6 +301,92 @@
   font-variant-numeric: tabular-nums;
   text-align: right;
   color: var(--muted);
+}
+
+.lineDiscountCompact {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.25rem;
+}
+
+.lineDiscountRow,
+.lineDiscountRowBlock {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.lineDiscountRowBlock {
+  margin-top: 0.75rem;
+}
+
+.lineDiscountLabel,
+.documentDiscountLabel {
+  flex: 0 0 auto;
+  font-size: 0.71rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.lineDiscountMode,
+.lineDiscountValue {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  font-size: 0.82rem;
+}
+
+.lineDiscountMode {
+  flex: 0 0 4.6rem;
+  min-width: 0;
+}
+
+.lineDiscountValue {
+  flex: 1 1 4.5rem;
+  min-width: 0;
+}
+
+.documentDiscountRow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-bottom: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.documentDiscountLabel {
+  margin-right: auto;
+}
+
+.lineAddButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.48rem 0.9rem;
+  border: 1px solid rgba(26, 107, 122, 0.35);
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lineAddButton:hover {
+  background: rgba(26, 107, 122, 0.16);
+}
+
+.purchasingLineEditor .lineHead,
+.purchasingLineEditor .lineRow {
+  grid-template-columns: minmax(160px, 2.4fr) 72px 82px 96px minmax(108px, 1fr) 96px 36px;
 }
 
 .lineHead .numeric {
@@ -465,7 +551,7 @@
 
   .lineHead,
   .lineRow {
-    grid-template-columns: minmax(140px, 2fr) 70px 72px 96px 96px 96px 36px;
+    grid-template-columns: minmax(140px, 2fr) 70px 72px 96px 96px minmax(108px, 1fr) 96px 36px;
     min-width: 40rem;
   }
 

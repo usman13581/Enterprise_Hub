@@ -82,7 +82,6 @@ export default function AdminAuditScreen() {
   return (
     <ScreenScroll>
       <Text style={ui.title}>Audit</Text>
-      <Text style={ui.lede}>Pick a company to inspect its audit trail.</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
 
       {loading ? (

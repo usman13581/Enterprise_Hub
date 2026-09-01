@@ -73,9 +73,6 @@ export default function AdminAuditPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Audit</h1>
-      <p className={page.lede}>
-        Pick a company to review its audit trail.
-      </p>
 
       {error ? <p className={styles.error}>{error}</p> : null}
 

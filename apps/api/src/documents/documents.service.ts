@@ -7,6 +7,7 @@ import {
   type PdfParty,
 } from '@marble/pdf';
 import { UAE_VAT_RATE } from '@marble/domain';
+import { resolveDisplayCurrency } from '@marble/types';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -79,6 +80,11 @@ export class DocumentsService {
         terms,
         bankDetails,
         discount: quotation.discount,
+        lineDiscountTotal: quotation.lineDiscountTotal,
+        lineGrossTotal:
+          quotation.subtotal +
+          quotation.lineDiscountTotal +
+          quotation.discount,
         vatRate,
         subtotal: quotation.subtotal,
         vatAmount: quotation.vatAmount,
@@ -137,6 +143,12 @@ export class DocumentsService {
       notes,
       terms,
       vatRate,
+      lineDiscountTotal: quotation.lineDiscountTotal,
+      lineGrossTotal:
+        quotation.subtotal +
+        quotation.lineDiscountTotal +
+        quotation.discount,
+      discount: quotation.discount,
       subtotal: quotation.subtotal,
       vatAmount: quotation.vatAmount,
       total: quotation.total,
@@ -171,6 +183,10 @@ export class DocumentsService {
       jobNumber: invoice.job?.number ?? null,
       notes: invoice.notes,
       vatRate: await this.vatRate(companyId),
+      lineDiscountTotal: invoice.lineDiscountTotal,
+      lineGrossTotal:
+        invoice.subtotal + invoice.lineDiscountTotal + invoice.discount,
+      discount: invoice.discount,
       subtotal: invoice.subtotal,
       vatAmount: invoice.vatAmount,
       total: invoice.total,
@@ -223,7 +239,7 @@ export class DocumentsService {
     });
     if (!invoice) throw new NotFoundException('Purchase invoice not found');
     const buffer = await renderInvoicePdf({
-      company: await this.company(companyId),
+      company: await this.company(companyId, invoice.currency),
       customer: this.party(invoice.supplier),
       number: invoice.number,
       kind: 'purchase_invoice',
@@ -233,6 +249,10 @@ export class DocumentsService {
       jobNumber: null,
       notes: invoice.notes,
       vatRate: invoice.vatRate,
+      lineDiscountTotal: invoice.lineDiscountTotal,
+      lineGrossTotal:
+        invoice.subtotal + invoice.lineDiscountTotal + invoice.discount,
+      discount: invoice.discount,
       subtotal: invoice.subtotal,
       vatAmount: invoice.inputVat,
       total: invoice.total,
@@ -258,7 +278,7 @@ export class DocumentsService {
     if (!lpo) throw new NotFoundException('LPO not found');
     const buffer = await renderQuotationPdf({
       kind: 'general',
-      company: await this.company(companyId),
+      company: await this.company(companyId, lpo.currency),
       customer: this.party(lpo.supplier),
       number: lpo.number,
       status: lpo.status,
@@ -268,6 +288,9 @@ export class DocumentsService {
       notes: lpo.notes,
       terms: null,
       vatRate: lpo.lines[0]?.vatRate ?? 0,
+      lineDiscountTotal: lpo.lineDiscountTotal,
+      lineGrossTotal: lpo.subtotal + lpo.lineDiscountTotal + lpo.discount,
+      discount: lpo.discount,
       subtotal: lpo.subtotal,
       vatAmount: lpo.inputVat,
       total: lpo.total,
@@ -282,7 +305,10 @@ export class DocumentsService {
     return { buffer, filename: `lpo-${lpo.number}.pdf` };
   }
 
-  private async company(companyId: string): Promise<PdfCompany> {
+  private async company(
+    companyId: string,
+    documentCurrency?: string | null,
+  ): Promise<PdfCompany> {
     const profile = await this.prisma.companyProfile.findUnique({
       where: { companyId },
     });
@@ -301,7 +327,7 @@ export class DocumentsService {
       bankDetails: profile?.bankDetails ?? null,
       logoUrl: this.absolute(profile?.logoUrl),
       signatureUrl: this.absolute(profile?.signatureUrl),
-      currency: profile?.currency ?? 'AED',
+      currency: resolveDisplayCurrency(profile?.currency, documentCurrency),
     };
   }
 

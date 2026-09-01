@@ -124,7 +124,6 @@ export default function AdminApplicationsScreen() {
   return (
     <ScreenScroll>
       <Text style={ui.title}>Applications</Text>
-      <Text style={ui.lede}>Approve or reject new company applications.</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
       <SearchBox
         value={query}

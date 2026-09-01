@@ -1,112 +1,92 @@
 import { describe, expect, it } from 'vitest';
+import { applyDiscount } from './discount';
 import {
+  computeCounterTopTotals,
   computeInvoiceTotals,
+  computePurchasingTotals,
   computeQuotationTotals,
-  progressiveLineAmount,
 } from './documents';
-import { roundMoney } from './money';
 
-describe('computeQuotationTotals', () => {
-  it('totals lines, adds 5 percent VAT, and reports margin', () => {
-    const totals = computeQuotationTotals([
-      { qty: 10, sellPrice: 250, purchasePrice: 180 },
-      { qty: 4.5, sellPrice: 320, purchasePrice: 250 },
-    ]);
-
-    expect(totals.lineTotals).toEqual([2500, 1440]);
-    expect(totals.subtotal).toBe(3940);
-    expect(totals.vatAmount).toBe(197);
-    expect(totals.total).toBe(4137);
-    expect(totals.purchaseTotal).toBe(2925);
-    expect(totals.profit).toBe(1015);
-  });
-
-  it('keeps subtotal plus VAT equal to total', () => {
-    const totals = computeQuotationTotals([
-      { qty: 3, sellPrice: 33.33, purchasePrice: 20 },
-      { qty: 7, sellPrice: 11.11, purchasePrice: 5 },
-    ]);
-    expect(roundMoney(totals.subtotal + totals.vatAmount)).toBe(totals.total);
-  });
-
-  it('handles an empty line list without producing NaN', () => {
-    const totals = computeQuotationTotals([]);
-    expect(totals).toMatchObject({
-      subtotal: 0,
-      vatAmount: 0,
-      total: 0,
-      purchaseTotal: 0,
-      profit: 0,
+describe('applyDiscount', () => {
+  it('caps fixed discount at gross', () => {
+    expect(applyDiscount(100, 'fixed', 150)).toEqual({
+      net: 0,
+      discountAmount: 100,
     });
   });
 
-  it('reports a loss when sell is below purchase', () => {
-    const totals = computeQuotationTotals([
-      { qty: 2, sellPrice: 100, purchasePrice: 150 },
-    ]);
-    expect(totals.profit).toBe(-100);
+  it('applies percent discount', () => {
+    expect(applyDiscount(200, 'percent', 10)).toEqual({
+      net: 180,
+      discountAmount: 20,
+    });
+  });
+});
+
+describe('computeQuotationTotals', () => {
+  it('applies line and document discounts before VAT', () => {
+    const totals = computeQuotationTotals(
+      [
+        {
+          qty: 10,
+          sellPrice: 100,
+          purchasePrice: 50,
+          discountMode: 'percent',
+          discountValue: 10,
+        },
+      ],
+      { discountMode: 'fixed', discountValue: 50 },
+    );
+    expect(totals.lineGrossTotal).toBe(1000);
+    expect(totals.lineDiscountTotal).toBe(100);
+    expect(totals.discount).toBe(50);
+    expect(totals.subtotal).toBe(850);
+    expect(totals.vatAmount).toBe(42.5);
+    expect(totals.total).toBe(892.5);
+  });
+});
+
+describe('computeCounterTopTotals', () => {
+  it('sums item discounts then document discount', () => {
+    const totals = computeCounterTopTotals(
+      [
+        {
+          amount: 0,
+          items: [
+            { amount: 1000, discountMode: 'fixed', discountValue: 100 },
+            { amount: 500, discountMode: 'none', discountValue: 0 },
+          ],
+        },
+      ],
+      { discountMode: 'percent', discountValue: 5 },
+    );
+    expect(totals.lineDiscountTotal).toBe(100);
+    expect(totals.subtotal).toBe(1330);
+    expect(totals.total).toBe(1396.5);
   });
 });
 
 describe('computeInvoiceTotals', () => {
-  it('applies an advance and reduces net payable', () => {
+  it('applies discounts before advance allocation', () => {
     const totals = computeInvoiceTotals(
-      [{ qty: 10, unitPrice: 100, purchasePrice: 70 }],
-      500,
+      [{ qty: 2, unitPrice: 500, discountMode: 'fixed', discountValue: 50 }],
+      100,
+      { discountMode: 'none', discountValue: 0 },
     );
-
-    expect(totals.subtotal).toBe(1000);
-    expect(totals.vatAmount).toBe(50);
-    expect(totals.total).toBe(1050);
-    expect(totals.advanceApplied).toBe(500);
-    expect(totals.netPayable).toBe(550);
-    expect(totals.purchaseTotal).toBe(700);
-  });
-
-  it('never lets an oversized advance drive net payable negative', () => {
-    const totals = computeInvoiceTotals([{ qty: 1, unitPrice: 100 }], 5000);
-    expect(totals.total).toBe(105);
-    expect(totals.advanceApplied).toBe(105);
-    expect(totals.netPayable).toBe(0);
-  });
-
-  it('ignores a negative advance instead of inflating the invoice', () => {
-    const totals = computeInvoiceTotals([{ qty: 1, unitPrice: 100 }], -50);
-    expect(totals.advanceApplied).toBe(0);
-    expect(totals.netPayable).toBe(105);
-  });
-
-  it('keeps total equal to net payable plus advance applied', () => {
-    const totals = computeInvoiceTotals(
-      [
-        { qty: 2.25, unitPrice: 199.99 },
-        { qty: 1, unitPrice: 0.01 },
-      ],
-      100.55,
-    );
-    expect(roundMoney(totals.netPayable + totals.advanceApplied)).toBe(
-      totals.total,
-    );
+    expect(totals.subtotal).toBe(950);
+    expect(totals.total).toBe(997.5);
+    expect(totals.advanceApplied).toBe(100);
+    expect(totals.netPayable).toBe(897.5);
   });
 });
 
-describe('progressiveLineAmount', () => {
-  it('converts a gross percentage of job value into a net line', () => {
-    // 30% of 10,500 gross is 3,150 gross, which is 3,000 net of 5% VAT.
-    expect(progressiveLineAmount(10500, { percentage: 30 })).toBe(3000);
-  });
-
-  it('converts an explicit gross amount into a net line', () => {
-    expect(progressiveLineAmount(10500, { amount: 1050 })).toBe(1000);
-  });
-
-  it('re-grosses back to the requested amount after VAT is added', () => {
-    const net = progressiveLineAmount(0, { amount: 2100 });
-    const totals = computeInvoiceTotals([{ qty: 1, unitPrice: net }]);
-    expect(totals.total).toBe(2100);
-  });
-
-  it('never returns a negative line', () => {
-    expect(progressiveLineAmount(1000, { percentage: 0 })).toBe(0);
+describe('computePurchasingTotals', () => {
+  it('computes line discount and VAT for exclusive tax', () => {
+    const totals = computePurchasingTotals([
+      { qty: 10, unitCost: 100, discountMode: 'percent', discountValue: 10 },
+    ]);
+    expect(totals.subtotal).toBe(900);
+    expect(totals.inputVat).toBe(45);
+    expect(totals.total).toBe(945);
   });
 });

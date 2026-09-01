@@ -135,9 +135,6 @@ export default function CustomersScreen() {
     <View style={ui.screen}>
       <ScreenScroll>
         <Text style={ui.title}>Customers</Text>
-        <Text style={ui.lede}>
-          Customer records for quotations, jobs, and invoices.
-        </Text>
 
         {error ? <Text style={ui.error}>{error}</Text> : null}
 

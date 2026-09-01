@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   createHarness,
+  issueCreated,
+  approveCreatedAdvance,
   seedApprovedJob,
   seedCustomer,
   type Harness,
@@ -28,10 +30,10 @@ describe('invoicing and money movement', () => {
     it('records an advance and credits the customer ledger', async () => {
       const { customerId, job } = await seedApprovedJob(h);
 
-      const advance = await h
+      const advance = await approveCreatedAdvance(h, await h
         .post('/advances')
         .send({ customerId, jobId: job.id, amount: 4000, method: 'bank_transfer' })
-        .expect(201);
+        .expect(201));
 
       expect(advance.body.number).toBe('TADV-0001');
       expect(advance.body.unallocatedAmount).toBe(4000);
@@ -70,10 +72,10 @@ describe('invoicing and money movement', () => {
 
     it('cancels an unallocated advance and reverses its ledger credit', async () => {
       const customer = await seedCustomer(h, 'Cancellable advance');
-      const advance = await h
+      const advance = await approveCreatedAdvance(h, await h
         .post('/advances')
         .send({ customerId: customer.id, amount: 750 })
-        .expect(201);
+        .expect(201));
 
       expect(await balance(h, customer.id)).toBe(-750);
       await h.del(`/advances/${advance.body.id}`).expect(200);
@@ -90,10 +92,10 @@ describe('invoicing and money movement', () => {
       const { customerId, job } = await seedApprovedJob(h);
       expect(job.jobValue).toBe(10500);
 
-      const invoice = await h
+      const invoice = await issueCreated(h, await h
         .post(`/invoices/jobs/${job.id}/progressive`)
         .send({ percentage: 30 })
-        .expect(201);
+        .expect(201));
 
       expect(invoice.body.kind).toBe('progressive');
       expect(invoice.body.subtotal).toBe(3000);
@@ -105,10 +107,10 @@ describe('invoicing and money movement', () => {
 
     it('bills an explicit gross amount', async () => {
       const { job } = await seedApprovedJob(h);
-      const invoice = await h
+      const invoice = await issueCreated(h, await h
         .post(`/invoices/jobs/${job.id}/progressive`)
         .send({ amount: 2100 })
-        .expect(201);
+        .expect(201));
 
       expect(invoice.body.subtotal).toBe(2000);
       expect(invoice.body.total).toBe(2100);
@@ -139,10 +141,10 @@ describe('invoicing and money movement', () => {
     it('still allows a final invoice after the job is completed', async () => {
       const { job } = await seedApprovedJob(h);
       await h.post(`/jobs/${job.id}/complete`).expect(201);
-      await h
+      await issueCreated(h, await h
         .post(`/invoices/jobs/${job.id}/progressive`)
         .send({ percentage: 50 })
-        .expect(201);
+        .expect(201));
     });
   });
 
@@ -150,10 +152,10 @@ describe('invoicing and money movement', () => {
     it('reduces net payable without changing the overall balance', async () => {
       const { customerId, job } = await seedApprovedJob(h);
 
-      await h
+      await approveCreatedAdvance(h, await h
         .post('/advances')
         .send({ customerId, jobId: job.id, amount: 3000 })
-        .expect(201);
+        .expect(201));
       const available = await h
         .get(`/invoices/available-advances?customerId=${customerId}&jobId=${job.id}`)
         .expect(200);
@@ -181,10 +183,10 @@ describe('invoicing and money movement', () => {
 
     it('marks the advance as consumed', async () => {
       const { customerId, job } = await seedApprovedJob(h);
-      const advance = await h
+      const advance = await approveCreatedAdvance(h, await h
         .post('/advances')
         .send({ customerId, jobId: job.id, amount: 1000 })
-        .expect(201);
+        .expect(201));
 
       await h
         .post(`/invoices/jobs/${job.id}/progressive`)
@@ -201,10 +203,10 @@ describe('invoicing and money movement', () => {
 
     it('refuses to allocate more than the advance holds', async () => {
       const { customerId, job } = await seedApprovedJob(h);
-      const advance = await h
+      const advance = await approveCreatedAdvance(h, await h
         .post('/advances')
         .send({ customerId, jobId: job.id, amount: 500 })
-        .expect(201);
+        .expect(201));
 
       await h
         .post(`/invoices/jobs/${job.id}/progressive`)
@@ -217,10 +219,10 @@ describe('invoicing and money movement', () => {
 
     it('refuses to spend the same advance twice across invoices', async () => {
       const { customerId, job } = await seedApprovedJob(h);
-      const advance = await h
+      const advance = await approveCreatedAdvance(h, await h
         .post('/advances')
         .send({ customerId, jobId: job.id, amount: 1000 })
-        .expect(201);
+        .expect(201));
 
       await h
         .post(`/invoices/jobs/${job.id}/progressive`)
@@ -242,10 +244,10 @@ describe('invoicing and money movement', () => {
     it('refuses to allocate another customer\u2019s advance', async () => {
       const { job } = await seedApprovedJob(h);
       const stranger = await seedCustomer(h, 'Other payer');
-      const foreignAdvance = await h
+      const foreignAdvance = await approveCreatedAdvance(h, await h
         .post('/advances')
         .send({ customerId: stranger.id, amount: 500 })
-        .expect(201);
+        .expect(201));
 
       await h
         .post(`/invoices/jobs/${job.id}/progressive`)
@@ -258,10 +260,10 @@ describe('invoicing and money movement', () => {
 
     it('refuses to allocate more than the invoice total', async () => {
       const { customerId, job } = await seedApprovedJob(h);
-      const advance = await h
+      const advance = await approveCreatedAdvance(h, await h
         .post('/advances')
         .send({ customerId, jobId: job.id, amount: 9000 })
-        .expect(201);
+        .expect(201));
 
       await h
         .post(`/invoices/jobs/${job.id}/progressive`)
@@ -274,10 +276,10 @@ describe('invoicing and money movement', () => {
 
     it('blocks editing an advance once it is applied', async () => {
       const { customerId, job } = await seedApprovedJob(h);
-      const advance = await h
+      const advance = await approveCreatedAdvance(h, await h
         .post('/advances')
         .send({ customerId, jobId: job.id, amount: 1000 })
-        .expect(201);
+        .expect(201));
       await h
         .post(`/invoices/jobs/${job.id}/progressive`)
         .send({
@@ -298,16 +300,16 @@ describe('invoicing and money movement', () => {
     it('bills exactly the un-invoiced remainder', async () => {
       const { customerId, job } = await seedApprovedJob(h);
 
-      await h
+      await issueCreated(h, await h
         .post(`/invoices/jobs/${job.id}/progressive`)
         .send({ percentage: 40 })
-        .expect(201);
+        .expect(201));
       await h.post(`/jobs/${job.id}/complete`).expect(201);
 
-      const final = await h
+      const final = await issueCreated(h, await h
         .post(`/invoices/jobs/${job.id}/final`)
         .send({})
-        .expect(201);
+        .expect(201));
 
       expect(final.body.kind).toBe('final');
       expect(final.body.total).toBe(6300);
@@ -320,10 +322,10 @@ describe('invoicing and money movement', () => {
 
     it('refuses a final invoice when nothing remains', async () => {
       const { job } = await seedApprovedJob(h);
-      await h
+      await issueCreated(h, await h
         .post(`/invoices/jobs/${job.id}/progressive`)
         .send({ percentage: 100 })
-        .expect(201);
+        .expect(201));
       await h.post(`/invoices/jobs/${job.id}/final`).send({}).expect(409);
     });
   });
@@ -332,7 +334,7 @@ describe('invoicing and money movement', () => {
     it('creates an invoice from the customer entry point', async () => {
       const { customerId, job } = await seedApprovedJob(h);
 
-      const invoice = await h
+      const invoice = await issueCreated(h, await h
         .post('/invoices')
         .send({
           kind: 'custom',
@@ -348,7 +350,7 @@ describe('invoicing and money movement', () => {
             },
           ],
         })
-        .expect(201);
+        .expect(201));
 
       expect(invoice.body.subtotal).toBe(500);
       expect(invoice.body.vatAmount).toBe(25);
@@ -386,14 +388,14 @@ describe('invoicing and money movement', () => {
 
     it('allows a standalone invoice with no job', async () => {
       const customer = await seedCustomer(h, 'No job');
-      const invoice = await h
+      const invoice = await issueCreated(h, await h
         .post('/invoices')
         .send({
           kind: 'custom',
           customerId: customer.id,
           lines: [{ description: 'Consultancy', qty: 1, unitPrice: 1000 }],
         })
-        .expect(201);
+        .expect(201));
       expect(invoice.body.jobId).toBeNull();
       expect(invoice.body.total).toBe(1050);
     });
@@ -402,21 +404,21 @@ describe('invoicing and money movement', () => {
   describe('credit notes', () => {
     it('credits the customer and reduces billed value', async () => {
       const { customerId, job } = await seedApprovedJob(h);
-      const invoice = await h
+      const invoice = await issueCreated(h, await h
         .post(`/invoices/jobs/${job.id}/progressive`)
         .send({ percentage: 100 })
-        .expect(201);
+        .expect(201));
 
       expect(await balance(h, customerId)).toBe(10500);
 
-      const creditNote = await h
+      const creditNote = await issueCreated(h, await h
         .post('/invoices/credit-notes')
         .send({
           invoiceId: invoice.body.id,
           reason: 'Two slabs returned',
           lines: [{ description: 'Returned slabs', qty: 2, unitPrice: 250 }],
         })
-        .expect(201);
+        .expect(201));
 
       expect(creditNote.body.kind).toBe('credit_note');
       expect(creditNote.body.number).toBe('TCN-0001');
@@ -426,10 +428,10 @@ describe('invoicing and money movement', () => {
 
     it('refuses a credit note larger than the invoice', async () => {
       const { job } = await seedApprovedJob(h);
-      const invoice = await h
+      const invoice = await issueCreated(h, await h
         .post(`/invoices/jobs/${job.id}/progressive`)
         .send({ percentage: 10 })
-        .expect(201);
+        .expect(201));
 
       await h
         .post('/invoices/credit-notes')
@@ -443,18 +445,18 @@ describe('invoicing and money movement', () => {
 
     it('refuses to credit a credit note', async () => {
       const { job } = await seedApprovedJob(h);
-      const invoice = await h
+      const invoice = await issueCreated(h, await h
         .post(`/invoices/jobs/${job.id}/progressive`)
         .send({ percentage: 50 })
-        .expect(201);
-      const creditNote = await h
+        .expect(201));
+      const creditNote = await issueCreated(h, await h
         .post('/invoices/credit-notes')
         .send({
           invoiceId: invoice.body.id,
           reason: 'Adjust',
           lines: [{ description: 'Adjust', qty: 1, unitPrice: 100 }],
         })
-        .expect(201);
+        .expect(201));
 
       await h
         .post('/invoices/credit-notes')
@@ -470,24 +472,24 @@ describe('invoicing and money movement', () => {
   describe('cancelling an invoice', () => {
     it('reverses the ledger and releases the advances it claimed', async () => {
       const { customerId, job } = await seedApprovedJob(h);
-      const advance = await h
+      const advance = await approveCreatedAdvance(h, await h
         .post('/advances')
         .send({ customerId, jobId: job.id, amount: 2000 })
-        .expect(201);
+        .expect(201));
 
-      const invoice = await h
+      const invoice = await issueCreated(h, await h
         .post(`/invoices/jobs/${job.id}/progressive`)
         .send({
           percentage: 50,
           allocations: [{ advanceId: advance.body.id, amount: 2000 }],
         })
-        .expect(201);
+        .expect(201));
 
       expect(await balance(h, customerId)).toBe(3250);
 
-      const cancelled = await h
+      const cancelled = await issueCreated(h, await h
         .post(`/invoices/${invoice.body.id}/cancel`)
-        .expect(201);
+        .expect(201));
       expect(cancelled.body.status).toBe('cancelled');
 
       // Back to just the advance sitting as a credit.
@@ -502,10 +504,10 @@ describe('invoicing and money movement', () => {
 
     it('excludes a cancelled invoice from job billing progress', async () => {
       const { job } = await seedApprovedJob(h);
-      const invoice = await h
+      const invoice = await issueCreated(h, await h
         .post(`/invoices/jobs/${job.id}/progressive`)
         .send({ percentage: 60 })
-        .expect(201);
+        .expect(201));
       await h.post(`/invoices/${invoice.body.id}/cancel`).expect(201);
 
       const hub = await h.get(`/jobs/${job.id}/hub`).expect(200);
@@ -515,10 +517,10 @@ describe('invoicing and money movement', () => {
 
     it('cannot cancel twice', async () => {
       const { job } = await seedApprovedJob(h);
-      const invoice = await h
+      const invoice = await issueCreated(h, await h
         .post(`/invoices/jobs/${job.id}/progressive`)
         .send({ percentage: 10 })
-        .expect(201);
+        .expect(201));
       await h.post(`/invoices/${invoice.body.id}/cancel`).expect(201);
       await h.post(`/invoices/${invoice.body.id}/cancel`).expect(409);
     });
@@ -530,21 +532,21 @@ describe('invoicing and money movement', () => {
       const { job } = await seedApprovedJob(h, { customerId: customer.id });
 
       // 10,500 gross job. Advance 5,000, bill 40%, then settle the rest.
-      const advance = await h
+      const advance = await approveCreatedAdvance(h, await h
         .post('/advances')
         .send({ customerId: customer.id, jobId: job.id, amount: 5000 })
-        .expect(201);
+        .expect(201));
 
-      await h
+      await issueCreated(h, await h
         .post(`/invoices/jobs/${job.id}/progressive`)
         .send({
           percentage: 40,
           allocations: [{ advanceId: advance.body.id, amount: 4200 }],
         })
-        .expect(201);
+        .expect(201));
 
       await h.post(`/jobs/${job.id}/complete`).expect(201);
-      await h.post(`/invoices/jobs/${job.id}/final`).send({}).expect(201);
+      await issueCreated(h, await h.post(`/invoices/jobs/${job.id}/final`).send({}).expect(201));
 
       const hub = await h.get(`/jobs/${job.id}/hub`).expect(200);
       expect(hub.body.financials.invoicedToDate).toBe(10500);
@@ -559,10 +561,10 @@ describe('invoicing and money movement', () => {
       expect(customerHub.body.summary.unallocatedAdvances).toBe(800);
 
       // Settle the remaining 5,500 as a further receipt, then the account clears.
-      await h
+      await approveCreatedAdvance(h, await h
         .post('/advances')
         .send({ customerId: customer.id, jobId: job.id, amount: 5500 })
-        .expect(201);
+        .expect(201));
       expect(await balance(h, customer.id)).toBe(0);
 
       await h.post(`/jobs/${job.id}/close`).expect(201);

@@ -18,7 +18,15 @@ import {
   type QuotationLookupAppliesTo,
   type QuotationLookupCategory,
 } from '@marble/types';
+import {
+  discountFromStored,
+  discountPayload,
+  DiscountInput,
+  EMPTY_DISCOUNT,
+  type DiscountDraft,
+} from '../../components/DiscountInput';
 import { apiFetch, apiPost, apiPut } from '../../lib/api';
+import { dueDateIso } from '../../lib/dates';
 import { day, money } from '../../lib/format';
 import {
   searchItems,
@@ -53,6 +61,8 @@ type LineDraft = {
   purchasePrice: string;
   sellPrice: string;
   productId: string;
+  discountMode: DiscountDraft['discountMode'];
+  discountValue: string;
 };
 
 type Draft = {
@@ -62,6 +72,7 @@ type Draft = {
   notes: string;
   lines: LineDraft[];
   lookupIds: string[];
+  documentDiscount: DiscountDraft;
 };
 
 const EMPTY_LINE: LineDraft = {
@@ -71,15 +82,18 @@ const EMPTY_LINE: LineDraft = {
   purchasePrice: '0',
   sellPrice: '0',
   productId: '',
+  discountMode: 'none',
+  discountValue: '0',
 };
 
 const EMPTY: Draft = {
   customerId: '',
   title: '',
-  validUntil: '',
+  validUntil: dueDateIso(),
   notes: '',
   lines: [{ ...EMPTY_LINE }],
   lookupIds: [],
+  documentDiscount: { ...EMPTY_DISCOUNT },
 };
 
 const num = (value: string) => {
@@ -185,14 +199,24 @@ export default function QuotationsScreen() {
     qty: num(line.qty),
     purchasePrice: num(line.purchasePrice),
     sellPrice: num(line.sellPrice),
+    discountMode: line.discountMode,
+    discountValue: num(line.discountValue),
   }));
-  const totals = computeQuotationTotals(payloadLines);
+  const totals = computeQuotationTotals(
+    payloadLines,
+    discountPayload(draft.documentDiscount),
+  );
 
   function startCreate() {
     setEditingId(null);
     setKind('general');
     if (!canCounterTop) {
-      setDraft({ ...EMPTY, lines: [{ ...EMPTY_LINE }], lookupIds: [] });
+      setDraft({
+        ...EMPTY,
+        validUntil: dueDateIso(),
+        lines: [{ ...EMPTY_LINE }],
+        lookupIds: [],
+      });
       setStep('general-form');
       return;
     }
@@ -208,7 +232,12 @@ export default function QuotationsScreen() {
       router.push('/module/quotations-counter-top' as never);
       return;
     }
-    setDraft({ ...EMPTY, lines: [{ ...EMPTY_LINE }], lookupIds: [] });
+    setDraft({
+      ...EMPTY,
+      validUntil: dueDateIso(),
+      lines: [{ ...EMPTY_LINE }],
+      lookupIds: [],
+    });
     setStep('general-form');
   }
 
@@ -231,8 +260,15 @@ export default function QuotationsScreen() {
         qty: String(line.qty),
         purchasePrice: String(line.purchasePrice),
         sellPrice: String(line.sellPrice),
+        discountMode:
+          (line.discountMode as DiscountDraft['discountMode']) ?? 'none',
+        discountValue: String(line.discountValue ?? 0),
       })),
       lookupIds: (quotation.lookups ?? []).map((l) => l.id),
+      documentDiscount: discountFromStored(
+        quotation.discountMode,
+        quotation.discountValue,
+      ),
     });
     setEditingId(quotation.id);
     setStep('general-form');
@@ -248,7 +284,7 @@ export default function QuotationsScreen() {
         title: draft.title,
         validUntil: draft.validUntil || null,
         notes: draft.notes,
-        discount: 0,
+        ...discountPayload(draft.documentDiscount),
         lookupIds: draft.lookupIds,
         lines: payloadLines,
         sections: [],
@@ -311,9 +347,6 @@ export default function QuotationsScreen() {
     <View style={ui.screen}>
       <ScreenScroll>
         <Text style={ui.title}>Quotations</Text>
-        <Text style={ui.lede}>
-          General lines or Counter Top sections. Approve opens a job.
-        </Text>
         {error ? <Text style={ui.error}>{error}</Text> : null}
 
         <FilterChips
@@ -622,6 +655,20 @@ export default function QuotationsScreen() {
                     placeholderTextColor={colors.soft}
                   />
                 </View>
+                <DiscountInput
+                  label="Line discount"
+                  compact
+                  value={{
+                    discountMode: line.discountMode,
+                    discountValue: line.discountValue,
+                  }}
+                  onChange={(discount) =>
+                    patchLine(index, {
+                      discountMode: discount.discountMode,
+                      discountValue: discount.discountValue,
+                    })
+                  }
+                />
                 <Text style={ui.cardMeta}>
                   Line total {money(totals.lineTotals[index] ?? 0)}
                 </Text>
@@ -643,7 +690,7 @@ export default function QuotationsScreen() {
             ))}
 
             <Pressable
-              style={[ui.ghost, { marginTop: 12, alignSelf: 'flex-start' }]}
+              style={styles.addLineButton}
               onPress={() =>
                 setDraft({
                   ...draft,
@@ -651,12 +698,24 @@ export default function QuotationsScreen() {
                 })
               }
             >
-              <Text style={ui.ghostText}>+ Add line</Text>
+              <Text style={styles.addLineButtonText}>+ Add line</Text>
             </Pressable>
 
+            <DiscountInput
+              label="Document discount"
+              value={draft.documentDiscount}
+              onChange={(documentDiscount) =>
+                setDraft({ ...draft, documentDiscount })
+              }
+            />
+
             <Text style={[ui.cardMeta, { marginTop: 12 }]}>
-              Subtotal {money(totals.subtotal)} · VAT {money(totals.vatAmount)}{' '}
-              · Total {money(totals.total)} · Margin {money(totals.profit)}
+              {totals.lineDiscountTotal > 0
+                ? `Line disc. ${money(totals.lineDiscountTotal)} · `
+                : ''}
+              {totals.discount > 0 ? `Doc disc. ${money(totals.discount)} · ` : ''}
+              Taxable {money(totals.subtotal)} · VAT {money(totals.vatAmount)} ·
+              Total {money(totals.total)} · Margin {money(totals.profit)}
             </Text>
 
             <Text style={ui.label}>Notes</Text>
@@ -837,4 +896,19 @@ const styles = {
   },
   row: { flexDirection: 'row' as const, gap: 8, marginTop: 8 },
   half: { flex: 1 },
+  addLineButton: {
+    marginTop: 12,
+    alignSelf: 'flex-start' as const,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 9,
+    backgroundColor: colors.accentSoft,
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  addLineButtonText: {
+    color: colors.accent,
+    fontWeight: '700' as const,
+    fontSize: 14,
+  },
 };

@@ -9,10 +9,6 @@ export default function ReportsIndexPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Reports</h1>
-      <p className={page.lede}>
-        Browse by category, search by name, then open a report for parameters,
-        on-screen summary, table, and Print PDF.
-      </p>
 
       <ReportCatalog />
 

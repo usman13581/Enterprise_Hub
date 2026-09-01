@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { apiFetch, apiPost, apiUploadImage } from '../../lib/api';
+import { todayIso } from '../../lib/dates';
 import { day, label, money } from '../../lib/format';
 import {
   searchItems,
@@ -64,7 +65,7 @@ export default function SubscriptionScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [amount, setAmount] = useState('');
-  const [paidAt, setPaidAt] = useState(new Date().toISOString().slice(0, 10));
+  const [paidAt, setPaidAt] = useState(todayIso());
   const [bankReference, setBankReference] = useState('');
   const [notes, setNotes] = useState('');
   const [depositUrl, setDepositUrl] = useState('');
@@ -182,10 +183,6 @@ export default function SubscriptionScreen() {
   return (
     <ScreenScroll>
       <Text style={ui.title}>Subscription</Text>
-      <Text style={ui.lede}>
-        Plan dates and seats for this company.
-        {isAdmin ? ' Admins can submit a bank-deposit renewal.' : ''}
-      </Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
       {loading ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />

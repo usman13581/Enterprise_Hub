@@ -117,6 +117,11 @@ export class PurchasingController {
     return this.purchasing.createSupplierPayment(session, body);
   }
 
+  @Post('supplier-payments/:id/approve')
+  approveSupplierPayment(@CurrentSession() session: SessionContext, @Param('id') id: string) {
+    return this.purchasing.approveSupplierPayment(session, id);
+  }
+
   @Get('supplier-payments')
   supplierPayments(@CurrentSession() session: SessionContext, @Query('supplierId') supplierId?: string) {
     return this.purchasing.listSupplierPayments(session, supplierId);

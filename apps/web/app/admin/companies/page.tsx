@@ -60,7 +60,6 @@ export default function AdminCompaniesPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Companies</h1>
-      <p className={page.lede}>All tenant companies on the platform.</p>
 
       <div className={styles.toolbar}>
         <span className={styles.count}>{filtered.length} companies</span>

@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { openPdf } from '@/lib/api';
-import { balanceTone, day, label, money } from '@/lib/format';
+import { amount as formatAmount, balanceTone, day, label, moneyHeader } from '@/lib/format';
+import { useCompanyCurrency } from '@/lib/company-currency';
 import type { LedgerEntry } from '@/lib/types';
 import page from '../app/page.module.css';
 import crud from './crud.module.css';
@@ -51,8 +52,8 @@ export function BalanceStat({
 
   return (
     <Stat
-      title={title}
-      value={money(Math.abs(amount), currency)}
+      title={moneyHeader(title, currency)}
+      value={formatAmount(Math.abs(amount))}
       hint={hint}
       tone={tone}
     />
@@ -65,6 +66,11 @@ const BADGE_CLASS: Record<string, string> = {
   approved: styles.badgeDone,
   completed: styles.badgeDone,
   issued: styles.badgeDone,
+  posted: styles.badgeDone,
+  paid: styles.badgeDone,
+  sent: styles.badgeOpen,
+  partially_paid: styles.badgeOpen,
+  partially_received: styles.badgeOpen,
   closed: styles.badgeDraft,
   cancelled: styles.badgeDanger,
   credit_note: styles.badgeDanger,
@@ -141,17 +147,20 @@ export function TotalsBlock({
   grand: [string, number];
   currency?: string;
 }) {
+  const companyCode = useCompanyCurrency();
+  const code = companyCode || currency;
+  const grandLabel = grand[0].includes('(') ? grand[0] : moneyHeader(grand[0], code);
   return (
     <div className={styles.totalsStack}>
       {rows.map(([rowLabel, value]) => (
         <div key={rowLabel} className={styles.totalsRow}>
           <span>{rowLabel}</span>
-          <span className={styles.numericValue}>{money(value, currency)}</span>
+          <span className={styles.numericValue}>{formatAmount(value)}</span>
         </div>
       ))}
       <div className={styles.totalsRowStrong}>
-        <span>{grand[0]}</span>
-        <span className={styles.numericValue}>{money(grand[1], currency)}</span>
+        <span>{grandLabel}</span>
+        <span className={styles.numericValue}>{formatAmount(grand[1])}</span>
       </div>
     </div>
   );
@@ -180,9 +189,9 @@ export function LedgerTable({ rows }: { rows: LedgerEntry[] }) {
             <th>Date</th>
             <th>Entry</th>
             <th>Memo</th>
-            <th className={styles.numeric}>Debit</th>
-            <th className={styles.numeric}>Credit</th>
-            <th className={styles.numeric}>Balance</th>
+            <th className={styles.numeric}>{moneyHeader('Debit')}</th>
+            <th className={styles.numeric}>{moneyHeader('Credit')}</th>
+            <th className={styles.numeric}>{moneyHeader('Balance')}</th>
           </tr>
         </thead>
         <tbody>
@@ -192,12 +201,12 @@ export function LedgerTable({ rows }: { rows: LedgerEntry[] }) {
               <td>{label(row.entryType)}</td>
               <td>{row.memo ?? '—'}</td>
               <td className={styles.numeric}>
-                {row.direction === 'debit' ? money(row.amount) : '—'}
+                {row.direction === 'debit' ? formatAmount(row.amount) : '—'}
               </td>
               <td className={styles.numeric}>
-                {row.direction === 'credit' ? money(row.amount) : '—'}
+                {row.direction === 'credit' ? formatAmount(row.amount) : '—'}
               </td>
-              <td className={styles.numeric}>{money(row.runningBalance)}</td>
+              <td className={styles.numeric}>{formatAmount(row.runningBalance)}</td>
             </tr>
           ))}
         </tbody>

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { apiPost } from '@/lib/api';
-import { day, label, money } from '@/lib/format';
+import { amount, day, label, moneyHeader } from '@/lib/format';
 import {
   searchItems,
   useFlash,
@@ -11,7 +11,7 @@ import {
   usePolledList,
 } from '@/lib/useCollection';
 import { Pagination, SearchBox, Toast } from '@/components/ListControls';
-import { EmptyState, PdfButton, RowActionsBar, Stat, TableScroll } from '@/components/Finance';
+import { EmptyState, FilterBar, PdfButton, RowActionsBar, Stat, StatusBadge, TableScroll } from '@/components/Finance';
 import { AdvanceForm } from '@/components/MoneyForms';
 import type { AdvancePayment, Customer } from '@/lib/types';
 import page from '../page.module.css';
@@ -24,22 +24,43 @@ export default function AdvancesPage() {
   const { items: customers } = usePolledList<Customer>('/customers', 20000);
   const { flash, notify } = useFlash();
   const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<'all' | 'draft' | 'posted' | 'cancelled'>('all');
   const [showForm, setShowForm] = useState(false);
 
-  const filtered = useMemo(() => searchItems(items, query), [items, query]);
-  const pager = usePagination(filtered, query);
+  const filtered = useMemo(() => {
+    const byStatus =
+      filter === 'all'
+        ? items
+        : filter === 'cancelled'
+          ? items.filter((item) => item.cancelledAt || item.status === 'cancelled')
+          : items.filter((item) => item.status === filter);
+    return searchItems(byStatus, query);
+  }, [items, filter, query]);
+  const pager = usePagination(filtered, `${filter}:${query}`);
 
   const totals = useMemo(
     () =>
-      items.reduce(
-        (acc, advance) => ({
-          received: acc.received + advance.amount,
-          spare: acc.spare + advance.unallocatedAmount,
-        }),
-        { received: 0, spare: 0 },
-      ),
+      items
+        .filter((advance) => advance.status === 'posted' && !advance.cancelledAt)
+        .reduce(
+          (acc, advance) => ({
+            received: acc.received + advance.amount,
+            spare: acc.spare + advance.unallocatedAmount,
+          }),
+          { received: 0, spare: 0 },
+        ),
     [items],
   );
+
+  async function onApprove(id: string) {
+    try {
+      await apiPost(`/advances/${id}/approve`, {});
+      await reload();
+      notify('Advance approved');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not approve');
+    }
+  }
 
   async function onCancel(id: string) {
     try {
@@ -54,19 +75,14 @@ export default function AdvancesPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Advances</h1>
-      <p className={page.lede}>
-        Money received before invoicing. Recording an advance credits the
-        customer immediately; applying it to an invoice only marks which document
-        it settles.
-      </p>
 
       {error ? <p className={styles.error}>{error}</p> : null}
 
       <div className={finance.statGrid}>
-        <Stat title="Advances received" value={money(totals.received)} />
+        <Stat title={moneyHeader('Advances received')} value={amount(totals.received)} />
         <Stat
-          title="Not yet applied"
-          value={money(totals.spare)}
+          title={moneyHeader('Not yet applied')}
+          value={amount(totals.spare)}
           hint="Available to adjust on a future invoice"
         />
       </div>
@@ -101,6 +117,17 @@ export default function AdvancesPage() {
             placeholder="Search by receipt number, customer, reference…"
           />
 
+          <FilterBar
+            active={filter}
+            onChange={setFilter}
+            options={[
+              { key: 'all', label: 'All' },
+              { key: 'draft', label: 'Draft' },
+              { key: 'posted', label: 'Posted' },
+              { key: 'cancelled', label: 'Cancelled' },
+            ]}
+          />
+
           {filtered.length === 0 ? (
             <EmptyState>
               {items.length === 0
@@ -117,8 +144,9 @@ export default function AdvancesPage() {
                     <th>Job</th>
                     <th>Received</th>
                     <th>Method</th>
-                    <th className={finance.numeric}>Amount</th>
-                    <th className={finance.numeric}>Spare</th>
+                    <th>Status</th>
+                    <th className={finance.numeric}>{moneyHeader('Amount')}</th>
+                    <th className={finance.numeric}>{moneyHeader('Spare')}</th>
                     <th className={finance.actions} aria-label="Actions" />
                   </tr>
                 </thead>
@@ -127,7 +155,6 @@ export default function AdvancesPage() {
                     <tr key={advance.id}>
                       <td>
                         <strong>{advance.number}</strong>
-                        {advance.cancelledAt ? ' (cancelled)' : ''}
                       </td>
                       <td>
                         <Link
@@ -151,9 +178,16 @@ export default function AdvancesPage() {
                       </td>
                       <td>{day(advance.receivedAt)}</td>
                       <td>{label(advance.method)}</td>
-                      <td className={finance.numeric}>{money(advance.amount)}</td>
+                      <td>
+                        <StatusBadge
+                          status={
+                            advance.cancelledAt ? 'cancelled' : advance.status
+                          }
+                        />
+                      </td>
+                      <td className={finance.numeric}>{amount(advance.amount)}</td>
                       <td className={finance.numeric}>
-                        {money(advance.unallocatedAmount)}
+                        {amount(advance.unallocatedAmount)}
                       </td>
                       <td className={finance.actions}>
                         <RowActionsBar>
@@ -163,7 +197,16 @@ export default function AdvancesPage() {
                           >
                             Receipt
                           </PdfButton>
-                          {advance.allocatedAmount === 0 && !advance.cancelledAt ? (
+                          {advance.status === 'draft' ? (
+                            <button
+                              className={styles.button}
+                              onClick={() => void onApprove(advance.id)}
+                            >
+                              Approve
+                            </button>
+                          ) : null}
+                          {advance.allocatedAmount === 0 &&
+                          !advance.cancelledAt ? (
                             <button
                               className={styles.ghost}
                               onClick={() => void onCancel(advance.id)}

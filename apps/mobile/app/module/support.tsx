@@ -146,11 +146,6 @@ export default function SupportScreen() {
   return (
     <ScreenScroll>
       <Text style={ui.title}>Support</Text>
-      <Text style={ui.lede}>
-        {isAdmin
-          ? 'Company tickets. Close when resolved.'
-          : 'Your support requests for this company.'}
-      </Text>
       <RowActions>
         <ActionButton
           label="Change password"

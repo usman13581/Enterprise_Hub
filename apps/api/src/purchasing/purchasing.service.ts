@@ -8,7 +8,8 @@ import {
 import { existsSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import type { Prisma } from '@prisma/client';
-import { roundMoney } from '@marble/domain';
+import { computePurchasingTotals, normalizeDiscount, roundMoney, type DiscountMode } from '@marble/domain';
+import { DEFAULT_CURRENCY } from '@marble/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NumberingService } from '../common/numbering.service';
@@ -19,7 +20,18 @@ type LpoInput = {
   supplierId: string;
   requestedDeliveryDate?: string | null;
   notes?: string | null;
-  lines: Array<{ productId?: string | null; productName: string; unit?: string; orderedQty: number; unitCost: number; vatRate?: number }>;
+  discountMode?: DiscountMode;
+  discountValue?: number;
+  lines: Array<{
+    productId?: string | null;
+    productName: string;
+    unit?: string;
+    orderedQty: number;
+    unitCost: number;
+    vatRate?: number;
+    discountMode?: DiscountMode;
+    discountValue?: number;
+  }>;
 };
 
 type ReceiptInput = {
@@ -36,7 +48,19 @@ type PurchaseInvoiceInput = {
   dueDate?: string | null;
   taxInclusive?: boolean;
   notes?: string | null;
-  lines: Array<{ lpoLineId?: string | null; productId?: string | null; productName: string; unit?: string; qty: number; unitCost: number; vatRate?: number }>;
+  discountMode?: DiscountMode;
+  discountValue?: number;
+  lines: Array<{
+    lpoLineId?: string | null;
+    productId?: string | null;
+    productName: string;
+    unit?: string;
+    qty: number;
+    unitCost: number;
+    vatRate?: number;
+    discountMode?: DiscountMode;
+    discountValue?: number;
+  }>;
 };
 
 type PaymentInput = {
@@ -113,14 +137,48 @@ export class PurchasingService {
       const product = line.productId ? productById.get(line.productId) : undefined;
       if (line.productId && !product) throw new BadRequestException('LPO product must belong to the selected supplier');
       const vatRate = line.vatRate ?? profile?.vatRate ?? 0.05;
-      const lineTotal = roundMoney(line.orderedQty * line.unitCost);
-      return { companyId, productId: product?.id ?? null, productName: product?.name ?? line.productName.trim(), unit: product?.unit ?? line.unit ?? 'unit', orderedQty: line.orderedQty, unitCost: line.unitCost, vatRate, lineTotal, sortOrder: index };
+      return {
+        companyId,
+        productId: product?.id ?? null,
+        productName: product?.name ?? line.productName.trim(),
+        unit: product?.unit ?? line.unit ?? 'unit',
+        orderedQty: line.orderedQty,
+        unitCost: line.unitCost,
+        vatRate,
+        discountMode: line.discountMode ?? 'none',
+        discountValue: line.discountValue ?? 0,
+        lineTotal: 0,
+        sortOrder: index,
+        _vatRate: vatRate,
+      };
     });
-    const subtotal = roundMoney(lines.reduce((sum, line) => sum + line.lineTotal, 0));
-    const inputVat = roundMoney(lines.reduce((sum, line) => sum + line.lineTotal * line.vatRate, 0));
+    const totals = computePurchasingTotals(
+      lines.map((line) => ({
+        qty: line.orderedQty,
+        unitCost: line.unitCost,
+        vatRate: line._vatRate,
+        discountMode: line.discountMode,
+        discountValue: line.discountValue,
+      })),
+      input,
+    );
+    const persistedLines = lines.map((line, index) => ({
+      companyId: line.companyId,
+      productId: line.productId,
+      productName: line.productName,
+      unit: line.unit,
+      orderedQty: line.orderedQty,
+      unitCost: line.unitCost,
+      vatRate: line.vatRate,
+      discountMode: line.discountMode,
+      discountValue: line.discountValue,
+      lineTotal: totals.lineTotals[index],
+      sortOrder: line.sortOrder,
+    }));
+    const doc = normalizeDiscount(input);
     return this.prisma.$transaction(async (tx) => {
       const number = await this.numbering.next(tx, companyId, 'lpo');
-      const lpo = await tx.lpo.create({ data: { companyId, supplierId: input.supplierId, number, currency: profile?.currency ?? 'AED', requestedDeliveryDate: parseDate(input.requestedDeliveryDate, 'requestedDeliveryDate'), notes: input.notes?.trim() || null, subtotal, inputVat, total: roundMoney(subtotal + inputVat), lines: { create: lines } }, include: { lines: true, supplier: { select: { id: true, name: true } } } });
+      const lpo = await tx.lpo.create({ data: { companyId, supplierId: input.supplierId, number, currency: profile?.currency ?? DEFAULT_CURRENCY, requestedDeliveryDate: parseDate(input.requestedDeliveryDate, 'requestedDeliveryDate'), notes: input.notes?.trim() || null, discountMode: doc.discountMode, discountValue: doc.discountValue, discount: totals.discount, lineDiscountTotal: totals.lineDiscountTotal, subtotal: totals.subtotal, inputVat: totals.inputVat, total: totals.total, lines: { create: persistedLines } }, include: { lines: true, supplier: { select: { id: true, name: true } } } });
       await this.audit.write({ companyId, actorId: session.userId, entityType: 'Lpo', entityId: lpo.id, action: 'create', after: lpo });
       return lpo;
     });
@@ -146,12 +204,46 @@ export class PurchasingService {
         if (line.productId && !product) throw new BadRequestException('LPO product must belong to the selected supplier');
         if (line.orderedQty <= 0 || line.unitCost < 0) throw new BadRequestException('LPO quantities must be positive and costs cannot be negative');
         const vatRate = line.vatRate ?? profile?.vatRate ?? 0.05;
-        return { companyId, productId: product?.id ?? null, productName: product?.name ?? line.productName.trim(), unit: product?.unit ?? line.unit ?? 'unit', orderedQty: line.orderedQty, unitCost: line.unitCost, vatRate, lineTotal: roundMoney(line.orderedQty * line.unitCost), sortOrder: index };
+        return {
+          companyId,
+          productId: product?.id ?? null,
+          productName: product?.name ?? line.productName.trim(),
+          unit: product?.unit ?? line.unit ?? 'unit',
+          orderedQty: line.orderedQty,
+          unitCost: line.unitCost,
+          vatRate,
+          discountMode: line.discountMode ?? 'none',
+          discountValue: line.discountValue ?? 0,
+          sortOrder: index,
+          _vatRate: vatRate,
+        };
       });
-      const subtotal = roundMoney(lines.reduce((sum, line) => sum + line.lineTotal, 0));
-      const inputVat = roundMoney(lines.reduce((sum, line) => sum + line.lineTotal * line.vatRate, 0));
+      const totals = computePurchasingTotals(
+        lines.map((line) => ({
+          qty: line.orderedQty,
+          unitCost: line.unitCost,
+          vatRate: line._vatRate,
+          discountMode: line.discountMode,
+          discountValue: line.discountValue,
+        })),
+        input,
+      );
+      const persistedLines = lines.map((line, index) => ({
+        companyId: line.companyId,
+        productId: line.productId,
+        productName: line.productName,
+        unit: line.unit,
+        orderedQty: line.orderedQty,
+        unitCost: line.unitCost,
+        vatRate: line.vatRate,
+        discountMode: line.discountMode,
+        discountValue: line.discountValue,
+        lineTotal: totals.lineTotals[index],
+        sortOrder: line.sortOrder,
+      }));
+      const doc = normalizeDiscount(input);
       await tx.lpoLine.deleteMany({ where: { lpoId: id } });
-      const lpo = await tx.lpo.update({ where: { id }, data: { ...(input.notes !== undefined ? { notes: input.notes?.trim() || null } : {}), ...(input.requestedDeliveryDate !== undefined ? { requestedDeliveryDate: parseDate(input.requestedDeliveryDate, 'requestedDeliveryDate') } : {}), subtotal, inputVat, total: roundMoney(subtotal + inputVat), version: { increment: 1 }, lines: { create: lines } }, include: { lines: true } });
+      const lpo = await tx.lpo.update({ where: { id }, data: { ...(input.notes !== undefined ? { notes: input.notes?.trim() || null } : {}), ...(input.requestedDeliveryDate !== undefined ? { requestedDeliveryDate: parseDate(input.requestedDeliveryDate, 'requestedDeliveryDate') } : {}), discountMode: doc.discountMode, discountValue: doc.discountValue, discount: totals.discount, lineDiscountTotal: totals.lineDiscountTotal, subtotal: totals.subtotal, inputVat: totals.inputVat, total: totals.total, version: { increment: 1 }, lines: { create: persistedLines } }, include: { lines: true } });
       await this.audit.write({ companyId, actorId: session.userId, entityType: 'Lpo', entityId: id, action: 'update', before, after: lpo });
       return lpo;
     });
@@ -227,13 +319,55 @@ export class PurchasingService {
       const linked = line.lpoLineId ? lpoLines.get(line.lpoLineId) : undefined;
       if (line.lpoLineId && !linked) throw new BadRequestException('Purchase invoice LPO line is invalid');
       const vatRate = line.vatRate ?? linked?.vatRate ?? profile?.vatRate ?? 0.05;
-      const gross = line.qty * line.unitCost;
-      const lineTotal = roundMoney(input.taxInclusive ? gross / (1 + vatRate) : gross);
-      return { companyId, lpoLineId: linked?.id ?? null, productId: product?.id ?? linked?.productId ?? null, productName: product?.name ?? linked?.productName ?? line.productName.trim(), unit: product?.unit ?? linked?.unit ?? line.unit ?? 'unit', qty: line.qty, unitCost: line.unitCost, vatRate, lineTotal };
+      return {
+        companyId,
+        lpoLineId: linked?.id ?? null,
+        productId: product?.id ?? linked?.productId ?? null,
+        productName: product?.name ?? linked?.productName ?? line.productName.trim(),
+        unit: product?.unit ?? linked?.unit ?? line.unit ?? 'unit',
+        qty: line.qty,
+        unitCost: line.unitCost,
+        vatRate,
+        discountMode: line.discountMode ?? 'none',
+        discountValue: line.discountValue ?? 0,
+        _vatRate: vatRate,
+      };
     });
-    const subtotal = roundMoney(lines.reduce((sum, line) => sum + line.lineTotal, 0));
-    const inputVat = roundMoney(lines.reduce((sum, line) => sum + (input.taxInclusive ? line.qty * line.unitCost - line.lineTotal : line.lineTotal * line.vatRate), 0));
-    return { lpo, lines, subtotal, inputVat, total: roundMoney(subtotal + inputVat) };
+    const totals = computePurchasingTotals(
+      lines.map((line) => ({
+        qty: line.qty,
+        unitCost: line.unitCost,
+        vatRate: line._vatRate,
+        discountMode: line.discountMode,
+        discountValue: line.discountValue,
+      })),
+      input,
+      { taxInclusive: input.taxInclusive ?? false },
+    );
+    const persistedLines = lines.map((line, index) => ({
+      companyId: line.companyId,
+      lpoLineId: line.lpoLineId,
+      productId: line.productId,
+      productName: line.productName,
+      unit: line.unit,
+      qty: line.qty,
+      unitCost: line.unitCost,
+      vatRate: line.vatRate,
+      discountMode: line.discountMode,
+      discountValue: line.discountValue,
+      lineTotal: totals.lineTotals[index],
+    }));
+    const doc = normalizeDiscount(input);
+    return {
+      lpo,
+      lines: persistedLines,
+      doc,
+      subtotal: totals.subtotal,
+      inputVat: totals.inputVat,
+      total: totals.total,
+      discount: totals.discount,
+      lineDiscountTotal: totals.lineDiscountTotal,
+    };
   }
 
   async createPurchaseInvoice(session: SessionContext, input: PurchaseInvoiceInput) {
@@ -245,7 +379,7 @@ export class PurchasingService {
         if (duplicate) throw new ConflictException('This supplier invoice reference already exists');
       }
       const number = await this.numbering.next(tx, companyId, 'purchaseInvoice');
-      const invoice = await tx.purchaseInvoice.create({ data: { companyId, supplierId: input.supplierId, lpoId: input.lpoId || null, number, supplierInvoiceNumber: input.supplierInvoiceNumber?.trim() || null, issueDate: parseDate(input.issueDate, 'issueDate', true)!, dueDate: parseDate(input.dueDate, 'dueDate'), taxInclusive: input.taxInclusive ?? false, vatRate: data.lines[0]?.vatRate ?? 0.05, currency: (await tx.companyProfile.findUnique({ where: { companyId }, select: { currency: true } }))?.currency ?? 'AED', subtotal: data.subtotal, inputVat: data.inputVat, total: data.total, balance: data.total, notes: input.notes?.trim() || null, lines: { create: data.lines } }, include: { lines: true, supplier: { select: { id: true, name: true } } } });
+      const invoice = await tx.purchaseInvoice.create({ data: { companyId, supplierId: input.supplierId, lpoId: input.lpoId || null, number, supplierInvoiceNumber: input.supplierInvoiceNumber?.trim() || null, issueDate: parseDate(input.issueDate, 'issueDate', true)!, dueDate: parseDate(input.dueDate, 'dueDate'), taxInclusive: input.taxInclusive ?? false, vatRate: data.lines[0]?.vatRate ?? 0.05, currency: (await tx.companyProfile.findUnique({ where: { companyId }, select: { currency: true } }))?.currency ?? DEFAULT_CURRENCY, discountMode: data.doc.discountMode, discountValue: data.doc.discountValue, discount: data.discount, lineDiscountTotal: data.lineDiscountTotal, subtotal: data.subtotal, inputVat: data.inputVat, total: data.total, balance: data.total, notes: input.notes?.trim() || null, lines: { create: data.lines } }, include: { lines: true, supplier: { select: { id: true, name: true } } } });
       await this.audit.write({ companyId, actorId: session.userId, entityType: 'PurchaseInvoice', entityId: invoice.id, action: 'create', after: invoice });
       return invoice;
     });
@@ -265,7 +399,22 @@ export class PurchasingService {
         dueDate: input.dueDate === undefined ? before.dueDate?.toISOString() : input.dueDate,
         taxInclusive: input.taxInclusive ?? before.taxInclusive,
         notes: input.notes === undefined ? before.notes : input.notes,
-        lines: input.lines ?? before.lines.map((line) => ({ lpoLineId: line.lpoLineId, productId: line.productId, productName: line.productName, unit: line.unit, qty: line.qty, unitCost: line.unitCost, vatRate: line.vatRate })),
+        lines:
+          input.lines ??
+          before.lines.map((line) => ({
+            lpoLineId: line.lpoLineId,
+            productId: line.productId,
+            productName: line.productName,
+            unit: line.unit,
+            qty: line.qty,
+            unitCost: line.unitCost,
+            vatRate: line.vatRate,
+            discountMode: line.discountMode as DiscountMode,
+            discountValue: line.discountValue,
+          })),
+        discountMode: (input.discountMode ??
+          before.discountMode) as DiscountMode,
+        discountValue: input.discountValue ?? before.discountValue,
       };
       const data = await this.purchaseInvoiceData(tx, companyId, merged);
       if (merged.supplierInvoiceNumber?.trim()) {
@@ -273,7 +422,7 @@ export class PurchasingService {
         if (duplicate) throw new ConflictException('This supplier invoice reference already exists');
       }
       await tx.purchaseInvoiceLine.deleteMany({ where: { purchaseInvoiceId: id } });
-      const updated = await tx.purchaseInvoice.update({ where: { id }, data: { supplierId: merged.supplierId, lpoId: merged.lpoId || null, supplierInvoiceNumber: merged.supplierInvoiceNumber?.trim() || null, issueDate: parseDate(merged.issueDate, 'issueDate', true)!, dueDate: parseDate(merged.dueDate, 'dueDate'), taxInclusive: merged.taxInclusive ?? false, vatRate: data.lines[0]?.vatRate ?? before.vatRate, subtotal: data.subtotal, inputVat: data.inputVat, total: data.total, balance: data.total, notes: merged.notes?.trim() || null, version: { increment: 1 }, lines: { create: data.lines } }, include: { lines: true } });
+      const updated = await tx.purchaseInvoice.update({ where: { id }, data: { supplierId: merged.supplierId, lpoId: merged.lpoId || null, supplierInvoiceNumber: merged.supplierInvoiceNumber?.trim() || null, issueDate: parseDate(merged.issueDate, 'issueDate', true)!, dueDate: parseDate(merged.dueDate, 'dueDate'), taxInclusive: merged.taxInclusive ?? false, vatRate: data.lines[0]?.vatRate ?? before.vatRate, discountMode: data.doc.discountMode, discountValue: data.doc.discountValue, discount: data.discount, lineDiscountTotal: data.lineDiscountTotal, subtotal: data.subtotal, inputVat: data.inputVat, total: data.total, balance: data.total, notes: merged.notes?.trim() || null, version: { increment: 1 }, lines: { create: data.lines } }, include: { lines: true } });
       await this.audit.write({ companyId, actorId: session.userId, entityType: 'PurchaseInvoice', entityId: id, action: 'update', before, after: updated });
       return updated;
     });
@@ -351,15 +500,57 @@ export class PurchasingService {
       }
       const number = await this.numbering.next(tx, companyId, 'supplierPayment');
       const allocated = roundMoney(allocations.reduce((sum, allocation) => sum + allocation.amount, 0));
-      const payment = await tx.supplierPayment.create({ data: { companyId, supplierId: input.supplierId, number, paidAt: parseDate(input.paidAt, 'paidAt', true)!, amount: input.amount, method: input.method.trim(), reference: input.reference?.trim() || null, notes: input.notes?.trim() || null, unappliedAmount: roundMoney(input.amount - allocated), allocations: { create: allocations.map((allocation) => ({ companyId, purchaseInvoiceId: allocation.purchaseInvoiceId, amount: allocation.amount })) } }, include: { allocations: true } });
-      for (const allocation of allocations) {
-        const invoice = invoiceById.get(allocation.purchaseInvoiceId)!;
-        const balance = roundMoney(invoice.balance - allocation.amount);
-        await tx.purchaseInvoice.update({ where: { id: invoice.id }, data: { paidAmount: { increment: allocation.amount }, balance, status: balance <= 0 ? 'paid' : 'partially_paid' } });
-      }
-      await tx.supplierLedgerEntry.create({ data: { companyId, supplierId: input.supplierId, paymentId: payment.id, direction: 'debit', amount: input.amount, description: `Supplier payment ${payment.number}${payment.unappliedAmount > 0 ? ' including supplier advance' : ''}` } });
-      await this.audit.write({ companyId, actorId: session.userId, entityType: 'SupplierPayment', entityId: payment.id, action: 'post', after: payment });
+      const payment = await tx.supplierPayment.create({ data: { companyId, supplierId: input.supplierId, number, paidAt: parseDate(input.paidAt, 'paidAt', true)!, amount: input.amount, method: input.method.trim(), reference: input.reference?.trim() || null, notes: input.notes?.trim() || null, unappliedAmount: roundMoney(input.amount - allocated), status: 'draft', allocations: { create: allocations.map((allocation) => ({ companyId, purchaseInvoiceId: allocation.purchaseInvoiceId, amount: allocation.amount })) } }, include: { allocations: true } });
+      await this.audit.write({ companyId, actorId: session.userId, entityType: 'SupplierPayment', entityId: payment.id, action: 'create', after: payment });
       return payment;
+    });
+  }
+
+  async approveSupplierPayment(session: SessionContext, id: string) {
+    const companyId = this.requireAdmin(session);
+    const payment = await this.prisma.supplierPayment.findFirst({
+      where: { id, companyId },
+      include: { allocations: true },
+    });
+    if (!payment) throw new NotFoundException('Supplier payment not found');
+    if (payment.status !== 'draft') throw new ConflictException('Only a draft supplier payment can be approved');
+    return this.prisma.$transaction(async (tx) => {
+      const invoiceIds = payment.allocations.map((allocation) => allocation.purchaseInvoiceId);
+      const invoices = invoiceIds.length
+        ? await tx.purchaseInvoice.findMany({
+            where: { companyId, supplierId: payment.supplierId, id: { in: invoiceIds }, status: { in: ['posted', 'partially_paid'] } },
+          })
+        : [];
+      const invoiceById = new Map(invoices.map((invoice) => [invoice.id, invoice]));
+      for (const allocation of payment.allocations) {
+        const invoice = invoiceById.get(allocation.purchaseInvoiceId);
+        if (!invoice) throw new NotFoundException('Payable invoice not found for supplier');
+        if (allocation.amount > invoice.balance) {
+          throw new BadRequestException(`Payment exceeds balance for ${invoice.number}`);
+        }
+        const balance = roundMoney(invoice.balance - allocation.amount);
+        await tx.purchaseInvoice.update({
+          where: { id: invoice.id },
+          data: { paidAmount: { increment: allocation.amount }, balance, status: balance <= 0 ? 'paid' : 'partially_paid' },
+        });
+      }
+      const posted = await tx.supplierPayment.update({
+        where: { id },
+        data: { status: 'posted' },
+        include: { allocations: true },
+      });
+      await tx.supplierLedgerEntry.create({
+        data: {
+          companyId,
+          supplierId: payment.supplierId,
+          paymentId: payment.id,
+          direction: 'debit',
+          amount: payment.amount,
+          description: `Supplier payment ${payment.number}${payment.unappliedAmount > 0 ? ' including supplier advance' : ''}`,
+        },
+      });
+      await this.audit.write({ companyId, actorId: session.userId, entityType: 'SupplierPayment', entityId: payment.id, action: 'approve', before: payment, after: posted });
+      return posted;
     });
   }
 
@@ -373,7 +564,7 @@ export class PurchasingService {
     const companyId = this.requireAdmin(session);
     const payment = await this.prisma.supplierPayment.findFirst({ where: { id, companyId }, include: { allocations: true } });
     if (!payment) throw new NotFoundException('Supplier payment not found');
-    if (payment.status === 'reversed') throw new ConflictException('Supplier payment is already reversed');
+    if (payment.status !== 'posted') throw new ConflictException('Only a posted supplier payment can be reversed');
     return this.prisma.$transaction(async (tx) => {
       const reversed = await tx.supplierPayment.update({ where: { id }, data: { status: 'reversed', reversedAt: new Date() }, include: { allocations: true } });
       for (const allocation of payment.allocations) {

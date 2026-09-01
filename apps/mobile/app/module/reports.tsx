@@ -16,6 +16,7 @@ import {
   type ReportKey,
 } from '@marble/types';
 import { apiFetch } from '../../lib/api';
+import { isoDate, todayIso } from '../../lib/dates';
 import { money } from '../../lib/format';
 import {
   searchItems,
@@ -62,12 +63,10 @@ type Scope = 'all' | 'finance' | 'invoices';
 
 function monthBounds() {
   const now = new Date();
-  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const to = new Date();
   return {
-    from: from.toISOString().slice(0, 10),
-    to: to.toISOString().slice(0, 10),
-    asOf: to.toISOString().slice(0, 10),
+    from: isoDate(new Date(now.getFullYear(), now.getMonth(), 1)),
+    to: todayIso(),
+    asOf: todayIso(),
   };
 }
 
@@ -292,10 +291,6 @@ export default function ReportsScreen() {
       <View style={ui.screen}>
         <ScreenScroll>
           <Text style={ui.title}>Reports</Text>
-          <Text style={ui.lede}>
-            Browse by category, search by name, then open a report for
-            parameters, summary, table, and Print PDF.
-          </Text>
 
           <SearchBox
             value={catalogQuery}
@@ -438,9 +433,6 @@ export default function ReportsScreen() {
           <Text style={styles.back}>← All reports</Text>
         </Pressable>
         <Text style={ui.title}>{result?.title ?? title}</Text>
-        <Text style={ui.lede}>
-          Set parameters, run, then print the same numbers as PDF.
-        </Text>
 
         {config?.from ? (
           <Field

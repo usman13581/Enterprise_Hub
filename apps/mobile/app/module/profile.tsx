@@ -8,10 +8,19 @@ import {
   TextInput,
   View,
 } from "react-native";
+import {
+  COUNTRIES,
+  currencyForCountry,
+  DEFAULT_COUNTRY_CODE,
+  DEFAULT_CURRENCY,
+} from "@marble/types";
 import { apiFetch, apiPut, apiUploadImage, assetUrl } from "../../lib/api";
+import { useCompanyCountry } from "../../lib/company-currency";
 import { useFlash } from "../../lib/useCollection";
 import { Toast } from "../../components/ListControls";
 import { ScreenScroll } from "../../components/ScreenScroll";
+import { FormPicker } from "../../components/FormField";
+import { SearchablePicker } from "../../components/SearchablePicker";
 import type { Company } from "../../lib/types";
 import { colors, ui } from "../../lib/ui";
 import { UploadChip } from "../../components/Finance";
@@ -26,6 +35,7 @@ type Draft = {
   bankDetails: string;
   quotationPrefix: string;
   invoicePrefix: string;
+  country: string;
   currency: string;
   logoUrl: string;
   signatureUrl: string;
@@ -41,7 +51,8 @@ const EMPTY: Draft = {
   bankDetails: "",
   quotationPrefix: "QT",
   invoicePrefix: "INV",
-  currency: "AED",
+  country: DEFAULT_COUNTRY_CODE,
+  currency: DEFAULT_CURRENCY,
   logoUrl: "",
   signatureUrl: "",
 };
@@ -51,6 +62,7 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { flash, notify } = useFlash();
+  const { refresh } = useCompanyCountry();
 
   const load = useCallback(async () => {
     try {
@@ -67,6 +79,7 @@ export default function ProfileScreen() {
           bankDetails: p.bankDetails ?? "",
           quotationPrefix: p.quotationPrefix,
           invoicePrefix: p.invoicePrefix,
+          country: p.country || DEFAULT_COUNTRY_CODE,
           currency: p.currency,
           logoUrl: p.logoUrl ?? "",
           signatureUrl: p.signatureUrl ?? "",
@@ -113,9 +126,13 @@ export default function ProfileScreen() {
     if (saving) return;
     setSaving(true);
     try {
-      await apiPut('/company/profile', draft);
+      await apiPut("/company/profile", {
+        ...draft,
+        currency: currencyForCountry(draft.country),
+      });
       await load();
-      notify('Company profile saved');
+      await refresh();
+      notify("Company profile saved");
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed');
     } finally {
@@ -128,7 +145,8 @@ export default function ProfileScreen() {
       <ScreenScroll>
         <Text style={ui.title}>Company profile</Text>
         <Text style={ui.lede}>
-          Branding and legal details printed on quotations and tax invoices.
+          Branding, legal details, and the country that sets the currency used
+          on screens, discounts, and PDFs.
         </Text>
 
         {error ? <Text style={ui.error}>{error}</Text> : null}
@@ -192,12 +210,28 @@ export default function ProfileScreen() {
             value={draft.invoicePrefix}
             onChangeText={(v) => setDraft({ ...draft, invoicePrefix: v })}
           />
-          <Text style={ui.label}>Currency</Text>
-          <TextInput
-            style={ui.input}
-            value={draft.currency}
-            onChangeText={(v) => setDraft({ ...draft, currency: v })}
-          />
+          <FormPicker label="Country *">
+            <SearchablePicker
+              value={draft.country}
+              searchPlaceholder="Search countries…"
+              emptyText="No countries match your search."
+              options={COUNTRIES.map((item) => ({
+                id: item.code,
+                label: item.name,
+              }))}
+              onChange={(country) => {
+                setDraft({
+                  ...draft,
+                  country,
+                  currency: currencyForCountry(country),
+                });
+              }}
+            />
+          </FormPicker>
+          <Text style={ui.lede}>
+            Currency: {currencyForCountry(draft.country)} — used everywhere
+            after you save. Amounts keep their numbers; only the label changes.
+          </Text>
 
           <Text style={ui.label}>Logo</Text>
           <View style={styles.assetRow}>

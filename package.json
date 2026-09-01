@@ -9,6 +9,7 @@
     "dev:mobile": "pnpm --filter @marble/mobile start",
     "db:push": "pnpm --filter @marble/api db:push",
     "db:seed": "pnpm --filter @marble/api db:seed",
+    "db:seed:sample:binhaj": "pnpm --filter @marble/api db:seed:sample:binhaj",
     "db:generate": "pnpm --filter @marble/api prisma:generate",
     "build:packages": "pnpm --filter @marble/types build && pnpm --filter @marble/domain build && pnpm --filter @marble/pdf build",
     "build": "pnpm build:packages && pnpm -r --filter @marble/api --filter @marble/web build",

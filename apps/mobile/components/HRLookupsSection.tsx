@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Switch, Text, View } from 'react-native';
 import { apiFetch, apiPatch, apiPost } from '../lib/api';
+import { todayIso } from '../lib/dates';
 import { day } from '../lib/format';
 import { FormField } from './FormField';
 import { ActionButton, FilterChips, RecordRow, RowActions } from './Finance';
@@ -66,7 +67,7 @@ export function HRLookupsSection({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState({
     name: '',
-    date: '',
+    date: todayIso(),
     address: '',
     locationKind: 'office',
     code: '',
@@ -99,7 +100,7 @@ export function HRLookupsSection({
     setEditingId(null);
     setDraft({
       name: '',
-      date: '',
+      date: todayIso(),
       address: '',
       locationKind: 'office',
       code: '',
@@ -234,9 +235,6 @@ export function HRLookupsSection({
 
   return (
     <View>
-      <Text style={ui.lede}>
-        Manage HR lookup values used in employee profiles, attendance, and leave.
-      </Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
       <FilterChips
         active={section}

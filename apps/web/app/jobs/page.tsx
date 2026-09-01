@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { day, money } from '@/lib/format';
+import { amount, day, moneyHeader } from '@/lib/format';
 import { searchItems, usePagination, usePolledList } from '@/lib/useCollection';
 import { Pagination, SearchBox } from '@/components/ListControls';
 import { EmptyState, FilterBar, StatusBadge, TableScroll } from '@/components/Finance';
@@ -28,10 +28,6 @@ export default function JobsPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Jobs</h1>
-      <p className={page.lede}>
-        Every job comes from an approved quotation. Open a job to invoice it,
-        record advances, and see its ledger and margin.
-      </p>
 
       {error ? <p className={styles.error}>{error}</p> : null}
 
@@ -67,8 +63,8 @@ export default function JobsPage() {
                 <th>Customer</th>
                 <th>Quotation</th>
                 <th>Status</th>
-                <th className={finance.numeric}>Job value</th>
-                <th className={finance.numeric}>Planned margin</th>
+                <th className={finance.numeric}>{moneyHeader('Job value')}</th>
+                <th className={finance.numeric}>{moneyHeader('Planned margin')}</th>
                 <th className={finance.numeric}>Docs</th>
               </tr>
             </thead>
@@ -86,9 +82,9 @@ export default function JobsPage() {
                   <td>
                     <StatusBadge status={job.status} />
                   </td>
-                  <td className={finance.numeric}>{money(job.jobValue)}</td>
+                  <td className={finance.numeric}>{amount(job.jobValue)}</td>
                   <td className={finance.numeric}>
-                    {money(job.jobNet - job.purchaseTotal)}
+                    {amount(job.jobNet - job.purchaseTotal)}
                   </td>
                   <td className={finance.numeric}>
                     {job._count?.invoices ?? 0} inv · {job._count?.advances ?? 0}{' '}

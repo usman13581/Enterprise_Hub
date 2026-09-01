@@ -83,9 +83,6 @@ export default function JobsScreen() {
     <View style={ui.screen}>
       <ScreenScroll>
         <Text style={ui.title}>Jobs</Text>
-        <Text style={ui.lede}>
-          Open a job to invoice it, record advances, and see its ledger.
-        </Text>
         {error ? <Text style={ui.error}>{error}</Text> : null}
 
         <FilterChips

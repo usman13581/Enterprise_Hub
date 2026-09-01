@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { apiFetch, apiPost } from "@/lib/api";
+import { countryName, currencyForCountry } from "@marble/types";
 import { day } from "@/lib/format";
 import { searchItems, usePagination, usePolledList } from "@/lib/useCollection";
 import { Pagination, SearchBox } from "@/components/ListControls";
@@ -15,6 +16,7 @@ type Application = {
   contactName: string;
   email: string;
   phone: string;
+  country: string;
   emirate: string;
   status: string;
   createdAt: string;
@@ -92,7 +94,6 @@ export default function AdminApplicationsPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Applications</h1>
-      <p className={page.lede}>Approve or reject new company applications.</p>
 
       {error ? <p className={styles.error}>{error}</p> : null}
 
@@ -162,7 +163,10 @@ export default function AdminApplicationsPage() {
                 <div className={styles.cardContent}>
                   <p className={styles.cardTitle}>{a.legalName}</p>
                   <p className={styles.cardMeta}>
-                    {a.contactName} · {a.email} · {a.phone} · {a.emirate}
+                    {a.contactName} · {a.email} · {a.phone} ·{" "}
+                    {countryName(a.country) || a.country || "—"}{" "}
+                    ({currencyForCountry(a.country)})
+                    {a.emirate ? ` · ${a.emirate}` : ""}
                     <br />
                     Submitted {day(a.createdAt)}
                     {a.needs ? ` · ${a.needs}` : ""}

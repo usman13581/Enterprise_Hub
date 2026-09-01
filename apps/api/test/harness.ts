@@ -183,12 +183,33 @@ export async function seedApprovedJob(h: Harness) {
     .expect(201);
   return {
     customerId: customer.id,
+    quotation: quotation.body as { id: string; number: string },
     job: approved.body.job as {
       id: string;
       number: string;
       jobValue: number;
     },
   };
+}
+
+export async function issueCreated(
+  h: Harness,
+  res: { body: { id: string; status?: string } },
+) {
+  if (res.body.status === 'draft') {
+    return h.post(`/invoices/${res.body.id}/issue`).expect(201);
+  }
+  return res;
+}
+
+export async function approveCreatedAdvance(
+  h: Harness,
+  res: { body: { id: string; status?: string } },
+) {
+  if (res.body.status === 'draft') {
+    return h.post(`/advances/${res.body.id}/approve`).expect(201);
+  }
+  return res;
 }
 
 export async function balance(h: Harness, customerId: string) {

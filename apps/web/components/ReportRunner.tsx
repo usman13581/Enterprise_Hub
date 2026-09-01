@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
-import { money } from '@/lib/format';
+import { isoDate, todayIso } from '@/lib/dates';
+import { amount, moneyHeader } from '@/lib/format';
 import { searchItems, usePagination, usePolledList } from '@/lib/useCollection';
 import { Pagination, SearchBox } from '@/components/ListControls';
 import {
@@ -59,12 +60,10 @@ export type ReportParamsConfig = {
 
 function monthBounds() {
   const now = new Date();
-  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const to = new Date();
   return {
-    from: from.toISOString().slice(0, 10),
-    to: to.toISOString().slice(0, 10),
-    asOf: to.toISOString().slice(0, 10),
+    from: isoDate(new Date(now.getFullYear(), now.getMonth(), 1)),
+    to: todayIso(),
+    asOf: todayIso(),
   };
 }
 
@@ -179,9 +178,6 @@ export function ReportRunner({
     <section className={page.page}>
       <BackLink href={backHref}>← Reports</BackLink>
       <h1 className={page.title}>{result?.title ?? title}</h1>
-      <p className={page.lede}>
-        Adjust parameters, run the report, then print the same numbers as PDF.
-      </p>
 
       <div className={finance.paramBar}>
         {paramConfig.from ? (
@@ -314,10 +310,14 @@ export function ReportRunner({
             {result.summary.map((stat) => (
               <Stat
                 key={stat.label}
-                title={stat.label}
+                title={
+                  typeof stat.value === 'number' && stat.money
+                    ? moneyHeader(stat.label)
+                    : stat.label
+                }
                 value={
                   typeof stat.value === 'number' && stat.money
-                    ? money(stat.value)
+                    ? amount(stat.value)
                     : String(stat.value)
                 }
               />
@@ -348,7 +348,7 @@ export function ReportRunner({
                           col.align === 'right' ? finance.numeric : undefined
                         }
                       >
-                        {col.label}
+                        {col.money ? moneyHeader(col.label) : col.label}
                       </th>
                     ))}
                   </tr>
@@ -360,7 +360,7 @@ export function ReportRunner({
                         const raw = row[col.key];
                         const display =
                           col.money && typeof raw === 'number'
-                            ? money(raw)
+                            ? amount(raw)
                             : raw == null || raw === ''
                               ? '—'
                               : String(raw);

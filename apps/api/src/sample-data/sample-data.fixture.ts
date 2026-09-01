@@ -1,4 +1,8 @@
 import type { Prisma } from '@prisma/client';
+import {
+  computePurchasingTotals,
+  computeQuotationTotals,
+} from '@marble/domain';
 
 export const TEMPLATE_KEY = 'enterprise-hub-trial';
 export const TEMPLATE_VERSION = 3;
@@ -254,8 +258,22 @@ export async function createSampleFixture(
     const status =
       index < 13 ? 'approved' : index < 16 ? 'draft' : 'cancelled';
     const qty = 12 + index * 2;
-    const subtotal = round(qty * product.sellPrice);
-    const vatAmount = round(subtotal * 0.05);
+    const lineInput = {
+      productId: product.id,
+      description: product.name,
+      unit: product.unit,
+      qty,
+      purchasePrice: product.purchasePrice,
+      sellPrice: product.sellPrice,
+      discountMode: index === 1 ? ('percent' as const) : ('none' as const),
+      discountValue: index === 1 ? 10 : 0,
+    };
+    const quoteTotals = computeQuotationTotals(
+      [lineInput],
+      index === 1
+        ? { discountMode: 'fixed', discountValue: 100 }
+        : { discountMode: 'none', discountValue: 0 },
+    );
     const quote = await tx.quotation.create({
       data: {
         companyId,
@@ -271,10 +289,14 @@ export async function createSampleFixture(
         contactPhone: `+97152110${String(index + 1).padStart(4, '0')}`,
         location: `${CUSTOMERS[index][2]}, UAE`,
         validUntil: addDays(now, 30),
-        subtotal,
-        vatAmount,
-        total: round(subtotal + vatAmount),
-        purchaseTotal: round(qty * product.purchasePrice),
+        discountMode: index === 1 ? 'fixed' : 'none',
+        discountValue: index === 1 ? 100 : 0,
+        discount: quoteTotals.discount,
+        lineDiscountTotal: quoteTotals.lineDiscountTotal,
+        subtotal: quoteTotals.subtotal,
+        vatAmount: quoteTotals.vatAmount,
+        total: quoteTotals.total,
+        purchaseTotal: quoteTotals.purchaseTotal,
         approvedAt: status === 'approved' ? addDays(now, -index) : null,
         cancelledAt: status === 'cancelled' ? addDays(now, -2) : null,
         lines: {
@@ -286,7 +308,9 @@ export async function createSampleFixture(
               qty,
               purchasePrice: product.purchasePrice,
               sellPrice: product.sellPrice,
-              lineTotal: subtotal,
+              discountMode: lineInput.discountMode,
+              discountValue: lineInput.discountValue,
+              lineTotal: quoteTotals.lineTotals[0],
               sortOrder: 0,
             },
           ],
@@ -354,6 +378,7 @@ export async function createSampleFixture(
         reference: `TRX-${String(jobIndex + 1).padStart(4, '0')}`,
         receivedAt: addDays(now, -(jobIndex + 4)),
         notes: 'Generic trial advance receipt',
+        status: 'posted',
       },
     });
 
@@ -491,6 +516,7 @@ export async function createSampleFixture(
         reference: `UNALLOC-${index + 1}`,
         receivedAt: addDays(now, -(index + 1)),
         notes: 'Advance received and held on account.',
+        status: 'posted',
       },
     });
   }
@@ -532,9 +558,17 @@ async function createPurchasingFixture(
     if (!supplierId || !product) continue;
 
     const qty = 8 + index * 1.5;
-    const lineTotal = round(qty * product.purchasePrice);
-    const inputVat = round(lineTotal * 0.05);
-    const total = round(lineTotal + inputVat);
+    const lpoLine = {
+      qty,
+      unitCost: product.purchasePrice,
+      vatRate: 0.05,
+      discountMode: index === 0 ? ('percent' as const) : ('none' as const),
+      discountValue: index === 0 ? 5 : 0,
+    };
+    const lpoTotals = computePurchasingTotals(
+      [lpoLine],
+      index === 0 ? { discountMode: 'fixed', discountValue: 50 } : {},
+    );
     const status = lpoStatuses[index % lpoStatuses.length];
 
     const lpo = await tx.lpo.create({
@@ -545,9 +579,13 @@ async function createPurchasingFixture(
         status,
         requestedDeliveryDate: addDays(now, 7 + index),
         notes: 'Purchase order issued after supplier confirmation.',
-        subtotal: lineTotal,
-        inputVat,
-        total,
+        discountMode: index === 0 ? 'fixed' : 'none',
+        discountValue: index === 0 ? 50 : 0,
+        discount: lpoTotals.discount,
+        lineDiscountTotal: lpoTotals.lineDiscountTotal,
+        subtotal: lpoTotals.subtotal,
+        inputVat: lpoTotals.inputVat,
+        total: lpoTotals.total,
         approvedAt: ['approved', 'sent', 'closed'].includes(status)
           ? addDays(now, -(index + 3))
           : null,
@@ -568,7 +606,9 @@ async function createPurchasingFixture(
               invoicedQty: status === 'closed' ? qty : 0,
               unitCost: product.purchasePrice,
               vatRate: 0.05,
-              lineTotal,
+              discountMode: lpoLine.discountMode,
+              discountValue: lpoLine.discountValue,
+              lineTotal: lpoTotals.lineTotals[0],
               sortOrder: 0,
             },
           ],
@@ -599,9 +639,9 @@ async function createPurchasingFixture(
     }
 
     if (index >= 2 && index !== 13) {
-      const invSubtotal = lineTotal;
-      const invVat = inputVat;
-      const invTotal = total;
+      const invSubtotal = lpoTotals.subtotal;
+      const invVat = lpoTotals.inputVat;
+      const invTotal = lpoTotals.total;
       const piStatus =
         index % 4 === 0
           ? 'draft'
@@ -690,6 +730,7 @@ async function createPurchasingFixture(
             method: index % 2 === 0 ? 'bank_transfer' : 'cheque',
             reference: `PAY-${String(index + 1).padStart(4, '0')}`,
             unappliedAmount: 0,
+            status: 'posted',
             notes: 'Payment allocated to supplier invoice.',
           },
         });
@@ -728,6 +769,7 @@ async function createPurchasingFixture(
         method: 'bank_transfer',
         reference: `ADV-PAY-0001`,
         unappliedAmount: 2500,
+        status: 'posted',
         notes: 'Unapplied supplier advance.',
       },
     });

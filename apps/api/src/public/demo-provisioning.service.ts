@@ -9,7 +9,12 @@ import { resolve, sep } from 'path';
 import { unlink } from 'fs/promises';
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'crypto';
 import * as bcrypt from 'bcryptjs';
-import type { DemoRequestInput } from '@marble/types';
+import {
+  currencyForCountry,
+  DEFAULT_COUNTRY_CODE,
+  normalizeCountryCode,
+  type DemoRequestInput,
+} from '@marble/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { UPLOADS_DIR } from '../uploads/uploads.constants';
 import { MailService } from '../mail/mail.service';
@@ -176,6 +181,10 @@ export class DemoProvisioningService {
           slug = `${baseSlug}-${randomUUID().slice(0, 8)}`;
         }
 
+        const country =
+          normalizeCountryCode(input.country) ?? DEFAULT_COUNTRY_CODE;
+        const currency = currencyForCountry(country);
+
         const company = await tx.company.create({
           data: {
             name: input.companyName,
@@ -187,6 +196,8 @@ export class DemoProvisioningService {
                 phone: input.phone,
                 email,
                 address: input.emirate,
+                country,
+                currency,
               },
             },
             subscription: {
@@ -228,6 +239,7 @@ export class DemoProvisioningService {
             contactName: input.contactName || input.companyName,
             email,
             phone: input.phone || '',
+            country,
             emirate: input.emirate || '',
             approxUsers: input.approxUsers,
             note: input.note,

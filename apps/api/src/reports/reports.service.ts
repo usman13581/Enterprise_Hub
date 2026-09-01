@@ -22,6 +22,7 @@ import {
 import {
   INVOICE_REPORT_VIEWS,
   REPORT_NAV,
+  DEFAULT_CURRENCY,
   type InvoiceReportView,
   type ReportKey,
 } from '@marble/types';
@@ -277,7 +278,7 @@ export class ReportsService {
         credit: entry.direction === 'credit' ? entry.amount : null,
         balance: entry.runningBalance,
       })),
-      footerNote: `Closing balance ${roundMoney(statement.closingBalance).toFixed(2)} AED`,
+      footerNote: `Closing balance ${roundMoney(statement.closingBalance).toFixed(2)} ${await this.currencyOf(companyId)}`,
     };
   }
 
@@ -356,7 +357,7 @@ export class ReportsService {
         ]),
       ],
       rows,
-      footerNote: `Sum of balances = company AR ${companyAr.toFixed(2)} AED`,
+      footerNote: `Sum of balances = company AR ${companyAr.toFixed(2)} ${await this.currencyOf(companyId)}`,
     };
   }
 
@@ -444,7 +445,7 @@ export class ReportsService {
         bucket: AGING_BUCKET_LABELS[row.bucket],
         outstanding: row.outstanding,
       })),
-      footerNote: `Outstanding after FIFO advances = ${aged.totals.outstanding.toFixed(2)} AED`,
+      footerNote: `Outstanding after FIFO advances = ${aged.totals.outstanding.toFixed(2)} ${await this.currencyOf(companyId)}`,
     };
   }
 
@@ -529,7 +530,7 @@ export class ReportsService {
         total: invoice.total,
         advanceApplied: invoice.advanceApplied,
       })),
-      footerNote: `Planned margin ${financials.profit.toFixed(2)} AED (job net − cost)`,
+      footerNote: `Planned margin ${financials.profit.toFixed(2)} ${await this.currencyOf(companyId)} (job net − cost)`,
     };
   }
 
@@ -647,7 +648,7 @@ export class ReportsService {
         ]),
       ],
       rows,
-      footerNote: `Total planned margin ${totalMargin.toFixed(2)} AED`,
+      footerNote: `Total planned margin ${totalMargin.toFixed(2)} ${await this.currencyOf(companyId)}`,
     };
   }
 
@@ -822,7 +823,7 @@ export class ReportsService {
         ]),
       ],
       rows,
-      footerNote: `Unallocated on register ${totalUnallocated.toFixed(2)} AED`,
+      footerNote: `Unallocated on register ${totalUnallocated.toFixed(2)} ${await this.currencyOf(companyId)}`,
     };
   }
 
@@ -882,7 +883,7 @@ export class ReportsService {
         ]),
       ],
       rows,
-      footerNote: `Money held on account ${total.toFixed(2)} AED`,
+      footerNote: `Money held on account ${total.toFixed(2)} ${await this.currencyOf(companyId)}`,
     };
   }
 
@@ -970,7 +971,7 @@ export class ReportsService {
         ]),
       ],
       rows,
-      footerNote: `Unbilled remaining ${remaining.toFixed(2)} AED`,
+      footerNote: `Unbilled remaining ${remaining.toFixed(2)} ${await this.currencyOf(companyId)}`,
     };
   }
 
@@ -1209,7 +1210,7 @@ export class ReportsService {
         ),
         columns: masterColumns,
         rows,
-        footerNote: `Sum of row gross (issued) = ${s.gross.toFixed(2)} AED`,
+        footerNote: `Sum of row gross (issued) = ${s.gross.toFixed(2)} ${await this.currencyOf(companyId)}`,
       };
     }
 
@@ -1502,7 +1503,7 @@ export class ReportsService {
           dueDate: dayLabel(row.dueDate ?? row.issueDate),
           outstanding: row.outstanding,
         })),
-        footerNote: `FIFO unallocated advances applied; outstanding ${outstanding.toFixed(2)} AED`,
+        footerNote: `FIFO unallocated advances applied; outstanding ${outstanding.toFixed(2)} ${await this.currencyOf(companyId)}`,
       };
     }
 
@@ -2033,6 +2034,14 @@ export class ReportsService {
     return { key, title, params: { from: isoDate(from), to: isoDate(to), supplierId: query.supplierId ?? null }, summary: [{ label: 'Rows', value: rows.length }, { label: 'Suppliers', value: suppliers.length }, { label: 'Invoices', value: invoices.length }, { label: 'Payments', value: payments.length }], columns, rows, footerNote: 'Supplier purchasing reports are company-scoped. Payment references are masked.' };
   }
 
+  private async currencyOf(companyId: string): Promise<string> {
+    const profile = await this.prisma.companyProfile.findUnique({
+      where: { companyId },
+      select: { currency: true },
+    });
+    return profile?.currency ?? DEFAULT_CURRENCY;
+  }
+
   private async company(companyId: string): Promise<PdfCompany> {
     const profile = await this.prisma.companyProfile.findUnique({
       where: { companyId },
@@ -2052,7 +2061,7 @@ export class ReportsService {
       bankDetails: profile?.bankDetails ?? null,
       logoUrl: this.absolute(profile?.logoUrl),
       signatureUrl: this.absolute(profile?.signatureUrl),
-      currency: profile?.currency ?? 'AED',
+      currency: profile?.currency ?? DEFAULT_CURRENCY,
     };
   }
 

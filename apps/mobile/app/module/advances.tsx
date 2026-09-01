@@ -6,7 +6,7 @@ import {
   View,
 } from 'react-native';
 import { apiPost } from '../../lib/api';
-import { day, label, money } from '../../lib/format';
+import { amount, day, label, moneyHeader } from '../../lib/format';
 import {
   searchItems,
   useFlash,
@@ -16,6 +16,7 @@ import {
 import { Pagination, SearchBox, Toast } from '../../components/ListControls';
 import { ScreenScroll } from '../../components/ScreenScroll';
 import {
+  FilterChips,
   LinkAction,
   RecordRow,
   StatCard,
@@ -24,16 +25,27 @@ import { AdvanceForm } from '../../components/MoneyForms';
 import type { AdvancePayment, Customer } from '../../lib/types';
 import { colors, ui } from '../../lib/ui';
 
+type Filter = 'all' | 'draft' | 'posted' | 'cancelled';
+
 export default function AdvancesScreen() {
   const { items, loading, error, setError, reload } =
     usePolledList<AdvancePayment>('/advances');
   const { items: customers } = usePolledList<Customer>('/customers', 20000);
   const { flash, notify } = useFlash();
   const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<Filter>('all');
   const [showForm, setShowForm] = useState(false);
 
-  const filtered = useMemo(() => searchItems(items, query), [items, query]);
-  const pager = usePagination(filtered, query);
+  const filtered = useMemo(() => {
+    const byStatus =
+      filter === 'all'
+        ? items
+        : filter === 'cancelled'
+          ? items.filter((item) => item.cancelledAt || item.status === 'cancelled')
+          : items.filter((item) => item.status === filter);
+    return searchItems(byStatus, query);
+  }, [items, filter, query]);
+  const pager = usePagination(filtered, `${filter}:${query}`);
   const totals = useMemo(
     () =>
       items.reduce(
@@ -58,15 +70,11 @@ export default function AdvancesScreen() {
     <View style={ui.screen}>
       <ScreenScroll>
         <Text style={ui.title}>Advances</Text>
-        <Text style={ui.lede}>
-          Money received before invoicing. Recording credits the customer
-          immediately.
-        </Text>
         {error ? <Text style={ui.error}>{error}</Text> : null}
 
         <View style={styles.stats}>
-          <StatCard title="Received" value={money(totals.received)} />
-          <StatCard title="Not yet applied" value={money(totals.spare)} />
+          <StatCard title={moneyHeader('Received')} value={amount(totals.received)} />
+          <StatCard title={moneyHeader('Not yet applied')} value={amount(totals.spare)} />
         </View>
 
         {showForm ? (
@@ -99,12 +107,23 @@ export default function AdvancesScreen() {
               placeholder="Search advances…"
             />
 
+            <FilterChips
+              active={filter}
+              onChange={setFilter}
+              options={[
+                { key: 'all', label: 'All' },
+                { key: 'draft', label: 'Draft' },
+                { key: 'posted', label: 'Posted' },
+                { key: 'cancelled', label: 'Cancelled' },
+              ]}
+            />
+
             {filtered.length === 0 ? (
               <View style={ui.empty}>
                 <Text style={ui.emptyText}>
                   {items.length === 0
                     ? 'No advances recorded yet.'
-                    : 'No advances match your search.'}
+                    : 'No advances match this filter.'}
                 </Text>
               </View>
             ) : (
@@ -112,12 +131,13 @@ export default function AdvancesScreen() {
                 <RecordRow
                   key={advance.id}
                   title={advance.number}
+                  status={advance.status ?? (advance.cancelledAt ? 'cancelled' : 'posted')}
                   pdfPath={`/documents/advances/${advance.id}.pdf`}
                   onPdfError={setError}
                   meta={[
                     advance.customer?.name,
-                    money(advance.amount),
-                    advance.cancelledAt ? 'cancelled' : `spare ${money(advance.unallocatedAmount)}`,
+                    amount(advance.amount),
+                    advance.cancelledAt ? 'cancelled' : `spare ${amount(advance.unallocatedAmount)}`,
                     advance.job ? `Job ${advance.job.number}` : null,
                     label(advance.method),
                     day(advance.receivedAt),
@@ -125,6 +145,23 @@ export default function AdvancesScreen() {
                     .filter(Boolean)
                     .join(' · ')}
                 >
+                  {advance.status === 'draft' ? (
+                    <LinkAction
+                      label="Approve"
+                      onPress={() =>
+                        void apiPost(`/advances/${advance.id}/approve`, {})
+                          .then(() => reload())
+                          .then(() => notify('Advance approved'))
+                          .catch((e) =>
+                            setError(
+                              e instanceof Error
+                                ? e.message
+                                : 'Approve failed',
+                            ),
+                          )
+                      }
+                    />
+                  ) : null}
                   {advance.allocatedAmount === 0 && !advance.cancelledAt ? (
                     <LinkAction
                       label="Cancel"

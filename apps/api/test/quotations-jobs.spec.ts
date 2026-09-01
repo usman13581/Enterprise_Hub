@@ -57,6 +57,40 @@ describe('quotation to job lifecycle', () => {
     expect(res.body.lines[0].lineTotal).toBe(2500);
   });
 
+  it('applies line and document discounts to quotation totals', async () => {
+    const customer = await seedCustomer(h, 'Discount Villas');
+    const product = await seedProduct(h);
+
+    const res = await h
+      .post('/quotations')
+      .send({
+        customerId: customer.id,
+        title: 'Discounted package',
+        discountMode: 'fixed',
+        discountValue: 100,
+        lines: [
+          {
+            productId: product.id,
+            description: 'Slabs',
+            unit: 'sqm',
+            qty: 10,
+            purchasePrice: 180,
+            sellPrice: 250,
+            discountMode: 'percent',
+            discountValue: 10,
+          },
+        ],
+      })
+      .expect(201);
+
+    expect(res.body.lineDiscountTotal).toBe(250);
+    expect(res.body.discount).toBe(100);
+    expect(res.body.subtotal).toBe(2150);
+    expect(res.body.vatAmount).toBe(107.5);
+    expect(res.body.total).toBe(2257.5);
+    expect(res.body.lines[0].lineTotal).toBe(2250);
+  });
+
   it('numbers quotations sequentially', async () => {
     const customer = await seedCustomer(h, 'Sequence Co');
     const first = await h

@@ -4,7 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { CompanyProfileInput } from '@marble/types';
+import {
+  currencyForCountry,
+  DEFAULT_COUNTRY_CODE,
+  normalizeCountryCode,
+  type CompanyProfileInput,
+} from '@marble/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { LedgerService } from '../ledger/ledger.service';
@@ -48,35 +53,76 @@ export class CompanyService {
     });
     if (!before) throw new NotFoundException('Company profile not found');
 
-    const profile = await this.prisma.companyProfile.update({
-      where: { companyId: s.companyId },
-      data: {
-        legalName: input.legalName?.trim() || before.legalName,
-        tradeName: input.tradeName ?? null,
-        address: input.address ?? null,
-        phone: input.phone ?? null,
-        email: input.email ?? null,
-        trn: input.trn ?? null,
-        bankDetails: input.bankDetails ?? null,
-        logoUrl: input.logoUrl ?? null,
-        signatureUrl: input.signatureUrl ?? null,
-        quotationPrefix:
-          input.quotationPrefix?.trim() || before.quotationPrefix,
-        invoicePrefix: input.invoicePrefix?.trim() || before.invoicePrefix,
-        jobPrefix: input.jobPrefix?.trim() || before.jobPrefix,
-        advancePrefix: input.advancePrefix?.trim() || before.advancePrefix,
-        creditNotePrefix:
-          input.creditNotePrefix?.trim() || before.creditNotePrefix,
-        currency: input.currency?.trim() || before.currency,
-      },
-    });
+    const nextCountry =
+      normalizeCountryCode(input.country) ??
+      before.country ??
+      DEFAULT_COUNTRY_CODE;
+    const nextCurrency = currencyForCountry(nextCountry);
+    const currencyChanged = nextCurrency !== before.currency;
 
-    if (input.tradeName?.trim()) {
-      await this.prisma.company.update({
-        where: { id: s.companyId },
-        data: { name: input.tradeName.trim() },
+    const profile = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.companyProfile.update({
+        where: { companyId: s.companyId },
+        data: {
+          legalName: input.legalName?.trim() || before.legalName,
+          tradeName: input.tradeName ?? null,
+          address: input.address ?? null,
+          phone: input.phone ?? null,
+          email: input.email ?? null,
+          trn: input.trn ?? null,
+          bankDetails: input.bankDetails ?? null,
+          logoUrl: input.logoUrl ?? null,
+          signatureUrl: input.signatureUrl ?? null,
+          quotationPrefix:
+            input.quotationPrefix?.trim() || before.quotationPrefix,
+          invoicePrefix: input.invoicePrefix?.trim() || before.invoicePrefix,
+          jobPrefix: input.jobPrefix?.trim() || before.jobPrefix,
+          advancePrefix: input.advancePrefix?.trim() || before.advancePrefix,
+          creditNotePrefix:
+            input.creditNotePrefix?.trim() || before.creditNotePrefix,
+          country: nextCountry,
+          currency: nextCurrency,
+        },
       });
-    }
+
+      const companyPatch: {
+        name?: string;
+        dataEpoch?: { increment: number };
+      } = {};
+      if (input.tradeName?.trim()) {
+        companyPatch.name = input.tradeName.trim();
+      }
+      if (currencyChanged) {
+        companyPatch.dataEpoch = { increment: 1 };
+        await tx.lpo.updateMany({
+          where: { companyId: s.companyId },
+          data: { currency: nextCurrency },
+        });
+        await tx.purchaseInvoice.updateMany({
+          where: { companyId: s.companyId },
+          data: { currency: nextCurrency },
+        });
+        await tx.supplierPriceHistory.updateMany({
+          where: { companyId: s.companyId },
+          data: { currency: nextCurrency },
+        });
+        await tx.hRPolicyProfile.updateMany({
+          where: { companyId: s.companyId },
+          data: { currency: nextCurrency },
+        });
+        await tx.hRSalaryProfile.updateMany({
+          where: { companyId: s.companyId },
+          data: { currency: nextCurrency },
+        });
+      }
+      if (Object.keys(companyPatch).length > 0) {
+        await tx.company.update({
+          where: { id: s.companyId },
+          data: companyPatch,
+        });
+      }
+      return updated;
+    });
 
     await this.audit.write({
       companyId: s.companyId,

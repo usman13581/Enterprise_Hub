@@ -5,6 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
+import {
+  currencyForCountry,
+  DEFAULT_COUNTRY_CODE,
+  normalizeCountryCode,
+} from '@marble/types';
 import { PrismaService } from '../prisma/prisma.service';
 import type { PlatformSessionContext } from '../auth/session.types';
 import { SampleDataService } from '../sample-data/sample-data.service';
@@ -756,6 +761,10 @@ export class AdminService {
     const passwordHash = await bcrypt.hash(input.ownerPassword, 10);
     const ownerEmail = app.email.trim().toLowerCase();
 
+    const country =
+      normalizeCountryCode(app.country) ?? DEFAULT_COUNTRY_CODE;
+    const currency = currencyForCountry(country);
+
     const result = await this.prisma.$transaction(async (tx) => {
       const company = await tx.company.create({
         data: {
@@ -769,7 +778,9 @@ export class AdminService {
               phone: app.phone,
               email: ownerEmail,
               trn: app.trn,
-              address: app.emirate,
+              address: app.emirate || null,
+              country,
+              currency,
             },
           },
           subscription: {

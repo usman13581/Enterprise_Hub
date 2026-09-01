@@ -1,9 +1,30 @@
-export function money(amount: number | null | undefined, currency = 'AED') {
-  const value = Number(amount ?? 0);
-  return `${currency} ${value.toLocaleString('en-AE', {
+import { DEFAULT_CURRENCY } from '@marble/types';
+
+let displayCurrency = DEFAULT_CURRENCY;
+
+export function setDisplayCurrency(code: string | null | undefined) {
+  const next = code?.trim().toUpperCase();
+  displayCurrency = next && next.length === 3 ? next : DEFAULT_CURRENCY;
+}
+
+export function getDisplayCurrency() {
+  return displayCurrency;
+}
+
+export function amount(value: number | null | undefined) {
+  const parsed = Number(value ?? 0);
+  return parsed.toLocaleString('en-AE', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  })}`;
+  });
+}
+
+export function moneyHeader(label: string, currency = getDisplayCurrency()) {
+  return `${label} (${currency})`;
+}
+
+export function money(value: number | null | undefined, currency = getDisplayCurrency()) {
+  return `${currency} ${amount(value)}`;
 }
 
 export function qty(value: number) {

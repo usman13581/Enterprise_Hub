@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { apiFetch, apiPatch, apiPost } from '@/lib/api';
+import { todayIso } from '@/lib/dates';
 import { EditIconButton, FilterBar } from '@/components/Finance';
 import styles from '@/components/crud.module.css';
 
@@ -70,7 +71,7 @@ export function HRLookupsPanel({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState({
     name: '',
-    date: '',
+    date: todayIso(),
     address: '',
     locationKind: 'office',
     code: '',
@@ -97,7 +98,7 @@ export function HRLookupsPanel({
     setEditingId(null);
     setDraft({
       name: '',
-      date: '',
+      date: todayIso(),
       address: '',
       locationKind: 'office',
       code: '',

@@ -27,7 +27,7 @@ export const styles = StyleSheet.create({
   },
   logo: { width: 108, height: 44, objectFit: 'contain' },
   companyName: { fontSize: 15, fontFamily: 'Helvetica-Bold' },
-  companyLine: { color: palette.muted, marginTop: 2 },
+  companyLine: { color: palette.muted, fontSize: 9.5, marginTop: 1 },
   docBlock: { alignItems: 'flex-end' },
   docTitle: {
     fontSize: 17,
@@ -35,8 +35,8 @@ export const styles = StyleSheet.create({
     color: palette.accent,
     letterSpacing: 0.5,
   },
-  docNumber: { marginTop: 4, fontFamily: 'Helvetica-Bold' },
-  docMeta: { color: palette.muted, marginTop: 2 },
+  docNumber: { marginTop: 3, fontFamily: 'Helvetica-Bold', fontSize: 9.5 },
+  docMeta: { color: palette.muted, fontSize: 9.5, marginTop: 1 },
   parties: { flexDirection: 'row', gap: 18, marginBottom: 18 },
   party: {
     flex: 1,
@@ -51,8 +51,8 @@ export const styles = StyleSheet.create({
     letterSpacing: 0.7,
     marginBottom: 4,
   },
-  partyName: { fontFamily: 'Helvetica-Bold', marginBottom: 2 },
-  partyLine: { color: palette.muted, lineHeight: 1.4 },
+  partyName: { fontFamily: 'Helvetica-Bold', fontSize: 9.5, marginBottom: 1 },
+  partyLine: { color: palette.muted, fontSize: 9.5, marginTop: 1 },
   tableHead: {
     flexDirection: 'row',
     borderBottomWidth: 1,
@@ -76,7 +76,7 @@ export const styles = StyleSheet.create({
   cellDescription: { flex: 1, paddingRight: 8 },
   cellThumb: { width: 38, height: 30, objectFit: 'cover', borderRadius: 2 },
   thumbHolder: { width: 46 },
-  cellUnit: { width: 42 },
+  cellUnit: { width: 42, textAlign: 'left' },
   cellQty: { width: 46, textAlign: 'right' },
   cellPrice: { width: 68, textAlign: 'right' },
   cellTotal: { width: 74, textAlign: 'right' },
@@ -176,9 +176,9 @@ export const styles = StyleSheet.create({
     borderTopColor: palette.line,
     paddingTop: 6,
   },
-  /** Counter Top quotation — tighter vertical rhythm than general quotes. */
-  ctIntro: { marginBottom: 10, lineHeight: 1.4 },
-  ctIntroLine: { marginBottom: 2 },
+  /** Compact letterhead stacks — single-spacing, not sibling-Text gaps. */
+  ctIntro: { marginBottom: 8 },
+  ctIntroBlock: { fontSize: 9.5, marginBottom: 6 },
   ctSection: { marginTop: 8, marginBottom: 4 },
   ctSectionTitle: {
     fontSize: 10,
@@ -219,8 +219,8 @@ export const styles = StyleSheet.create({
   ctCompactSection: { marginTop: 6 },
   ctTermsBody: { color: palette.muted, lineHeight: 1.3, fontSize: 8.5 },
   genThankYouWrap: { marginTop: 8 },
-  genIntro: { marginBottom: 10, lineHeight: 1.4 },
-  genIntroLine: { marginBottom: 2 },
+  genIntro: { marginBottom: 8 },
+  genIntroBlock: { fontSize: 9.5 },
   genTableHead: {
     flexDirection: 'row',
     borderBottomWidth: 1,
@@ -237,9 +237,16 @@ export const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   genCellSn: { width: 20, textAlign: 'center', paddingTop: 2 },
+  genCellPicture: { width: 46, textAlign: 'center' },
   genCellQty: { width: 76, textAlign: 'right', paddingRight: 4 },
   genCellRate: { width: 58, textAlign: 'right', paddingRight: 4 },
   genCellTotal: { width: 68, textAlign: 'right' },
+  genHeadCell: {
+    fontSize: 7.5,
+    fontFamily: 'Helvetica-Bold',
+    letterSpacing: 0.6,
+    color: palette.ink,
+  },
   genThankYou: {
     marginTop: 8,
     fontSize: 8.5,

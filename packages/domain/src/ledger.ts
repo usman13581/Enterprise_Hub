@@ -115,10 +115,16 @@ export function jobFinancials(input: {
   purchaseTotal: number;
 }): JobFinancials {
   let invoicedFils = 0;
+  let reservedFils = 0;
   for (const invoice of input.invoices) {
     if (invoice.status === 'cancelled') continue;
     const amountFils = toFils(invoice.total);
-    invoicedFils += invoice.kind === 'credit_note' ? -amountFils : amountFils;
+    const signed = invoice.kind === 'credit_note' ? -amountFils : amountFils;
+    if (invoice.status === 'draft') {
+      reservedFils += signed;
+      continue;
+    }
+    invoicedFils += signed;
   }
 
   const jobValueFils = toFils(input.jobValue);
@@ -128,7 +134,7 @@ export function jobFinancials(input: {
     jobValue: fromFils(jobValueFils),
     invoicedToDate: fromFils(invoicedFils),
     advancesApplied: fromFils(toFils(input.advancesApplied)),
-    balanceRemaining: fromFils(jobValueFils - invoicedFils),
+    balanceRemaining: fromFils(jobValueFils - invoicedFils - reservedFils),
     purchaseTotal: fromFils(purchaseFils),
     profit: fromFils(toFils(input.jobNet) - purchaseFils),
   };

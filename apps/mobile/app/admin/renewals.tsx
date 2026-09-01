@@ -119,7 +119,6 @@ export default function AdminRenewalsScreen() {
   return (
     <ScreenScroll>
       <Text style={ui.title}>Renewals</Text>
-      <Text style={ui.lede}>Bank-deposit inbox for subscription renewals.</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
 
       <FilterChips

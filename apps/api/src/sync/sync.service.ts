@@ -8,6 +8,11 @@ import {
   type SyncEntity,
 } from '@marble/domain';
 import type { SyncMutation, SyncPushInput } from '@marble/types';
+import {
+  currencyForCountry,
+  DEFAULT_COUNTRY_CODE,
+  normalizeCountryCode,
+} from '@marble/types';
 import { AuditService } from '../audit/audit.service';
 import { AccountsService } from '../accounts/accounts.service';
 import { SessionContext } from '../auth/session.types';
@@ -554,7 +559,15 @@ export class SyncService {
       creditNotePrefix: String(
         data.creditNotePrefix ?? existing?.creditNotePrefix ?? 'CN',
       ),
-      currency: String(data.currency ?? existing?.currency ?? 'AED'),
+      country:
+        normalizeCountryCode(typeof data.country === 'string' ? data.country : null) ??
+        existing?.country ??
+        DEFAULT_COUNTRY_CODE,
+      currency: currencyForCountry(
+        normalizeCountryCode(typeof data.country === 'string' ? data.country : null) ??
+          existing?.country ??
+          DEFAULT_COUNTRY_CODE,
+      ),
       vatRate: Number(data.vatRate ?? existing?.vatRate ?? 0.05),
       version: mutation.version,
     };

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { money } from '@/lib/format';
+import { amount, moneyHeader } from '@/lib/format';
 import {
   searchItems,
   usePagination,
@@ -59,16 +59,12 @@ export default function AccountsPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Accounts</h1>
-      <p className={page.lede}>
-        Company position across customers, suppliers, and jobs. Balances come
-        from the ledger, so they always agree with the individual statements.
-      </p>
 
       <div className={finance.statGrid}>
-        <Stat title="Total billed" value={money(item.summary.billed)} />
+        <Stat title={moneyHeader('Total billed')} value={amount(item.summary.billed)} />
         <Stat
-          title="Advances received"
-          value={money(item.summary.advancesReceived)}
+          title={moneyHeader('Advances received')}
+          value={amount(item.summary.advancesReceived)}
         />
         <BalanceStat
           title="Receivable"
@@ -79,16 +75,16 @@ export default function AccountsPage() {
           amount={item.totalPayable}
         />
         <Stat
-          title="Unapplied advances"
-          value={money(item.summary.unallocatedAdvances)}
+          title={moneyHeader('Unapplied advances')}
+          value={amount(item.summary.unallocatedAdvances)}
         />
         <Stat
-          title="Credit notes"
-          value={money(item.summary.credited)}
+          title={moneyHeader('Credit notes')}
+          value={amount(item.summary.credited)}
         />
         <Stat
-          title="Planned margin"
-          value={money(item.totalProfit)}
+          title={moneyHeader('Planned margin')}
+          value={amount(item.totalProfit)}
           hint={`${item.openJobs} job${item.openJobs === 1 ? '' : 's'} still open`}
         />
       </div>
@@ -136,9 +132,9 @@ export default function AccountsPage() {
               <thead>
                 <tr>
                   <th>Customer</th>
-                  <th className={finance.numeric}>Billed</th>
-                  <th className={finance.numeric}>Received</th>
-                  <th className={finance.numeric}>Balance</th>
+                  <th className={finance.numeric}>{moneyHeader('Billed')}</th>
+                  <th className={finance.numeric}>{moneyHeader('Received')}</th>
+                  <th className={finance.numeric}>{moneyHeader('Balance')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -152,14 +148,14 @@ export default function AccountsPage() {
                         {row.customerName}
                       </Link>
                     </td>
-                    <td className={finance.numeric}>{money(row.billed)}</td>
-                    <td className={finance.numeric}>{money(row.received)}</td>
+                    <td className={finance.numeric}>{amount(row.billed)}</td>
+                    <td className={finance.numeric}>{amount(row.received)}</td>
                     <td
                       className={`${finance.numeric} ${
                         row.balance > 0 ? finance.due : finance.clear
                       }`}
                     >
-                      {money(row.balance)}
+                      {amount(row.balance)}
                     </td>
                   </tr>
                 ))}
@@ -178,9 +174,9 @@ export default function AccountsPage() {
               <thead>
                 <tr>
                   <th>Supplier</th>
-                  <th className={finance.numeric}>Invoiced</th>
-                  <th className={finance.numeric}>Paid</th>
-                  <th className={finance.numeric}>Balance</th>
+                  <th className={finance.numeric}>{moneyHeader('Invoiced')}</th>
+                  <th className={finance.numeric}>{moneyHeader('Paid')}</th>
+                  <th className={finance.numeric}>{moneyHeader('Balance')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -194,14 +190,14 @@ export default function AccountsPage() {
                         {row.supplierName}
                       </Link>
                     </td>
-                    <td className={finance.numeric}>{money(row.invoiced)}</td>
-                    <td className={finance.numeric}>{money(row.paid)}</td>
+                    <td className={finance.numeric}>{amount(row.invoiced)}</td>
+                    <td className={finance.numeric}>{amount(row.paid)}</td>
                     <td
                       className={`${finance.numeric} ${
                         row.balance > 0 ? finance.due : finance.clear
                       }`}
                     >
-                      {money(row.balance)}
+                      {amount(row.balance)}
                     </td>
                   </tr>
                 ))}
@@ -222,9 +218,9 @@ export default function AccountsPage() {
                   <th>Job</th>
                   <th>Customer</th>
                   <th>Status</th>
-                  <th className={finance.numeric}>Job value</th>
-                  <th className={finance.numeric}>Cost</th>
-                  <th className={finance.numeric}>Margin</th>
+                  <th className={finance.numeric}>{moneyHeader('Job value')}</th>
+                  <th className={finance.numeric}>{moneyHeader('Cost')}</th>
+                  <th className={finance.numeric}>{moneyHeader('Margin')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -239,14 +235,14 @@ export default function AccountsPage() {
                     <td>
                       <StatusBadge status={row.status} />
                     </td>
-                    <td className={finance.numeric}>{money(row.jobValue)}</td>
-                    <td className={finance.numeric}>{money(row.purchaseTotal)}</td>
+                    <td className={finance.numeric}>{amount(row.jobValue)}</td>
+                    <td className={finance.numeric}>{amount(row.purchaseTotal)}</td>
                     <td
                       className={`${finance.numeric} ${
                         row.profit < 0 ? finance.due : ''
                       }`}
                     >
-                      {money(row.profit)}
+                      {amount(row.profit)}
                     </td>
                   </tr>
                 ))}

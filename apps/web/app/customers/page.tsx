@@ -116,10 +116,6 @@ export default function CustomersPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Customers</h1>
-      <p className={page.lede}>
-        Customer records for quotations, jobs, and invoices. Lists update
-        automatically.
-      </p>
 
       {error ? <p className={styles.error}>{error}</p> : null}
 

@@ -77,9 +77,6 @@ export default function AdminSupportPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Support</h1>
-      <p className={page.lede}>
-        Company support tickets across the platform.
-      </p>
 
       {error ? <p className={styles.error}>{error}</p> : null}
 

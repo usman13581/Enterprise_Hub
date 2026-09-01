@@ -81,9 +81,6 @@ export default function AdminNotificationsPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Notifications</h1>
-      <p className={page.lede}>
-        Broadcast messages to company admins or all users.
-      </p>
 
       {error ? <p className={styles.error}>{error}</p> : null}
 

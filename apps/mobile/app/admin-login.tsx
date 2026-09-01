@@ -74,10 +74,6 @@ export default function AdminLoginScreen() {
       <Text style={styles.powered}>{APP_POWERED_BY}</Text>
       <Text style={styles.version}>v{APP_VERSION}</Text>
       <Text style={ui.title}>Platform admin</Text>
-      <Text style={ui.lede}>
-        Sign in with a platform admin account. Company modules are not available
-        here.
-      </Text>
 
       <View style={ui.card}>
         <Text style={ui.label}>Email</Text>

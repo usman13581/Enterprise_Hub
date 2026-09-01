@@ -63,8 +63,22 @@ export const INVOICE_KINDS = [
 ] as const;
 export type InvoiceKind = (typeof INVOICE_KINDS)[number];
 
-export const INVOICE_STATUSES = ['issued', 'cancelled'] as const;
+export const INVOICE_STATUSES = ['draft', 'issued', 'cancelled'] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
+
+export const ADVANCE_STATUSES = ['draft', 'posted', 'cancelled'] as const;
+export type AdvanceStatus = (typeof ADVANCE_STATUSES)[number];
+
+export const SUPPLIER_PAYMENT_STATUSES = [
+  'draft',
+  'posted',
+  'reversed',
+] as const;
+export type SupplierPaymentStatus = (typeof SUPPLIER_PAYMENT_STATUSES)[number];
+
+/** Line or document discount — fixed AED amount or percentage of gross. */
+export const DISCOUNT_MODES = ['none', 'fixed', 'percent'] as const;
+export type DiscountMode = (typeof DISCOUNT_MODES)[number];
 
 export const PAYMENT_METHODS = [
   'cash',

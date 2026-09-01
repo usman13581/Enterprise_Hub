@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createHarness, seedApprovedJob, type Harness } from './harness';
+import { createHarness, issueCreated, approveCreatedAdvance, seedApprovedJob, type Harness } from './harness';
 
 const PDF_MAGIC = '%PDF-';
 
@@ -34,17 +34,17 @@ describe('printable documents', () => {
 
   it('renders a tax invoice PDF with an advance adjustment', async () => {
     const { customerId, job } = await seedApprovedJob(h);
-    const advance = await h
+    const advance = await approveCreatedAdvance(h, await h
       .post('/advances')
       .send({ customerId, jobId: job.id, amount: 2000 })
-      .expect(201);
-    const invoice = await h
+      .expect(201));
+    const invoice = await issueCreated(h, await h
       .post(`/invoices/jobs/${job.id}/progressive`)
       .send({
         percentage: 50,
         allocations: [{ advanceId: advance.body.id, amount: 2000 }],
       })
-      .expect(201);
+      .expect(201));
 
     const res = await h
       .get(`/documents/invoices/${invoice.body.id}.pdf`)
@@ -82,18 +82,18 @@ describe('printable documents', () => {
 
   it('names a credit note document distinctly', async () => {
     const { job } = await seedApprovedJob(h);
-    const invoice = await h
+    const invoice = await issueCreated(h, await h
       .post(`/invoices/jobs/${job.id}/progressive`)
       .send({ percentage: 100 })
-      .expect(201);
-    const creditNote = await h
+      .expect(201));
+    const creditNote = await issueCreated(h, await h
       .post('/invoices/credit-notes')
       .send({
         invoiceId: invoice.body.id,
         reason: 'Returned material',
         lines: [{ description: 'Returned slabs', qty: 1, unitPrice: 250 }],
       })
-      .expect(201);
+      .expect(201));
 
     const res = await h
       .get(`/documents/invoices/${creditNote.body.id}.pdf`)

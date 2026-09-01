@@ -16,7 +16,14 @@ async function main() {
     throw new Error('Binhaj Marble company not found. Run db:seed:pilot first.');
   }
 
-  console.log(`Preparing generic sample data v${TEMPLATE_VERSION} for ${company.name}…`);
+  await prisma.companyProfile.update({
+    where: { companyId: company.id },
+    data: { country: 'AE', currency: 'AED' },
+  });
+
+  console.log(
+    `Preparing generic sample data v${TEMPLATE_VERSION} for ${company.name} (country AE / AED)…`,
+  );
 
   await prisma.$transaction(async (tx) => {
     const invoices = await tx.invoice.findMany({

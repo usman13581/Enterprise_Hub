@@ -66,7 +66,6 @@ export default function AdminLoginPage() {
         <p className={login.powered}>{APP_POWERED_BY}</p>
         <p className={login.version}>v{APP_VERSION}</p>
         <h1 className={page.title}>Platform admin</h1>
-        <p className={page.lede}>Sign in to manage companies and subscriptions.</p>
 
         <form className={styles.form} onSubmit={onSubmit}>
           <div className={styles.field}>

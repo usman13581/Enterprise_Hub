@@ -74,9 +74,6 @@ export default function AdminRenewalsPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Renewal requests</h1>
-      <p className={page.lede}>
-        Review bank deposit renewals and extend subscriptions.
-      </p>
 
       {error ? <p className={styles.error}>{error}</p> : null}
 

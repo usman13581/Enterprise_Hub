@@ -46,7 +46,6 @@ export default function AdminHomePage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Overview</h1>
-      <p className={page.lede}>Platform health at a glance.</p>
 
       {error ? <p className={styles.error}>{error}</p> : null}
 

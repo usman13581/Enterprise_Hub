@@ -3,9 +3,16 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 import { computeInvoiceTotals } from '@marble/domain';
 import { PAYMENT_METHODS } from '@marble/types';
 import { apiFetch, apiPost } from '../lib/api';
-import { day, label, money } from '../lib/format';
+import { dueDateIso, todayIso } from '../lib/dates';
+import { amount, day, label } from '../lib/format';
 import type { AvailableAdvance, Invoice } from '../lib/types';
 import { colors, ui } from '../lib/ui';
+import {
+  discountPayload,
+  DiscountInput,
+  EMPTY_DISCOUNT,
+  type DiscountDraft,
+} from './DiscountInput';
 import { FormPicker } from './FormField';
 import { SearchablePicker } from './SearchablePicker';
 import { ActionButton, FilterChips, RowActions } from './Finance';
@@ -21,6 +28,8 @@ export type InvoiceLineDraft = {
   qty: string;
   unitPrice: string;
   purchasePrice: string;
+  discountMode: DiscountDraft['discountMode'];
+  discountValue: string;
 };
 
 export const EMPTY_INVOICE_LINE: InvoiceLineDraft = {
@@ -29,6 +38,8 @@ export const EMPTY_INVOICE_LINE: InvoiceLineDraft = {
   qty: '1',
   unitPrice: '0',
   purchasePrice: '0',
+  discountMode: 'none',
+  discountValue: '0',
 };
 
 export function invoiceLinePayload(lines: InvoiceLineDraft[]) {
@@ -38,7 +49,24 @@ export function invoiceLinePayload(lines: InvoiceLineDraft[]) {
     qty: num(line.qty),
     unitPrice: num(line.unitPrice),
     purchasePrice: num(line.purchasePrice),
+    discountMode: line.discountMode,
+    discountValue: num(line.discountValue),
   }));
+}
+
+function discountTotalsText(
+  totals: ReturnType<typeof computeInvoiceTotals>,
+): string {
+  const parts = [
+    totals.lineDiscountTotal > 0
+      ? `Line disc. ${amount(totals.lineDiscountTotal)}`
+      : null,
+    totals.discount > 0 ? `Doc disc. ${amount(totals.discount)}` : null,
+    `Taxable ${amount(totals.subtotal)}`,
+    `VAT ${amount(totals.vatAmount)}`,
+    `Total ${amount(totals.total)}`,
+  ].filter(Boolean);
+  return parts.join(' · ');
 }
 
 export function allocationPayload(value: Record<string, string>) {
@@ -131,7 +159,7 @@ export function AllocationPicker({
               {day(advance.receivedAt)}
               {advance.job ? ` · job ${advance.job.number}` : ''}
               {' · '}
-              {money(advance.unallocatedAmount)} available
+              {amount(advance.unallocatedAmount)} available
             </Text>
           </View>
           <TextInput
@@ -145,7 +173,7 @@ export function AllocationPicker({
         </View>
       ))}
       <Text style={ui.cardMeta}>
-        Applying {money(applied)} against {money(invoiceTotal)}.
+        Applying {amount(applied)} against {amount(invoiceTotal)}.
       </Text>
     </View>
   );
@@ -154,11 +182,19 @@ export function AllocationPicker({
 export function InvoiceLineEditor({
   lines,
   onChange,
+  documentDiscount = EMPTY_DISCOUNT,
+  onDocumentDiscountChange,
 }: {
   lines: InvoiceLineDraft[];
   onChange: (lines: InvoiceLineDraft[]) => void;
+  documentDiscount?: DiscountDraft;
+  onDocumentDiscountChange?: (next: DiscountDraft) => void;
 }) {
-  const totals = computeInvoiceTotals(invoiceLinePayload(lines));
+  const totals = computeInvoiceTotals(
+    invoiceLinePayload(lines),
+    0,
+    discountPayload(documentDiscount),
+  );
 
   function patch(index: number, changes: Partial<InvoiceLineDraft>) {
     onChange(lines.map((line, i) => (i === index ? { ...line, ...changes } : line)));
@@ -211,8 +247,22 @@ export function InvoiceLineEditor({
               placeholderTextColor={colors.soft}
             />
           </View>
+          <DiscountInput
+            label="Line discount"
+            compact
+            value={{
+              discountMode: line.discountMode,
+              discountValue: line.discountValue,
+            }}
+            onChange={(discount) =>
+              patch(index, {
+                discountMode: discount.discountMode,
+                discountValue: discount.discountValue,
+              })
+            }
+          />
           <Text style={ui.cardMeta}>
-            Line total {money(totals.lineTotals[index] ?? 0)}
+            Line total {amount(totals.lineTotals[index] ?? 0)}
           </Text>
           {lines.length > 1 ? (
             <Pressable
@@ -224,14 +274,20 @@ export function InvoiceLineEditor({
         </View>
       ))}
       <Pressable
-        style={[ui.ghost, { marginTop: 12, alignSelf: 'flex-start' }]}
+        style={styles.addLineButton}
         onPress={() => onChange([...lines, { ...EMPTY_INVOICE_LINE }])}
       >
-        <Text style={ui.ghostText}>+ Add line</Text>
+        <Text style={styles.addLineButtonText}>+ Add line</Text>
       </Pressable>
+      {onDocumentDiscountChange ? (
+        <DiscountInput
+          label="Document discount"
+          value={documentDiscount}
+          onChange={onDocumentDiscountChange}
+        />
+      ) : null}
       <Text style={[ui.cardMeta, { marginTop: 12 }]}>
-        Subtotal {money(totals.subtotal)} · VAT {money(totals.vatAmount)} ·
-        Total {money(totals.total)}
+        {discountTotalsText(totals)}
       </Text>
     </View>
   );
@@ -257,7 +313,7 @@ export function AdvanceForm({
     amount: '',
     method: 'cash',
     reference: '',
-    receivedAt: new Date().toISOString().slice(0, 10),
+    receivedAt: todayIso(),
     notes: '',
   });
   const [saving, setSaving] = useState(false);
@@ -275,7 +331,7 @@ export function AdvanceForm({
         receivedAt: draft.receivedAt || null,
         notes: draft.notes,
       });
-      onSaved('Advance recorded');
+      onSaved('Advance saved as draft');
     } catch (error) {
       onError(error instanceof Error ? error.message : 'Could not save');
     } finally {
@@ -341,7 +397,7 @@ export function AdvanceForm({
       />
       <RowActions>
         <ActionButton
-          label={saving ? 'Saving…' : 'Record advance'}
+          label={saving ? 'Saving…' : 'Save draft'}
           tone="primary"
           disabled={saving}
           onPress={() => void submit()}
@@ -373,9 +429,9 @@ export function JobInvoiceForm({
 }) {
   const [mode, setMode] = useState<'percentage' | 'amount'>('percentage');
   const [percentage, setPercentage] = useState('30');
-  const [amount, setAmount] = useState('');
+  const [amountValue, setAmountValue] = useState('');
   const [description, setDescription] = useState('');
-  const [dueDate, setDueDate] = useState('');
+  const [dueDate, setDueDate] = useState(dueDateIso());
   const [notes, setNotes] = useState('');
   const [allocations, setAllocations] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -385,7 +441,7 @@ export function JobInvoiceForm({
       ? balanceRemaining
       : mode === 'percentage'
         ? (jobValue * num(percentage)) / 100
-        : num(amount);
+        : num(amountValue);
   const net = Math.round((gross / 1.05) * 100) / 100;
   const vat = Math.round((gross - net) * 100) / 100;
   const applied = allocationPayload(allocations).reduce(
@@ -406,13 +462,13 @@ export function JobInvoiceForm({
           ? {}
           : mode === 'percentage'
             ? { percentage: num(percentage) }
-            : { amount: num(amount) }),
+            : { amount: num(amountValue) }),
         description: description || null,
         dueDate: dueDate || null,
         notes: notes || null,
         allocations: allocationPayload(allocations),
       });
-      onSaved(kind === 'final' ? 'Final invoice issued' : 'Invoice issued');
+      onSaved(kind === 'final' ? 'Final invoice saved as draft' : 'Invoice saved as draft');
     } catch (error) {
       onError(error instanceof Error ? error.message : 'Could not issue');
     } finally {
@@ -431,7 +487,7 @@ export function JobInvoiceForm({
       </Text>
       {kind === 'final' ? (
         <Text style={ui.cardMeta}>
-          This bills the {money(balanceRemaining)} still un-invoiced on the job.
+          This bills the {amount(balanceRemaining)} still un-invoiced on the job.
         </Text>
       ) : (
         <>
@@ -458,8 +514,8 @@ export function JobInvoiceForm({
               <Text style={ui.label}>Amount the customer pays (incl. VAT)</Text>
               <TextInput
                 style={ui.input}
-                value={amount}
-                onChangeText={setAmount}
+                value={amountValue}
+                onChangeText={setAmountValue}
                 keyboardType="decimal-pad"
               />
             </>
@@ -491,8 +547,8 @@ export function JobInvoiceForm({
         onChange={setAllocations}
       />
       <Text style={[ui.cardMeta, { marginTop: 8 }]}>
-        Taxable {money(net)} · VAT {money(vat)} · Total {money(gross)} · Net
-        payable {money(Math.max(0, gross - applied))}
+        Taxable {amount(net)} · VAT {amount(vat)} · Total {amount(gross)} · Net
+        payable {amount(Math.max(0, gross - applied))}
       </Text>
       <Text style={ui.label}>Notes on the invoice</Text>
       <TextInput
@@ -503,7 +559,7 @@ export function JobInvoiceForm({
       />
       <RowActions>
         <ActionButton
-          label={saving ? 'Issuing…' : 'Issue invoice'}
+          label={saving ? 'Saving…' : 'Save draft'}
           tone="primary"
           disabled={saving}
           onPress={() => void submit()}
@@ -537,6 +593,9 @@ export function CreditNoteForm({
         }))
       : [{ ...EMPTY_INVOICE_LINE }],
   );
+  const [documentDiscount, setDocumentDiscount] = useState<DiscountDraft>({
+    ...EMPTY_DISCOUNT,
+  });
   const [saving, setSaving] = useState(false);
 
   async function submit() {
@@ -546,6 +605,7 @@ export function CreditNoteForm({
       await apiPost('/invoices/credit-notes', {
         invoiceId: invoice.id,
         reason,
+        ...discountPayload(documentDiscount),
         lines: invoiceLinePayload(lines),
       });
       await onSaved();
@@ -561,7 +621,7 @@ export function CreditNoteForm({
       <Text style={ui.cardTitle}>Credit note against {invoice.number}</Text>
       <Text style={ui.cardMeta}>
         The original invoice stays on the ledger. This cannot exceed the{' '}
-        {money(invoice.total)} originally billed.
+        {amount(invoice.total)} originally billed.
       </Text>
       <Text style={ui.label}>Reason *</Text>
       <TextInput
@@ -571,7 +631,12 @@ export function CreditNoteForm({
         placeholder="Material returned, rework agreed…"
         placeholderTextColor={colors.soft}
       />
-      <InvoiceLineEditor lines={lines} onChange={setLines} />
+      <InvoiceLineEditor
+        lines={lines}
+        onChange={setLines}
+        documentDiscount={documentDiscount}
+        onDocumentDiscountChange={setDocumentDiscount}
+      />
       <RowActions>
         <ActionButton
           label={saving ? 'Issuing…' : 'Issue credit note'}
@@ -622,4 +687,19 @@ const styles = {
   },
   row: { flexDirection: 'row' as const, gap: 8, marginTop: 8 },
   half: { flex: 1 },
+  addLineButton: {
+    marginTop: 12,
+    alignSelf: 'flex-start' as const,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 9,
+    backgroundColor: colors.accentSoft,
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  addLineButtonText: {
+    color: colors.accent,
+    fontWeight: '600' as const,
+    fontSize: 14,
+  },
 };

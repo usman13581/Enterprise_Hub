@@ -67,9 +67,6 @@ export default function LoginPage() {
         <p className={login.powered}>{APP_POWERED_BY}</p>
         <p className={login.version}>v{APP_VERSION}</p>
         <h1 className={page.title}>Sign in</h1>
-        <p className={page.lede}>
-          Use your company account to open quotations, jobs, and invoices.
-        </p>
 
         <form className={styles.form} onSubmit={onSubmit}>
           <div className={styles.field}>

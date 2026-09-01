@@ -29,6 +29,7 @@ import { SearchablePicker } from "../../components/SearchablePicker";
 import { Pagination, SearchBox, Toast } from "../../components/ListControls";
 import { ScreenScroll } from "../../components/ScreenScroll";
 import { LinkAction, RecordRow, UploadChip } from "../../components/Finance";
+import { moneyHeader } from "../../lib/format";
 import type { Product, Supplier } from "../../lib/types";
 import { colors, ui } from "../../lib/ui";
 
@@ -158,10 +159,6 @@ export default function ProductsScreen() {
     <View style={ui.screen}>
       <ScreenScroll>
         <Text style={ui.title}>Products</Text>
-        <Text style={ui.lede}>
-          Purchase and sell defaults, optional supplier, and multiple photos.
-          The default photo prints on PDFs.
-        </Text>
 
         {error ? <Text style={ui.error}>{error}</Text> : null}
 
@@ -188,14 +185,14 @@ export default function ProductsScreen() {
               value={draft.unit}
               onChangeText={(v) => setDraft({ ...draft, unit: v })}
             />
-            <Text style={ui.label}>Purchase price (AED)</Text>
+            <Text style={ui.label}>{moneyHeader("Purchase price")}</Text>
             <TextInput
               style={ui.input}
               value={draft.purchasePrice}
               keyboardType="decimal-pad"
               onChangeText={(v) => setDraft({ ...draft, purchasePrice: v })}
             />
-            <Text style={ui.label}>Sell price (AED)</Text>
+            <Text style={ui.label}>{moneyHeader("Sell price")}</Text>
             <TextInput
               style={ui.input}
               value={draft.sellPrice}

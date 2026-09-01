@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -66,6 +67,20 @@ export class InvoicesController {
     @Body(zodBody(invoiceSchema)) body: InvoiceInput,
   ) {
     return this.service.create(session, body);
+  }
+
+  @Patch(':id')
+  update(
+    @CurrentSession() session: SessionContext,
+    @Param('id') id: string,
+    @Body(zodBody(invoiceSchema)) body: InvoiceInput,
+  ) {
+    return this.service.update(session, id, body);
+  }
+
+  @Post(':id/issue')
+  issue(@CurrentSession() session: SessionContext, @Param('id') id: string) {
+    return this.service.issue(session, id);
   }
 
   @Post('jobs/:jobId/progressive')

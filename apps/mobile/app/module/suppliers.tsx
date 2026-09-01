@@ -101,9 +101,6 @@ export default function SuppliersScreen() {
     <View style={ui.screen}>
       <ScreenScroll>
         <Text style={ui.title}>Suppliers</Text>
-        <Text style={ui.lede}>
-          Supplier directory. Products can optionally be tagged to a supplier.
-        </Text>
 
         {error ? <Text style={ui.error}>{error}</Text> : null}
 

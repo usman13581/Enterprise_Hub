@@ -1,9 +1,16 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
-import { APP_NAME, APP_POWERED_BY, APP_VERSION } from "@marble/types";
+import {
+  APP_NAME,
+  APP_POWERED_BY,
+  APP_VERSION,
+  COUNTRIES,
+  currencyForCountry,
+} from "@marble/types";
 import { apiPost } from "@/lib/api";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import styles from "@/components/crud.module.css";
 import page from "../page.module.css";
 import login from "../login/login.module.css";
@@ -13,6 +20,7 @@ export default function GetStartedPage() {
   const [contactName, setContactName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [country, setCountry] = useState("");
   const [emirate, setEmirate] = useState("");
   const [tradeName, setTradeName] = useState("");
   const [trn, setTrn] = useState("");
@@ -26,6 +34,11 @@ export default function GetStartedPage() {
   const [done, setDone] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const derivedCurrency = useMemo(
+    () => (country ? currencyForCountry(country) : ""),
+    [country],
+  );
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (saving) return;
@@ -37,7 +50,8 @@ export default function GetStartedPage() {
         contactName,
         email,
         phone,
-        emirate,
+        country,
+        emirate: emirate || undefined,
         tradeName: tradeName || undefined,
         trn: trn || undefined,
         approxUsers: approxUsers || undefined,
@@ -62,9 +76,6 @@ export default function GetStartedPage() {
         <p className={login.powered}>{APP_POWERED_BY}</p>
         <p className={login.version}>v{APP_VERSION}</p>
         <h1 className={page.title}>Get started</h1>
-        <p className={page.lede}>
-          Apply for a company workspace. We will review and set up your trial.
-        </p>
 
         {done ? (
           <div className={page.panel}>
@@ -130,13 +141,30 @@ export default function GetStartedPage() {
                   required
                 />
               </div>
+              <SearchableSelect
+                label="Country *"
+                value={country}
+                onChange={setCountry}
+                required
+                placeholder="Search countries…"
+                options={COUNTRIES.map((item) => ({
+                  id: item.code,
+                  label: item.name,
+                }))}
+              />
+              {derivedCurrency ? (
+                <p className={login.hint}>Currency: {derivedCurrency}</p>
+              ) : (
+                <p className={login.hint}>
+                  Currency follows the country you select.
+                </p>
+              )}
               <div className={styles.field}>
-                <label className={styles.label}>Emirate *</label>
+                <label className={styles.label}>Emirate / region</label>
                 <input
                   className={styles.input}
                   value={emirate}
                   onChange={(e) => setEmirate(e.target.value)}
-                  required
                 />
               </div>
               <div className={styles.field}>

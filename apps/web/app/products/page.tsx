@@ -12,6 +12,7 @@ import { Pagination, SearchBox, Toast } from "@/components/ListControls";
 import { EditIconButton } from "@/components/Finance";
 import { FilePicker } from "@/components/FilePicker";
 import { PreviewableImage } from "@/components/ImagePreview";
+import { moneyHeader } from "@/lib/format";
 import type { Product, Supplier } from "@/lib/types";
 import page from "../page.module.css";
 import styles from "@/components/crud.module.css";
@@ -143,10 +144,6 @@ export default function ProductsPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Products</h1>
-      <p className={page.lede}>
-        Catalog with default purchase and sell prices, optional supplier, and
-        multiple images. The default image is used on PDFs.
-      </p>
 
       {error ? <p className={styles.error}>{error}</p> : null}
 
@@ -200,7 +197,7 @@ export default function ProductsPage() {
               </select>
             </div>
             <div className={styles.field}>
-              <label className={styles.label}>Purchase price (AED)</label>
+              <label className={styles.label}>{moneyHeader('Purchase price')}</label>
               <input
                 className={styles.input}
                 type="number"
@@ -212,7 +209,7 @@ export default function ProductsPage() {
               />
             </div>
             <div className={styles.field}>
-              <label className={styles.label}>Sell price (AED)</label>
+              <label className={styles.label}>{moneyHeader('Sell price')}</label>
               <input
                 className={styles.input}
                 type="number"
@@ -298,15 +295,15 @@ export default function ProductsPage() {
                       </p>
                       <div className={styles.price}>
                         <span className={styles.priceItem}>
-                          Purchase{" "}
+                          {moneyHeader('Purchase')}{" "}
                           <span className={styles.priceValue}>
-                            AED {item.purchasePrice.toFixed(2)}
+                            {item.purchasePrice.toFixed(2)}
                           </span>
                         </span>
                         <span className={styles.priceItem}>
-                          Sell{" "}
+                          {moneyHeader('Sell')}{" "}
                           <span className={styles.priceValue}>
-                            AED {item.sellPrice.toFixed(2)}
+                            {item.sellPrice.toFixed(2)}
                           </span>
                         </span>
                       </div>

@@ -12,7 +12,7 @@ import {
   getSessionKind,
   markSessionActivity,
 } from '../lib/auth';
-import { colors } from '../lib/ui';
+import { CompanyCurrencyProvider } from '../lib/company-currency';
 
 export default function RootLayout() {
   const router = useRouter();
@@ -139,6 +139,7 @@ export default function RootLayout() {
   return (
     <>
       <StatusBar style="dark" />
+      <CompanyCurrencyProvider>
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: '#ffffff' },
@@ -219,6 +220,7 @@ export default function RootLayout() {
         />
         <Stack.Screen name="module/[key]" options={{ title: 'Module' }} />
       </Stack>
+      </CompanyCurrencyProvider>
     </>
   );
 }

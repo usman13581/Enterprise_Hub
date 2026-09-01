@@ -8,6 +8,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { SessionContext, isCompanySession } from '../auth/session.types';
+import { DEFAULT_CURRENCY } from '@marble/types';
 
 const employeeSelect = {
   id: true,
@@ -505,7 +506,12 @@ export class HrService {
     const employee = await this.prisma.hREmployee.findFirst({ where: { id: employeeId, companyId: session.companyId } });
     if (!employee) throw new NotFoundException('Employee not found');
     if (input.basicSalary < 0) throw new BadRequestException('basicSalary cannot be negative');
-    return this.prisma.hRSalaryProfile.create({ data: { companyId: session.companyId, employeeId, effectiveFrom: requiredDate(input.effectiveFrom, 'effectiveFrom'), basicSalary: input.basicSalary, housingAllowance: input.housingAllowance ?? 0, transportAllowance: input.transportAllowance ?? 0, otherAllowance: input.otherAllowance ?? 0, overtimeRate: input.overtimeRate ?? 1.25, currency: input.currency || 'AED' } });
+    const currency =
+      (await this.prisma.companyProfile.findUnique({
+        where: { companyId: session.companyId },
+        select: { currency: true },
+      }))?.currency || DEFAULT_CURRENCY;
+    return this.prisma.hRSalaryProfile.create({ data: { companyId: session.companyId, employeeId, effectiveFrom: requiredDate(input.effectiveFrom, 'effectiveFrom'), basicSalary: input.basicSalary, housingAllowance: input.housingAllowance ?? 0, transportAllowance: input.transportAllowance ?? 0, otherAllowance: input.otherAllowance ?? 0, overtimeRate: input.overtimeRate ?? 1.25, currency } });
   }
 
   async listLeaveBalances(session: SessionContext, employeeId?: string, year = new Date().getFullYear()) {
@@ -520,11 +526,16 @@ export class HrService {
   async savePolicy(session: SessionContext, input: Record<string, unknown>) {
     this.requireAdmin(session);
     if (!isCompanySession(session)) throw new ForbiddenException('Company session required.');
+    const currency =
+      (await this.prisma.companyProfile.findUnique({
+        where: { companyId: session.companyId },
+        select: { currency: true },
+      }))?.currency || DEFAULT_CURRENCY;
     const number = (key: string, fallback: number) => typeof input[key] === 'number' && Number.isFinite(input[key]) ? input[key] as number : fallback;
     return this.prisma.hRPolicyProfile.upsert({
       where: { companyId: session.companyId },
-      create: { companyId: session.companyId, jurisdiction: typeof input.jurisdiction === 'string' ? input.jurisdiction : 'mainland', payFrequency: typeof input.payFrequency === 'string' ? input.payFrequency : 'monthly', standardHoursPerDay: number('standardHoursPerDay', 8), workingDaysPerWeek: number('workingDaysPerWeek', 6), overtimeMultiplier: number('overtimeMultiplier', 1.25), annualLeaveDays: number('annualLeaveDays', 30), sickLeaveDays: number('sickLeaveDays', 90), currency: typeof input.currency === 'string' ? input.currency : 'AED' },
-      update: { ...(typeof input.jurisdiction === 'string' ? { jurisdiction: input.jurisdiction } : {}), ...(typeof input.payFrequency === 'string' ? { payFrequency: input.payFrequency } : {}), standardHoursPerDay: number('standardHoursPerDay', 8), workingDaysPerWeek: number('workingDaysPerWeek', 6), overtimeMultiplier: number('overtimeMultiplier', 1.25), annualLeaveDays: number('annualLeaveDays', 30), sickLeaveDays: number('sickLeaveDays', 90), currency: typeof input.currency === 'string' ? input.currency : 'AED' },
+      create: { companyId: session.companyId, jurisdiction: typeof input.jurisdiction === 'string' ? input.jurisdiction : 'mainland', payFrequency: typeof input.payFrequency === 'string' ? input.payFrequency : 'monthly', standardHoursPerDay: number('standardHoursPerDay', 8), workingDaysPerWeek: number('workingDaysPerWeek', 6), overtimeMultiplier: number('overtimeMultiplier', 1.25), annualLeaveDays: number('annualLeaveDays', 30), sickLeaveDays: number('sickLeaveDays', 90), currency },
+      update: { ...(typeof input.jurisdiction === 'string' ? { jurisdiction: input.jurisdiction } : {}), ...(typeof input.payFrequency === 'string' ? { payFrequency: input.payFrequency } : {}), standardHoursPerDay: number('standardHoursPerDay', 8), workingDaysPerWeek: number('workingDaysPerWeek', 6), overtimeMultiplier: number('overtimeMultiplier', 1.25), annualLeaveDays: number('annualLeaveDays', 30), sickLeaveDays: number('sickLeaveDays', 90), currency },
     });
   }
 
@@ -889,7 +900,7 @@ export class HrService {
     const basic = employee.salaryProfiles[0]?.basicSalary ?? 0;
     const gratuityDays = Math.min(years, 5) * 21 + Math.max(0, years - 5) * 30;
     const gratuity = basic / 30 * gratuityDays;
-    return { employeeId, terminationDate: end.toISOString(), serviceYears: Number(years.toFixed(2)), gratuityDays: Number(gratuityDays.toFixed(2)), gratuity: Number(gratuity.toFixed(2)), outstandingLoans: employee.loans.reduce((sum, loan) => sum + loan.outstanding, 0), approvedLeaveDays: employee.leaveRequests.reduce((sum, leave) => sum + leave.days, 0), currency: employee.salaryProfiles[0]?.currency || 'AED', disclaimer: 'Configurable estimate; company and legal review required.' };
+    return { employeeId, terminationDate: end.toISOString(), serviceYears: Number(years.toFixed(2)), gratuityDays: Number(gratuityDays.toFixed(2)), gratuity: Number(gratuity.toFixed(2)), outstandingLoans: employee.loans.reduce((sum, loan) => sum + loan.outstanding, 0), approvedLeaveDays: employee.leaveRequests.reduce((sum, leave) => sum + leave.days, 0), currency: employee.salaryProfiles[0]?.currency || DEFAULT_CURRENCY, disclaimer: 'Configurable estimate; company and legal review required.' };
   }
 
   async listExtended(session: SessionContext) {

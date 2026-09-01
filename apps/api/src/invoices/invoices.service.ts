@@ -5,12 +5,16 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  canEditInvoice,
   canInvoiceJob,
+  canIssueInvoice,
   checkAllocations,
   computeInvoiceTotals,
   jobFinancials,
+  normalizeDiscount,
   progressiveLineAmount,
   unallocatedAmount,
+  type DiscountMode,
 } from '@marble/domain';
 import type {
   CreditNoteInput,
@@ -86,7 +90,7 @@ export class InvoicesService {
       );
     }
 
-    return this.issue(session, {
+    return this.persistDraft(session, {
       kind: input.kind,
       customerId: input.customerId,
       jobId: input.jobId,
@@ -95,6 +99,8 @@ export class InvoicesService {
       notes: input.notes,
       lines: input.lines,
       allocations: input.allocations,
+      discountMode: input.discountMode,
+      discountValue: input.discountValue,
     });
   }
 
@@ -130,7 +136,7 @@ export class InvoicesService {
         ? `${input.percentage}% progress billing for job ${job.number}`
         : `Progress billing for job ${job.number}`);
 
-    return this.issue(session, {
+    return this.persistDraft(session, {
       kind,
       customerId: job.customerId,
       jobId: job.id,
@@ -144,6 +150,8 @@ export class InvoicesService {
           qty: 1,
           unitPrice: netAmount,
           purchasePrice: 0,
+          discountMode: 'none' as const,
+          discountValue: 0,
         },
       ],
       allocations: input.allocations,
@@ -183,7 +191,7 @@ export class InvoicesService {
       amount: financials.balanceRemaining,
     });
 
-    return this.issue(session, {
+    return this.persistDraft(session, {
       kind: 'final',
       customerId: job.customerId,
       jobId: job.id,
@@ -198,6 +206,8 @@ export class InvoicesService {
           qty: 1,
           unitPrice: netAmount,
           purchasePrice: 0,
+          discountMode: 'none' as const,
+          discountValue: 0,
         },
       ],
       allocations: input.allocations,
@@ -210,16 +220,16 @@ export class InvoicesService {
       where: { id: input.invoiceId, companyId: session.companyId },
     });
     if (!original) throw new NotFoundException('Invoice not found');
-    if (original.status === 'cancelled') {
+    if (original.status !== 'issued') {
       throw new ConflictException(
-        'That invoice is cancelled; a credit note would double the reversal',
+        'Only an issued invoice can be credited',
       );
     }
     if (original.kind === 'credit_note') {
       throw new ConflictException('Cannot credit a credit note');
     }
 
-    const totals = computeInvoiceTotals(input.lines);
+    const totals = computeInvoiceTotals(input.lines, 0, input);
     if (totals.total > original.total) {
       throw new BadRequestException(
         'A credit note cannot exceed the invoice it credits',
@@ -240,10 +250,11 @@ export class InvoicesService {
           jobId: original.jobId,
           number,
           kind: 'credit_note',
-          status: 'issued',
+          status: 'draft',
           issueDate: new Date(),
           notes: input.reason,
           creditNoteForId: original.id,
+          ...this.discountHeader(input, totals),
           subtotal: totals.subtotal,
           vatAmount: totals.vatAmount,
           total: totals.total,
@@ -257,23 +268,14 @@ export class InvoicesService {
               qty: line.qty,
               unitPrice: line.unitPrice,
               purchasePrice: line.purchasePrice,
+              discountMode: line.discountMode ?? 'none',
+              discountValue: line.discountValue ?? 0,
               lineTotal: totals.lineTotals[index],
               sortOrder: index,
             })),
           },
         },
         include: INCLUDE,
-      });
-
-      await this.ledger.record(tx, {
-        companyId: session.companyId,
-        customerId: created.customerId,
-        jobId: created.jobId,
-        invoiceId: created.id,
-        entryType: 'credit_note',
-        amount: created.total,
-        occurredAt: created.issueDate,
-        memo: `Credit note ${created.number} against ${original.number}`,
       });
 
       return created;
@@ -291,10 +293,184 @@ export class InvoicesService {
     return invoice;
   }
 
+  async update(session: SessionContext, id: string, input: InvoiceInput) {
+    const before = await this.prisma.invoice.findFirst({
+      where: { id, companyId: session.companyId },
+      include: { lines: true, allocations: true },
+    });
+    if (!before) throw new NotFoundException('Invoice not found');
+    if (!canEditInvoice(before.status as InvoiceStatus)) {
+      throw new ConflictException('Only a draft invoice can be edited');
+    }
+    if (before.kind === 'credit_note') {
+      throw new ConflictException('Edit a draft credit note by cancelling it and raising a new one');
+    }
+
+    await this.assertCustomer(session.companyId, input.customerId);
+    if (input.jobId) {
+      await this.assertJobInvoiceable(
+        session.companyId,
+        input.jobId,
+        input.customerId,
+      );
+    }
+
+    const prepared = await this.prepareDraft(session.companyId, {
+      kind: input.kind,
+      customerId: input.customerId,
+      jobId: input.jobId,
+      issueDate: input.issueDate ? new Date(input.issueDate) : before.issueDate,
+      dueDate: input.dueDate ? new Date(input.dueDate) : null,
+      notes: input.notes,
+      lines: input.lines,
+      allocations: input.allocations,
+      discountMode: input.discountMode,
+      discountValue: input.discountValue,
+    });
+
+    const invoice = await this.prisma.$transaction(async (tx) => {
+      await tx.invoiceLine.deleteMany({ where: { invoiceId: id } });
+      await tx.invoiceAdvanceAllocation.deleteMany({ where: { invoiceId: id } });
+      const updated = await tx.invoice.update({
+        where: { id },
+        data: {
+          customerId: prepared.customerId,
+          jobId: prepared.jobId ?? null,
+          kind: prepared.kind,
+          issueDate: prepared.issueDate,
+          dueDate: prepared.dueDate,
+          notes: prepared.notes ?? null,
+          ...this.discountHeader(prepared, prepared.totals),
+          subtotal: prepared.totals.subtotal,
+          vatAmount: prepared.totals.vatAmount,
+          total: prepared.totals.total,
+          purchaseTotal: prepared.totals.purchaseTotal,
+          advanceApplied: prepared.totals.advanceApplied,
+          netPayable: prepared.totals.netPayable,
+          version: { increment: 1 },
+          lines: {
+            create: prepared.lines.map((line, index) => ({
+              description: line.description,
+              unit: line.unit,
+              qty: line.qty,
+              unitPrice: line.unitPrice,
+              purchasePrice: line.purchasePrice,
+              discountMode: line.discountMode ?? 'none',
+              discountValue: line.discountValue ?? 0,
+              lineTotal: prepared.totals.lineTotals[index],
+              sortOrder: index,
+            })),
+          },
+        },
+        include: INCLUDE,
+      });
+      await this.storeAllocations(tx, updated.id, prepared.allocations);
+      return tx.invoice.findUniqueOrThrow({
+        where: { id },
+        include: INCLUDE,
+      });
+    });
+
+    await this.audit.write({
+      companyId: session.companyId,
+      actorId: session.userId,
+      entityType: 'Invoice',
+      entityId: id,
+      action: 'update',
+      before,
+      after: invoice,
+    });
+    return invoice;
+  }
+
   /**
-   * Cancelling reverses the ledger with a matching credit rather than deleting
-   * the debit, and releases any advances it had claimed so they can be applied
-   * to a corrected invoice.
+   * Posts a draft: writes the ledger, claims any allocated advances, and
+   * freezes the document. Drafts never move money.
+   */
+  async issue(session: SessionContext, id: string) {
+    const before = await this.prisma.invoice.findFirst({
+      where: { id, companyId: session.companyId },
+      include: { allocations: true },
+    });
+    if (!before) throw new NotFoundException('Invoice not found');
+    if (!canIssueInvoice(before.status as InvoiceStatus)) {
+      throw new ConflictException('Only a draft invoice can be issued');
+    }
+
+    if (before.kind !== 'credit_note') {
+      const allocationCheck = await this.checkStoredAllocations(
+        session.companyId,
+        before,
+      );
+      if (!allocationCheck.ok) {
+        throw new BadRequestException(allocationCheck.error);
+      }
+    }
+
+    const invoice = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.invoice.update({
+        where: { id },
+        data: { status: 'issued', issueDate: before.issueDate ?? new Date() },
+        include: INCLUDE,
+      });
+
+      if (updated.kind === 'credit_note') {
+        const original = updated.creditNoteForId
+          ? await tx.invoice.findFirst({
+              where: { id: updated.creditNoteForId, companyId: session.companyId },
+              select: { number: true, status: true },
+            })
+          : null;
+        if (!original || original.status !== 'issued') {
+          throw new ConflictException(
+            'The original invoice must still be issued to post this credit note',
+          );
+        }
+        await this.ledger.record(tx, {
+          companyId: session.companyId,
+          customerId: updated.customerId,
+          jobId: updated.jobId,
+          invoiceId: updated.id,
+          entryType: 'credit_note',
+          amount: updated.total,
+          occurredAt: updated.issueDate,
+          memo: `Credit note ${updated.number} against ${original.number}`,
+        });
+      } else {
+        await this.commitAllocations(tx, updated.allocations);
+        await this.ledger.record(tx, {
+          companyId: session.companyId,
+          customerId: updated.customerId,
+          jobId: updated.jobId,
+          invoiceId: updated.id,
+          entryType: 'invoice_issued',
+          amount: updated.total,
+          occurredAt: updated.issueDate,
+          memo: `Invoice ${updated.number}`,
+        });
+      }
+
+      return tx.invoice.findUniqueOrThrow({
+        where: { id },
+        include: INCLUDE,
+      });
+    });
+
+    await this.audit.write({
+      companyId: session.companyId,
+      actorId: session.userId,
+      entityType: 'Invoice',
+      entityId: id,
+      action: 'issue',
+      before,
+      after: invoice,
+    });
+    return invoice;
+  }
+
+  /**
+   * Cancelling a draft just abandons it. Cancelling an issued invoice reverses
+   * the ledger and releases any advances it had claimed.
    */
   async cancel(session: SessionContext, id: string) {
     const before = await this.prisma.invoice.findFirst({
@@ -306,12 +482,16 @@ export class InvoicesService {
       throw new ConflictException('This invoice is already cancelled');
     }
 
+    const wasIssued = before.status === 'issued';
+
     const invoice = await this.prisma.$transaction(async (tx) => {
-      for (const allocation of before.allocations) {
-        await tx.advancePayment.update({
-          where: { id: allocation.advanceId },
-          data: { allocatedAmount: { decrement: allocation.amount } },
-        });
+      if (wasIssued) {
+        for (const allocation of before.allocations) {
+          await tx.advancePayment.update({
+            where: { id: allocation.advanceId },
+            data: { allocatedAmount: { decrement: allocation.amount } },
+          });
+        }
       }
       await tx.invoiceAdvanceAllocation.deleteMany({
         where: { invoiceId: id },
@@ -328,15 +508,17 @@ export class InvoicesService {
         include: INCLUDE,
       });
 
-      await this.ledger.record(tx, {
-        companyId: session.companyId,
-        customerId: updated.customerId,
-        jobId: updated.jobId,
-        invoiceId: updated.id,
-        entryType: 'invoice_cancelled',
-        amount: updated.total,
-        memo: `Cancelled invoice ${updated.number}`,
-      });
+      if (wasIssued) {
+        await this.ledger.record(tx, {
+          companyId: session.companyId,
+          customerId: updated.customerId,
+          jobId: updated.jobId,
+          invoiceId: updated.id,
+          entryType: 'invoice_cancelled',
+          amount: updated.total,
+          memo: `Cancelled invoice ${updated.number}`,
+        });
+      }
 
       return updated;
     });
@@ -354,8 +536,8 @@ export class InvoicesService {
     return invoice;
   }
 
-  /** Shared issue path for every non-credit-note invoice kind. */
-  private async issue(
+  /** Shared save path for every non-credit-note invoice kind. */
+  private async persistDraft(
     session: SessionContext,
     draft: {
       kind: InvoiceKind;
@@ -366,36 +548,11 @@ export class InvoicesService {
       notes?: string | null;
       lines: InvoiceLineInput[];
       allocations: AllocationRequest[];
+      discountMode?: DiscountMode;
+      discountValue?: number;
     },
   ) {
-    const provisional = computeInvoiceTotals(draft.lines);
-    if (provisional.total <= 0) {
-      throw new BadRequestException('An invoice must have a positive total');
-    }
-
-    const advances = await this.prisma.advancePayment.findMany({
-      where: {
-        companyId: session.companyId,
-        customerId: draft.customerId,
-        ...(draft.allocations.length
-          ? { id: { in: draft.allocations.map((a) => a.advanceId) } }
-          : {}),
-      },
-    });
-
-    const allocationCheck = checkAllocations(draft.allocations, advances, {
-      customerId: draft.customerId,
-      jobId: draft.jobId,
-      invoiceTotal: provisional.total,
-    });
-    if (!allocationCheck.ok) {
-      throw new BadRequestException(allocationCheck.error);
-    }
-
-    const totals = computeInvoiceTotals(
-      draft.lines,
-      allocationCheck.totalApplied,
-    );
+    const prepared = await this.prepareDraft(session.companyId, draft);
 
     const invoice = await this.prisma.$transaction(async (tx) => {
       const number = await this.numbering.next(
@@ -407,28 +564,31 @@ export class InvoicesService {
       const created = await tx.invoice.create({
         data: {
           companyId: session.companyId,
-          customerId: draft.customerId,
-          jobId: draft.jobId ?? null,
+          customerId: prepared.customerId,
+          jobId: prepared.jobId ?? null,
           number,
-          kind: draft.kind,
-          status: 'issued',
-          issueDate: draft.issueDate,
-          dueDate: draft.dueDate,
-          notes: draft.notes ?? null,
-          subtotal: totals.subtotal,
-          vatAmount: totals.vatAmount,
-          total: totals.total,
-          purchaseTotal: totals.purchaseTotal,
-          advanceApplied: totals.advanceApplied,
-          netPayable: totals.netPayable,
+          kind: prepared.kind,
+          status: 'draft',
+          issueDate: prepared.issueDate,
+          dueDate: prepared.dueDate,
+          notes: prepared.notes ?? null,
+          ...this.discountHeader(prepared, prepared.totals),
+          subtotal: prepared.totals.subtotal,
+          vatAmount: prepared.totals.vatAmount,
+          total: prepared.totals.total,
+          purchaseTotal: prepared.totals.purchaseTotal,
+          advanceApplied: prepared.totals.advanceApplied,
+          netPayable: prepared.totals.netPayable,
           lines: {
-            create: draft.lines.map((line, index) => ({
+            create: prepared.lines.map((line, index) => ({
               description: line.description,
               unit: line.unit,
               qty: line.qty,
               unitPrice: line.unitPrice,
               purchasePrice: line.purchasePrice,
-              lineTotal: totals.lineTotals[index],
+              discountMode: line.discountMode ?? 'none',
+              discountValue: line.discountValue ?? 0,
+              lineTotal: prepared.totals.lineTotals[index],
               sortOrder: index,
             })),
           },
@@ -436,18 +596,7 @@ export class InvoicesService {
         include: INCLUDE,
       });
 
-      await this.applyAllocations(tx, created.id, draft.allocations);
-
-      await this.ledger.record(tx, {
-        companyId: session.companyId,
-        customerId: created.customerId,
-        jobId: created.jobId,
-        invoiceId: created.id,
-        entryType: 'invoice_issued',
-        amount: created.total,
-        occurredAt: created.issueDate,
-        memo: `Invoice ${created.number}`,
-      });
+      await this.storeAllocations(tx, created.id, prepared.allocations);
 
       return tx.invoice.findUniqueOrThrow({
         where: { id: created.id },
@@ -467,7 +616,85 @@ export class InvoicesService {
     return invoice;
   }
 
-  private async applyAllocations(
+  private async prepareDraft(
+    companyId: string,
+    draft: {
+      kind: InvoiceKind;
+      customerId: string;
+      jobId?: string | null;
+      issueDate: Date;
+      dueDate: Date | null;
+      notes?: string | null;
+      lines: InvoiceLineInput[];
+      allocations: AllocationRequest[];
+      discountMode?: DiscountMode;
+      discountValue?: number;
+    },
+  ) {
+    const docDiscount = normalizeDiscount(draft);
+    const provisional = computeInvoiceTotals(draft.lines, 0, docDiscount);
+    if (provisional.total <= 0) {
+      throw new BadRequestException('An invoice must have a positive total');
+    }
+
+    const advances = await this.prisma.advancePayment.findMany({
+      where: {
+        companyId,
+        customerId: draft.customerId,
+        status: 'posted',
+        cancelledAt: null,
+        ...(draft.allocations.length
+          ? { id: { in: draft.allocations.map((a) => a.advanceId) } }
+          : {}),
+      },
+    });
+
+    const allocationCheck = checkAllocations(draft.allocations, advances, {
+      customerId: draft.customerId,
+      jobId: draft.jobId,
+      invoiceTotal: provisional.total,
+    });
+    if (!allocationCheck.ok) {
+      throw new BadRequestException(allocationCheck.error);
+    }
+
+    const totals = computeInvoiceTotals(
+      draft.lines,
+      allocationCheck.totalApplied,
+      docDiscount,
+    );
+
+    return { ...draft, totals };
+  }
+
+  private async checkStoredAllocations(
+    companyId: string,
+    invoice: {
+      customerId: string;
+      jobId: string | null;
+      total: number;
+      allocations: AllocationRequest[];
+    },
+  ) {
+    const advances = await this.prisma.advancePayment.findMany({
+      where: {
+        companyId,
+        customerId: invoice.customerId,
+        status: 'posted',
+        cancelledAt: null,
+        ...(invoice.allocations.length
+          ? { id: { in: invoice.allocations.map((a) => a.advanceId) } }
+          : {}),
+      },
+    });
+    return checkAllocations(invoice.allocations, advances, {
+      customerId: invoice.customerId,
+      jobId: invoice.jobId,
+      invoiceTotal: invoice.total,
+    });
+  }
+
+  private async storeAllocations(
     tx: Prisma.TransactionClient,
     invoiceId: string,
     allocations: AllocationRequest[],
@@ -484,9 +711,17 @@ export class InvoicesService {
       await tx.invoiceAdvanceAllocation.create({
         data: { invoiceId, advanceId, amount },
       });
+    }
+  }
+
+  private async commitAllocations(
+    tx: Prisma.TransactionClient,
+    allocations: Array<{ advanceId: string; amount: number }>,
+  ) {
+    for (const allocation of allocations) {
       await tx.advancePayment.update({
-        where: { id: advanceId },
-        data: { allocatedAmount: { increment: amount } },
+        where: { id: allocation.advanceId },
+        data: { allocatedAmount: { increment: allocation.amount } },
       });
     }
   }
@@ -501,6 +736,8 @@ export class InvoicesService {
       where: {
         companyId,
         customerId,
+        status: 'posted',
+        cancelledAt: null,
         ...(jobId ? { OR: [{ jobId }, { jobId: null }] } : {}),
       },
       orderBy: { receivedAt: 'asc' },
@@ -546,5 +783,18 @@ export class InvoicesService {
       throw new ConflictException('That job belongs to a different customer');
     }
     return job;
+  }
+
+  private discountHeader(
+    input: { discountMode?: DiscountMode; discountValue?: number },
+    totals: { discount: number; lineDiscountTotal: number },
+  ) {
+    const doc = normalizeDiscount(input);
+    return {
+      discountMode: doc.discountMode,
+      discountValue: doc.discountValue,
+      discount: totals.discount,
+      lineDiscountTotal: totals.lineDiscountTotal,
+    };
   }
 }

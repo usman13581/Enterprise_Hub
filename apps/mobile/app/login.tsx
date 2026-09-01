@@ -77,7 +77,6 @@ export default function LoginScreen() {
       <Text style={styles.powered}>{APP_POWERED_BY}</Text>
       <Text style={styles.version}>v{APP_VERSION}</Text>
       <Text style={ui.title}>Sign in</Text>
-      <Text style={ui.lede}>Use your company account on this device.</Text>
 
       <View style={ui.card}>
         <Text style={ui.label}>Email</Text>

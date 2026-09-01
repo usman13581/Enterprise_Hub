@@ -62,9 +62,6 @@ export default function TeamScreen() {
   return (
     <ScreenScroll>
       <Text style={ui.title}>Team</Text>
-      <Text style={ui.lede}>
-        Activate or deactivate company users within your seat limit.
-      </Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
       <SearchBox
         value={query}

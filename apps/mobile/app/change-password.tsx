@@ -46,7 +46,6 @@ export default function ChangePasswordScreen() {
   return (
     <ScreenScroll contentContainerStyle={styles.content}>
       <Text style={ui.title}>Change password</Text>
-      <Text style={ui.lede}>Choose a new password for your account.</Text>
       <View style={ui.card}>
         <Text style={ui.label}>New password</Text>
         <TextInput

@@ -59,10 +59,6 @@ export default function AccountsScreen() {
     <View style={ui.screen}>
       <ScreenScroll>
         <Text style={ui.title}>Accounts</Text>
-        <Text style={ui.lede}>
-          Company position across customers, suppliers, and jobs. Balances come
-          from the ledger, so they always agree with the individual statements.
-        </Text>
 
         <View style={styles.stats}>
           <StatCard title="Billed" value={money(item.summary.billed)} />

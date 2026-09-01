@@ -8,6 +8,8 @@ import { HRLookupsPanel } from '@/components/HRLookupsPanel';
 import { searchItems, useFlash, usePagination, usePolledList } from '@/lib/useCollection';
 import type { HREmployee, HRDashboard, HRLeaveRequest, HRPayrollPeriod } from '@marble/types';
 import { HR_GOV_ID } from '@marble/types';
+import { dateInputValue, todayIso } from '@/lib/dates';
+import { amount, moneyHeader } from '@/lib/format';
 import page from '../page.module.css';
 import styles from '@/components/crud.module.css';
 import finance from '@/components/finance.module.css';
@@ -19,8 +21,6 @@ type Organization = {
   holidays: Array<{ id: string; name: string; date: string }>;
 };
 type EmployeeDocument = { id: string; documentType: string; expiryDate: string | null; status: string; employee: { employeeNumber: string; firstName: string; lastName: string | null } };
-
-const today = new Date().toISOString().slice(0, 10);
 
 type EmployeeDraft = {
   firstName: string;
@@ -42,28 +42,26 @@ type EmployeeDraft = {
   workPermitExpiry: string;
 };
 
-const EMPTY_EMPLOYEE: EmployeeDraft = {
-  firstName: '',
-  lastName: '',
-  preferredName: '',
-  email: '',
-  phone: '',
-  nationality: '',
-  status: 'active',
-  departmentId: '',
-  designationId: '',
-  joiningDate: today,
-  notes: '',
-  emiratesIdNumber: '',
-  emiratesIdExpiry: '',
-  passportNumber: '',
-  passportExpiry: '',
-  visaExpiry: '',
-  workPermitExpiry: '',
-};
-
-function toDateInput(value: string | null | undefined) {
-  return value ? value.slice(0, 10) : '';
+function emptyEmployee(): EmployeeDraft {
+  return {
+    firstName: '',
+    lastName: '',
+    preferredName: '',
+    email: '',
+    phone: '',
+    nationality: '',
+    status: 'active',
+    departmentId: '',
+    designationId: '',
+    joiningDate: todayIso(),
+    notes: '',
+    emiratesIdNumber: '',
+    emiratesIdExpiry: '',
+    passportNumber: '',
+    passportExpiry: '',
+    visaExpiry: '',
+    workPermitExpiry: '',
+  };
 }
 
 function employeeLabel(employee?: { employeeNumber: string; firstName: string; lastName: string | null }) {
@@ -84,7 +82,7 @@ export default function HrPage() {
   const [showEmployeeForm, setShowEmployeeForm] = useState(false);
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [employee, setEmployee] = useState<EmployeeDraft>(EMPTY_EMPLOYEE);
+  const [employee, setEmployee] = useState<EmployeeDraft>(emptyEmployee());
   const [attendance, setAttendance] = useState<Array<{ id: string; checkInAt: string; checkOutAt: string | null; employee: { firstName: string; lastName: string | null } }>>([]);
   const [leaveTypes, setLeaveTypes] = useState<Array<{ id: string; name: string; paid: boolean }>>([]);
   const [documents, setDocuments] = useState<EmployeeDocument[]>([]);
@@ -126,7 +124,7 @@ export default function HrPage() {
   }
 
   function startCreateEmployee() {
-    setEmployee(EMPTY_EMPLOYEE);
+    setEmployee(emptyEmployee());
     setEditingEmployeeId(null);
     setShowEmployeeForm(true);
   }
@@ -146,14 +144,14 @@ export default function HrPage() {
         status: detail.status,
         departmentId: detail.departmentId ?? '',
         designationId: detail.designationId ?? '',
-        joiningDate: toDateInput(detail.joiningDate),
+        joiningDate: dateInputValue(detail.joiningDate),
         notes: detail.notes ?? '',
         emiratesIdNumber: detail.emiratesIdNumber ?? '',
-        emiratesIdExpiry: toDateInput(detail.emiratesIdExpiry),
+        emiratesIdExpiry: dateInputValue(detail.emiratesIdExpiry),
         passportNumber: detail.passportNumber ?? '',
-        passportExpiry: toDateInput(detail.passportExpiry),
-        visaExpiry: toDateInput(detail.visaExpiry),
-        workPermitExpiry: toDateInput(detail.workPermitExpiry),
+        passportExpiry: dateInputValue(detail.passportExpiry),
+        visaExpiry: dateInputValue(detail.visaExpiry),
+        workPermitExpiry: dateInputValue(detail.workPermitExpiry),
       });
       setEditingEmployeeId(item.id);
       setShowEmployeeForm(true);
@@ -193,7 +191,7 @@ export default function HrPage() {
         await apiPost('/company/hr/employees', payload);
         notify('Employee added');
       }
-      setEmployee(EMPTY_EMPLOYEE);
+      setEmployee(emptyEmployee());
       setEditingEmployeeId(null);
       setShowEmployeeForm(false);
       await reload();
@@ -216,7 +214,7 @@ export default function HrPage() {
     setSaving(true);
     try {
       await apiDelete(`/company/hr/employees/${editingEmployeeId}`);
-      setEmployee(EMPTY_EMPLOYEE);
+      setEmployee(emptyEmployee());
       setEditingEmployeeId(null);
       setShowEmployeeForm(false);
       await reload();
@@ -250,7 +248,6 @@ export default function HrPage() {
   return (
     <section className={page.page}>
       <h1 className={page.title}>Human Resource</h1>
-      <p className={page.lede}>Company-scoped employee operations, attendance, leave, and payroll.</p>
       {error ? <p className={styles.error}>{error}</p> : null}
       <nav aria-label="HR sections" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
         {(['overview', 'employees', 'documents', 'attendance', 'leave', 'payroll', 'extended', 'reports', 'lookups'] as const).map((item) => (
@@ -307,7 +304,7 @@ export default function HrPage() {
               </div>
               <div className={styles.actions}>
                 <button className={styles.button} disabled={saving}>{saving ? 'Saving…' : editingEmployeeId ? 'Save changes' : 'Save employee'}</button>
-                <button className={styles.ghost} type="button" onClick={() => { setShowEmployeeForm(false); setEditingEmployeeId(null); setEmployee(EMPTY_EMPLOYEE); }}>Cancel</button>
+                <button className={styles.ghost} type="button" onClick={() => { setShowEmployeeForm(false); setEditingEmployeeId(null); setEmployee(emptyEmployee()); }}>Cancel</button>
                 {editingEmployeeId ? <button className={`${styles.ghost} ${styles.danger}`} type="button" disabled={saving} onClick={() => void deleteEmployee()}>Delete employee</button> : null}
               </div>
             </form>
@@ -324,10 +321,10 @@ export default function HrPage() {
 
       {tab === 'leave' ? <><div className={styles.toolbar}><span className={styles.count}>{leaveRequests.length} requests · {leaveTypes.length} leave types</span></div>{leaveRequests.length ? <TableScroll><table className={finance.table}><thead><tr><th>Employee</th><th>Type</th><th>Dates</th><th>Days</th><th>Status</th><th /></tr></thead><tbody>{leaveRequests.map((item) => <tr key={item.id}><td>{employeeLabel(item.employee)}</td><td>{item.leaveType?.name || 'Leave'}</td><td>{new Date(item.startDate).toLocaleDateString()} – {new Date(item.endDate).toLocaleDateString()}</td><td>{item.days}</td><td>{item.status}</td><td>{item.status === 'pending' && dashboard?.canManage ? <><button className={styles.ghost} onClick={() => void reviewLeave(item.id, 'approved')}>Approve</button> <button className={`${styles.ghost} ${styles.danger}`} onClick={() => void reviewLeave(item.id, 'rejected')}>Reject</button></> : null}</td></tr>)}</tbody></table></TableScroll> : <EmptyState>No leave requests.</EmptyState>}</> : null}
 
-      {tab === 'payroll' ? <><div className={styles.toolbar}><span className={styles.count}>{payroll.length} payroll periods</span></div>{payroll.length ? <TableScroll><table className={finance.table}><thead><tr><th>Period</th><th>Dates</th><th>Status</th><th className={finance.numeric}>Net</th><th /></tr></thead><tbody>{payroll.map((item) => <tr key={item.id}><td>{item.name}</td><td>{new Date(item.startDate).toLocaleDateString()} – {new Date(item.endDate).toLocaleDateString()}</td><td>{item.status}</td><td className={finance.numeric}>{item.totalNet.toLocaleString(undefined, { style: 'currency', currency: 'AED' })}</td><td>{item.status === 'draft' || item.status === 'calculated' ? <button className={styles.ghost} onClick={() => void calculate(item.id)}>Calculate</button> : null}</td></tr>)}</tbody></table></TableScroll> : <EmptyState>No payroll periods. Create one through the HR API when your salary profiles are ready.</EmptyState>}</> : null}
+      {tab === 'payroll' ? <><div className={styles.toolbar}><span className={styles.count}>{payroll.length} payroll periods</span></div>{payroll.length ? <TableScroll><table className={finance.table}><thead><tr><th>Period</th><th>Dates</th><th>Status</th><th className={finance.numeric}>{moneyHeader('Net')}</th><th /></tr></thead><tbody>{payroll.map((item) => <tr key={item.id}><td>{item.name}</td><td>{new Date(item.startDate).toLocaleDateString()} – {new Date(item.endDate).toLocaleDateString()}</td><td>{item.status}</td><td className={finance.numeric}>{amount(item.totalNet)}</td><td>{item.status === 'draft' || item.status === 'calculated' ? <button className={styles.ghost} onClick={() => void calculate(item.id)}>Calculate</button> : null}</td></tr>)}</tbody></table></TableScroll> : <EmptyState>No payroll periods. Create one through the HR API when your salary profiles are ready.</EmptyState>}</> : null}
 
       {tab === 'extended' ? <div className={styles.form}><h2 className={styles.formTitle}>Extended HR operations</h2><p>Expenses, loans, benefits, assets, and compliance are company-scoped in the HR API and ready for their detailed workflows.</p></div> : null}
-      {tab === 'reports' && report ? <div className={finance.statGrid}><Stat title="Attendance records" value={String(report.attendanceRecords)} /><Stat title="Leave requests" value={String(report.leaveRequests)} /><Stat title="Approved overtime" value={`${report.approvedOvertimeHours.toFixed(2)} h`} /><Stat title="Payroll net" value={report.payrollNet.toLocaleString(undefined, { style: 'currency', currency: 'AED' })} /></div> : null}
+      {tab === 'reports' && report ? <div className={finance.statGrid}><Stat title="Attendance records" value={String(report.attendanceRecords)} /><Stat title="Leave requests" value={String(report.leaveRequests)} /><Stat title="Approved overtime" value={`${report.approvedOvertimeHours.toFixed(2)} h`} /><Stat title={moneyHeader('Payroll net')} value={amount(report.payrollNet)} /></div> : null}
       {tab === 'lookups' ? (
         <HRLookupsPanel
           canManage={Boolean(dashboard?.canManage)}

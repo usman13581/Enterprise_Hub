@@ -1,11 +1,19 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  COUNTRIES,
+  currencyForCountry,
+  DEFAULT_COUNTRY_CODE,
+  DEFAULT_CURRENCY,
+} from "@marble/types";
 import { apiFetch, apiPut, apiUpload, assetUrl } from "@/lib/api";
+import { useCompanyCountry } from "@/lib/company-currency";
 import { useFlash } from "@/lib/useCollection";
 import { Toast } from "@/components/ListControls";
 import { FilePicker } from "@/components/FilePicker";
 import { PreviewableImage } from "@/components/ImagePreview";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import type { Company } from "@/lib/types";
 import page from "../page.module.css";
 import styles from "@/components/crud.module.css";
@@ -20,6 +28,7 @@ type Draft = {
   bankDetails: string;
   quotationPrefix: string;
   invoicePrefix: string;
+  country: string;
   currency: string;
   logoUrl: string;
   signatureUrl: string;
@@ -35,7 +44,8 @@ const EMPTY: Draft = {
   bankDetails: "",
   quotationPrefix: "QT",
   invoicePrefix: "INV",
-  currency: "AED",
+  country: DEFAULT_COUNTRY_CODE,
+  currency: DEFAULT_CURRENCY,
   logoUrl: "",
   signatureUrl: "",
 };
@@ -45,6 +55,11 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const { flash, notify } = useFlash();
+  const { refresh } = useCompanyCountry();
+  const derivedCurrency = useMemo(
+    () => currencyForCountry(draft.country),
+    [draft.country],
+  );
 
   const load = useCallback(async () => {
     try {
@@ -61,6 +76,7 @@ export default function ProfilePage() {
           bankDetails: p.bankDetails ?? "",
           quotationPrefix: p.quotationPrefix,
           invoicePrefix: p.invoicePrefix,
+          country: p.country || DEFAULT_COUNTRY_CODE,
           currency: p.currency,
           logoUrl: p.logoUrl ?? "",
           signatureUrl: p.signatureUrl ?? "",
@@ -81,8 +97,12 @@ export default function ProfilePage() {
     if (saving) return;
     setSaving(true);
     try {
-      await apiPut("/company/profile", draft);
+      await apiPut("/company/profile", {
+        ...draft,
+        currency: currencyForCountry(draft.country),
+      });
       await load();
+      await refresh();
       notify("Company profile saved");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
@@ -109,7 +129,8 @@ export default function ProfilePage() {
     <section className={page.page}>
       <h1 className={page.title}>Company profile</h1>
       <p className={page.lede}>
-        Branding and legal details printed on quotations and tax invoices.
+        Branding, legal details, and the country that sets the currency used
+        on screens, discounts, and PDFs.
       </p>
 
       {error ? <p className={styles.error}>{error}</p> : null}
@@ -163,12 +184,27 @@ export default function ProfilePage() {
             />
           </div>
           <div className={styles.field}>
-            <label className={styles.label}>Currency</label>
-            <input
-              className={styles.input}
-              value={draft.currency}
-              onChange={(e) => setDraft({ ...draft, currency: e.target.value })}
+            <SearchableSelect
+              label="Country *"
+              value={draft.country}
+              onChange={(value) =>
+                setDraft({
+                  ...draft,
+                  country: value,
+                  currency: currencyForCountry(value),
+                })
+              }
+              required
+              placeholder="Search countries…"
+              options={COUNTRIES.map((item) => ({
+                id: item.code,
+                label: item.name,
+              }))}
             />
+            <p className={page.meta} style={{ marginTop: "0.35rem" }}>
+              Currency: <code>{derivedCurrency}</code>
+              {" — used everywhere after you save. Amounts keep their numbers; only the label changes."}
+            </p>
           </div>
           <div className={styles.field}>
             <label className={styles.label}>Quotation prefix</label>

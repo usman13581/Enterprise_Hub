@@ -42,21 +42,23 @@ export function SearchableSelect({
     );
   }, [listOptions, query]);
 
+  const closedValue = selected && selected.id !== '' ? selected.label : '';
+  const inputPlaceholder = open
+    ? placeholder
+    : closedValue
+      ? placeholder
+      : allowEmpty
+        ? emptyLabel
+        : placeholder;
+
   return (
     <label className={styles.field}>
       {label ? <span className={styles.label}>{label}</span> : null}
       <div className={styles.searchSelectWrap}>
-        {selected && !open ? (
-          <div className={styles.searchSelected}>Selected · {selected.label}</div>
-        ) : null}
         <input
           className={styles.input}
-          value={open ? query : ''}
-          placeholder={
-            open
-              ? placeholder
-              : selected?.label ?? (allowEmpty ? emptyLabel : placeholder)
-          }
+          value={open ? query : closedValue}
+          placeholder={inputPlaceholder}
           onFocus={() => {
             setOpen(true);
             setQuery('');

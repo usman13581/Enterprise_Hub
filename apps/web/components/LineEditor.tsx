@@ -1,8 +1,17 @@
 'use client';
 
 import { computeInvoiceTotals, computeQuotationTotals } from '@marble/domain';
-import { money } from '@/lib/format';
+import { amount, moneyHeader } from '@/lib/format';
+import { useCompanyCurrency } from '@/lib/company-currency';
 import { TotalsBlock } from './Finance';
+import {
+  discountPayload,
+  discountTotalsRows,
+  DocumentDiscountFields,
+  EMPTY_DISCOUNT,
+  LineDiscountControl,
+  type DiscountDraft,
+} from './DiscountFields';
 import styles from './finance.module.css';
 
 export type QuotationLineDraft = {
@@ -12,6 +21,8 @@ export type QuotationLineDraft = {
   qty: string;
   purchasePrice: string;
   sellPrice: string;
+  discountMode: DiscountDraft['discountMode'];
+  discountValue: string;
 };
 
 export type InvoiceLineDraft = {
@@ -20,6 +31,8 @@ export type InvoiceLineDraft = {
   qty: string;
   unitPrice: string;
   purchasePrice: string;
+  discountMode: DiscountDraft['discountMode'];
+  discountValue: string;
 };
 
 export const EMPTY_QUOTATION_LINE: QuotationLineDraft = {
@@ -29,6 +42,8 @@ export const EMPTY_QUOTATION_LINE: QuotationLineDraft = {
   qty: '1',
   purchasePrice: '0',
   sellPrice: '0',
+  discountMode: 'none',
+  discountValue: '0',
 };
 
 export const EMPTY_INVOICE_LINE: InvoiceLineDraft = {
@@ -37,6 +52,8 @@ export const EMPTY_INVOICE_LINE: InvoiceLineDraft = {
   qty: '1',
   unitPrice: '0',
   purchasePrice: '0',
+  discountMode: 'none',
+  discountValue: '0',
 };
 
 const num = (value: string) => {
@@ -52,6 +69,8 @@ export function quotationLinePayload(lines: QuotationLineDraft[]) {
     qty: num(line.qty),
     purchasePrice: num(line.purchasePrice),
     sellPrice: num(line.sellPrice),
+    discountMode: line.discountMode,
+    discountValue: num(line.discountValue),
   }));
 }
 
@@ -62,6 +81,8 @@ export function invoiceLinePayload(lines: InvoiceLineDraft[]) {
     qty: num(line.qty),
     unitPrice: num(line.unitPrice),
     purchasePrice: num(line.purchasePrice),
+    discountMode: line.discountMode,
+    discountValue: num(line.discountValue),
   }));
 }
 
@@ -74,6 +95,8 @@ export function QuotationLineEditor({
   onChange,
   products,
   currency,
+  documentDiscount = EMPTY_DISCOUNT,
+  onDocumentDiscountChange,
 }: {
   lines: QuotationLineDraft[];
   onChange: (lines: QuotationLineDraft[]) => void;
@@ -85,8 +108,15 @@ export function QuotationLineEditor({
     sellPrice: number;
   }>;
   currency?: string;
+  documentDiscount?: DiscountDraft;
+  onDocumentDiscountChange?: (next: DiscountDraft) => void;
 }) {
-  const totals = computeQuotationTotals(quotationLinePayload(lines));
+  const companyCode = useCompanyCurrency();
+  const totals = computeQuotationTotals(
+    quotationLinePayload(lines),
+    discountPayload(documentDiscount),
+  );
+  const code = companyCode || currency;
 
   function patch(index: number, changes: Partial<QuotationLineDraft>) {
     onChange(
@@ -118,7 +148,8 @@ export function QuotationLineEditor({
         <span>Qty</span>
         <span>Purchase</span>
         <span>Sell</span>
-        <span className={styles.numeric}>Amount</span>
+        <span>Disc.</span>
+        <span className={styles.numeric}>{moneyHeader('Amount', code)}</span>
         <span />
       </div>
 
@@ -177,6 +208,19 @@ export function QuotationLineEditor({
             value={line.sellPrice}
             onChange={(e) => patch(index, { sellPrice: e.target.value })}
           />
+          <LineDiscountControl
+            compact
+            value={{
+              discountMode: line.discountMode,
+              discountValue: line.discountValue,
+            }}
+            onChange={(discount) =>
+              patch(index, {
+                discountMode: discount.discountMode,
+                discountValue: discount.discountValue,
+              })
+            }
+          />
           <span className={styles.lineComputed}>
             {totals.lineTotals[index]?.toFixed(2) ?? '0.00'}
           </span>
@@ -199,23 +243,30 @@ export function QuotationLineEditor({
       <div className={styles.lineFooter}>
         <button
           type="button"
-          className={styles.tab}
+          className={styles.lineAddButton}
           onClick={() => onChange([...lines, { ...EMPTY_QUOTATION_LINE }])}
         >
           + Add line
         </button>
-        <TotalsBlock
-          rows={[
-            ['Subtotal', totals.subtotal],
-            ['VAT 5%', totals.vatAmount],
-            ['Cost', totals.purchaseTotal],
-          ]}
-          grand={['Total', totals.total]}
-          currency={currency}
-        />
+        <div>
+          {onDocumentDiscountChange ? (
+            <DocumentDiscountFields
+              value={documentDiscount}
+              onChange={onDocumentDiscountChange}
+            />
+          ) : null}
+          <TotalsBlock
+            rows={[
+              ...discountTotalsRows(totals),
+              ['Cost', totals.purchaseTotal],
+            ]}
+            grand={['Total', totals.total]}
+            currency={currency}
+          />
+        </div>
       </div>
       <p className={styles.panelNote} style={{ padding: '0 0.7rem 0.7rem' }}>
-        Margin on these prices: {money(totals.profit, currency)}. Job P&amp;L uses
+        Margin on these prices: {amount(totals.profit)}. Job P&amp;L uses
         these line prices, not the live catalog price.
       </p>
     </div>
@@ -227,21 +278,34 @@ export function InvoiceLineEditor({
   onChange,
   advanceApplied,
   currency,
+  documentDiscount = EMPTY_DISCOUNT,
+  onDocumentDiscountChange,
 }: {
   lines: InvoiceLineDraft[];
   onChange: (lines: InvoiceLineDraft[]) => void;
   advanceApplied: number;
   currency?: string;
+  documentDiscount?: DiscountDraft;
+  onDocumentDiscountChange?: (next: DiscountDraft) => void;
 }) {
+  const companyCode = useCompanyCurrency();
   const totals = computeInvoiceTotals(
     invoiceLinePayload(lines),
     advanceApplied,
+    discountPayload(documentDiscount),
   );
+  const code = companyCode || currency;
 
   function patch(index: number, changes: Partial<InvoiceLineDraft>) {
     onChange(
       lines.map((line, i) => (i === index ? { ...line, ...changes } : line)),
     );
+  }
+
+  const totalRows = [...discountTotalsRows(totals)];
+  if (totals.advanceApplied > 0) {
+    totalRows.push(['Total', totals.total]);
+    totalRows.push(['Advance adjusted', totals.advanceApplied]);
   }
 
   return (
@@ -252,7 +316,8 @@ export function InvoiceLineEditor({
         <span>Qty</span>
         <span>Rate</span>
         <span>Cost</span>
-        <span className={styles.numeric}>Amount</span>
+        <span>Disc.</span>
+        <span className={styles.numeric}>{moneyHeader('Amount', code)}</span>
         <span />
       </div>
 
@@ -294,6 +359,19 @@ export function InvoiceLineEditor({
             value={line.purchasePrice}
             onChange={(e) => patch(index, { purchasePrice: e.target.value })}
           />
+          <LineDiscountControl
+            compact
+            value={{
+              discountMode: line.discountMode,
+              discountValue: line.discountValue,
+            }}
+            onChange={(discount) =>
+              patch(index, {
+                discountMode: discount.discountMode,
+                discountValue: discount.discountValue,
+              })
+            }
+          />
           <span className={styles.lineComputed}>
             {totals.lineTotals[index]?.toFixed(2) ?? '0.00'}
           </span>
@@ -311,21 +389,24 @@ export function InvoiceLineEditor({
       <div className={styles.lineFooter}>
         <button
           type="button"
-          className={styles.tab}
+          className={styles.lineAddButton}
           onClick={() => onChange([...lines, { ...EMPTY_INVOICE_LINE }])}
         >
           + Add line
         </button>
-        <TotalsBlock
-          rows={[
-            ['Taxable amount', totals.subtotal],
-            ['VAT 5%', totals.vatAmount],
-            ['Total', totals.total],
-            ['Advance adjusted', -totals.advanceApplied],
-          ]}
-          grand={['Net payable', totals.netPayable]}
-          currency={currency}
-        />
+        <div>
+          {onDocumentDiscountChange ? (
+            <DocumentDiscountFields
+              value={documentDiscount}
+              onChange={onDocumentDiscountChange}
+            />
+          ) : null}
+          <TotalsBlock
+            rows={totalRows}
+            grand={['Net payable', totals.netPayable]}
+            currency={currency}
+          />
+        </div>
       </div>
     </div>
   );
