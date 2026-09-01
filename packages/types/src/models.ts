@@ -321,6 +321,13 @@ export type AccountsOverview = {
     received: number;
     balance: number;
   }>;
+  payableBySupplier: Array<{
+    supplierId: string;
+    supplierName: string;
+    invoiced: number;
+    paid: number;
+    balance: number;
+  }>;
   profitByJob: Array<{
     jobId: string;
     jobNumber: string;
@@ -332,4 +339,121 @@ export type AccountsOverview = {
   }>;
   openJobs: number;
   totalProfit: number;
+  totalPayable: number;
+};
+
+export type HREmployee = {
+  id: string;
+  companyId: string;
+  userId: string | null;
+  employeeNumber: string;
+  firstName: string;
+  lastName: string | null;
+  preferredName: string | null;
+  email: string | null;
+  phone: string | null;
+  nationality: string | null;
+  employmentType: string;
+  status: string;
+  departmentId: string | null;
+  designationId: string | null;
+  joiningDate: string;
+  emiratesIdNumber: string | null;
+  emiratesIdExpiry: string | null;
+  passportNumber: string | null;
+  passportExpiry: string | null;
+  visaExpiry: string | null;
+  workPermitExpiry: string | null;
+  department?: { id: string; name: string } | null;
+  designation?: { id: string; name: string } | null;
+};
+
+export type HRDashboard = {
+  employees: number;
+  activeEmployees: number;
+  openAttendance: number;
+  pendingLeave: number;
+  pendingOvertime: number;
+  expiringDocuments: number;
+  canManage: boolean;
+};
+
+export type HRLeaveRequest = {
+  id: string;
+  employeeId: string;
+  leaveTypeId: string;
+  startDate: string;
+  endDate: string;
+  days: number;
+  reason: string | null;
+  status: string;
+  leaveType?: { name: string; code: string; paid: boolean };
+  employee?: { employeeNumber: string; firstName: string; lastName: string | null };
+};
+
+export type HRPayrollPeriod = {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+  totalGross: number;
+  totalDeductions: number;
+  totalNet: number;
+};
+
+export type LpoLine = {
+  id: string;
+  productId: string | null;
+  productName: string;
+  unit: string;
+  orderedQty: number;
+  receivedQty: number;
+  invoicedQty: number;
+  unitCost: number;
+  vatRate: number;
+  lineTotal: number;
+};
+
+export type Lpo = {
+  id: string;
+  number: string;
+  supplierId: string;
+  status: string;
+  requestedDeliveryDate: string | null;
+  subtotal: number;
+  inputVat: number;
+  total: number;
+  currency: string;
+  createdAt: string;
+  updatedAt: string;
+  lines: LpoLine[];
+  supplier?: { id: string; name: string };
+};
+
+export type PurchaseInvoice = {
+  id: string;
+  number: string;
+  supplierId: string;
+  lpoId: string | null;
+  supplierInvoiceNumber: string | null;
+  issueDate: string;
+  dueDate: string | null;
+  status: string;
+  subtotal: number;
+  inputVat: number;
+  total: number;
+  paidAmount: number;
+  balance: number;
+  currency: string;
+  supplier?: { id: string; name: string };
+};
+
+export type SupplierFinanceSummary = {
+  payable: number;
+  overdue: number;
+  advances: number;
+  openLpos: number;
+  pendingReceipts: number;
+  postedPurchaseInvoices: number;
 };

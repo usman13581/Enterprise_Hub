@@ -49,6 +49,32 @@ export class DocumentsController {
     this.send(res, buffer, filename);
   }
 
+  @Get('purchase-invoices/:id.pdf')
+  async purchaseInvoice(
+    @CurrentSession() session: SessionContext,
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
+    const { buffer, filename } = await this.service.purchaseInvoicePdf(
+      session.companyId,
+      id,
+    );
+    this.send(res, buffer, filename);
+  }
+
+  @Get('lpos/:id.pdf')
+  async lpo(
+    @CurrentSession() session: SessionContext,
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
+    const { buffer, filename } = await this.service.lpoPdf(
+      session.companyId,
+      id,
+    );
+    this.send(res, buffer, filename);
+  }
+
   private send(res: Response, buffer: Buffer, filename: string) {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Length', buffer.length);

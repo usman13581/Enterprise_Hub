@@ -26,6 +26,8 @@ import {
   usePagination,
   usePolledList,
 } from '../../lib/useCollection';
+import { FormPicker } from '../../components/FormField';
+import { SearchablePicker } from '../../components/SearchablePicker';
 import { Pagination, SearchBox, Toast } from '../../components/ListControls';
 import { ScreenScroll } from '../../components/ScreenScroll';
 import { LookupAttachPicker } from '../../components/LookupAttachPicker';
@@ -392,7 +394,7 @@ export default function QuotationsScreen() {
                 Active: {lookupDraft.active ? 'Yes' : 'No'}
               </Text>
             </Pressable>
-            <RowActions>
+            <RowActions variant="form">
               <ActionButton
                 label={
                   lookupEditingId
@@ -507,31 +509,18 @@ export default function QuotationsScreen() {
                 ? 'Edit quotation'
                 : QUOTATION_KIND_LABELS.general}
             </Text>
-            <Text style={ui.label}>Customer *</Text>
-            <View style={styles.picker}>
-              {customers.map((customer) => (
-                <Pressable
-                  key={customer.id}
-                  style={[
-                    styles.option,
-                    draft.customerId === customer.id && styles.optionActive,
-                  ]}
-                  onPress={() =>
-                    setDraft({ ...draft, customerId: customer.id })
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.optionText,
-                      draft.customerId === customer.id &&
-                        styles.optionTextActive,
-                    ]}
-                  >
-                    {customer.name}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            <FormPicker label="Customer *" first>
+              <SearchablePicker
+                value={draft.customerId}
+                options={customers.map((customer) => ({
+                  id: customer.id,
+                  label: customer.name,
+                }))}
+                searchPlaceholder="Search customers…"
+                emptyText="No customers match your search."
+                onChange={(customerId) => setDraft({ ...draft, customerId })}
+              />
+            </FormPicker>
             <Text style={ui.label}>Subject</Text>
             <TextInput
               style={ui.input}

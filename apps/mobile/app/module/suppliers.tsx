@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useRouter } from "expo-router";
 import {
   ActivityIndicator,
   Pressable,
@@ -42,6 +43,7 @@ const EMPTY: Draft = {
 };
 
 export default function SuppliersScreen() {
+  const router = useRouter();
   const { items, loading, error, setError, reload } =
     usePolledList<Supplier>("/suppliers");
   const { flash, notify } = useFlash();
@@ -217,6 +219,7 @@ export default function SuppliersScreen() {
                 <RecordRow
                   key={item.id}
                   title={`${item.name}${item.active === false ? " (inactive)" : ""}`}
+                  onPress={() => router.push(`/module/supplier/${item.id}` as never)}
                   onEdit={() => {
                     setDraft({
                       name: item.name,
@@ -240,6 +243,10 @@ export default function SuppliersScreen() {
                     .filter(Boolean)
                     .join(" · ") || "No contact details"}
                 >
+                  <LinkAction
+                    label="Supplier Hub"
+                    onPress={() => router.push(`/module/supplier/${item.id}` as never)}
+                  />
                   <LinkAction
                     label={item.active === false ? "Activate" : "Deactivate"}
                     onPress={() => void setActive(item, !item.active)}

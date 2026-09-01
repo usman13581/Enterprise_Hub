@@ -1,10 +1,11 @@
 import { APP_NAME, APP_POWERED_BY, APP_VERSION } from '@marble/types';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
   Pressable,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -12,6 +13,12 @@ import {
 import { useRouter } from 'expo-router';
 import { apiAdminLogin } from '../lib/api';
 import { setAuthToken, setSessionKind } from '../lib/auth';
+import {
+  clearRememberedLogin,
+  loadRememberedLogin,
+  saveRememberedLogin,
+} from '../lib/rememberLogin';
+import { navigateAfterAuth } from '../lib/smartNavigation';
 import { ScreenScroll } from '../components/ScreenScroll';
 import { colors, ui } from '../lib/ui';
 
@@ -19,8 +26,18 @@ export default function AdminLoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    void loadRememberedLogin('platform').then((saved) => {
+      if (!saved) return;
+      setEmail(saved.email);
+      setPassword(saved.password);
+      setRemember(true);
+    });
+  }, []);
 
   async function submit() {
     if (saving) return;
@@ -28,9 +45,14 @@ export default function AdminLoginScreen() {
     setError(null);
     try {
       const result = await apiAdminLogin({ email, password });
+      if (remember) {
+        await saveRememberedLogin('platform', email, password);
+      } else {
+        await clearRememberedLogin('platform');
+      }
       await setAuthToken(result.token);
       await setSessionKind('platform');
-      router.replace('/admin' as never);
+      navigateAfterAuth(router, '/admin');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sign in failed');
     } finally {
@@ -49,6 +71,8 @@ export default function AdminLoginScreen() {
         accessibilityLabel="Prequaliq"
       />
       <Text style={styles.brand}>{APP_NAME}</Text>
+      <Text style={styles.powered}>{APP_POWERED_BY}</Text>
+      <Text style={styles.version}>v{APP_VERSION}</Text>
       <Text style={ui.title}>Platform admin</Text>
       <Text style={ui.lede}>
         Sign in with a platform admin account. Company modules are not available
@@ -76,6 +100,14 @@ export default function AdminLoginScreen() {
           placeholder="Password"
           placeholderTextColor={colors.soft}
         />
+        <View style={styles.rememberRow}>
+          <Text style={styles.rememberLabel}>Remember credentials</Text>
+          <Switch
+            value={remember}
+            onValueChange={setRemember}
+            trackColor={{ false: colors.line, true: colors.accent }}
+          />
+        </View>
         {error ? <Text style={ui.error}>{error}</Text> : null}
         <Pressable
           style={[ui.button, { marginTop: 16 }, saving && styles.disabled]}
@@ -96,9 +128,6 @@ export default function AdminLoginScreen() {
       >
         <Text style={styles.backLinkText}>Company sign in</Text>
       </Pressable>
-
-      <Text style={styles.credit}>{APP_POWERED_BY}</Text>
-      <Text style={styles.version}>v{APP_VERSION}</Text>
     </ScreenScroll>
   );
 }
@@ -107,7 +136,7 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     justifyContent: 'flex-start',
-    paddingTop: 56,
+    paddingTop: 8,
     paddingBottom: 24,
   },
   mark: {
@@ -122,6 +151,32 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.5,
   },
+  powered: {
+    marginTop: 4,
+    color: colors.soft,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  version: {
+    marginTop: 2,
+    marginBottom: 12,
+    color: colors.soft,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  rememberRow: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  rememberLabel: {
+    color: colors.soft,
+    fontSize: 13,
+    fontWeight: '500',
+    flex: 1,
+  },
   backLink: {
     alignSelf: 'center',
     marginTop: 20,
@@ -132,19 +187,6 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontSize: 13,
     fontWeight: '600',
-  },
-  credit: {
-    marginTop: 28,
-    color: colors.soft,
-    fontSize: 11,
-    textAlign: 'center',
-  },
-  version: {
-    marginTop: 2,
-    marginBottom: 8,
-    color: colors.soft,
-    fontSize: 11,
-    textAlign: 'center',
   },
   disabled: { opacity: 0.6 },
 });

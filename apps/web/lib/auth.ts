@@ -1,5 +1,6 @@
 const TOKEN_KEY = 'marble_auth_token';
 const PLATFORM_TOKEN_KEY = 'marble_platform_token';
+const ACTIVITY_KEY = 'marble_session_activity';
 
 export function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null;
@@ -8,11 +9,13 @@ export function getAuthToken(): string | null {
 
 export function setAuthToken(token: string) {
   window.localStorage.setItem(TOKEN_KEY, token);
+  window.localStorage.setItem(ACTIVITY_KEY, String(Date.now()));
 }
 
 export function clearAuthToken() {
   window.localStorage.removeItem(TOKEN_KEY);
   window.localStorage.removeItem(PLATFORM_TOKEN_KEY);
+  window.localStorage.removeItem(ACTIVITY_KEY);
 }
 
 export function beginReadOnlyWorkspace(token: string) {

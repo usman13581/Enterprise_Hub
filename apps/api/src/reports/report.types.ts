@@ -26,6 +26,7 @@ export type ReportQuery = {
   to?: string;
   asOf?: string;
   customerId?: string;
+  supplierId?: string;
   jobId?: string;
   kind?: string;
   status?: string;

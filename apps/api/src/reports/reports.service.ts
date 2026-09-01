@@ -101,6 +101,23 @@ export class ReportsService {
         return this.unbilled(companyId, query);
       case 'allocation-rec':
         return this.allocationRec(companyId, query);
+      case 'supplier-product-register':
+        return this.supplierProductRegister(companyId, query);
+      case 'supplier-cost-summary':
+        return this.supplierCostSummary(companyId, query);
+      case 'supplier-quotation-usage':
+        return this.supplierQuotationUsage(companyId, query);
+      case 'supplier-job-costing':
+        return this.supplierJobCosting(companyId, query);
+      case 'supplier-statement':
+      case 'aged-payables':
+      case 'purchase-invoice-register':
+      case 'supplier-payment-register':
+      case 'lpo-register':
+      case 'supplier-spend':
+      case 'supplier-price-history':
+      case 'input-vat-summary':
+        return this.supplierAccounting(companyId, reportKey, query);
       default:
         throw new BadRequestException(`Unknown report ${key}`);
     }
@@ -1821,6 +1838,199 @@ export class ReportsService {
     }
 
     throw new BadRequestException(`Unknown invoice report view: ${view}`);
+  }
+
+  private async supplier(companyId: string, supplierId?: string) {
+    if (!supplierId) return null;
+    const supplier = await this.prisma.supplier.findFirst({
+      where: { id: supplierId, companyId },
+      select: { id: true, name: true },
+    });
+    if (!supplier) throw new NotFoundException('Supplier not found');
+    return supplier;
+  }
+
+  private async supplierProductRegister(companyId: string, query: ReportQuery): Promise<ReportResult> {
+    const supplier = await this.supplier(companyId, query.supplierId);
+    const products = await this.prisma.product.findMany({
+      where: { companyId, ...(query.supplierId ? { supplierId: query.supplierId } : {}) },
+      orderBy: [{ supplier: { name: 'asc' } }, { name: 'asc' }],
+      include: { supplier: { select: { id: true, name: true } } },
+    });
+    const purchase = products.reduce((sum, product) => sum + product.purchasePrice, 0);
+    const sell = products.reduce((sum, product) => sum + product.sellPrice, 0);
+    return {
+      key: 'supplier-product-register',
+      title: supplier ? `Supplier product register — ${supplier.name}` : 'Supplier product register',
+      params: { supplierId: supplier?.id ?? null, supplierName: supplier?.name ?? null },
+      summary: [
+        { label: 'Products', value: products.length },
+        { label: 'Catalog purchase value', value: roundMoney(purchase), money: true },
+        { label: 'Catalog sell value', value: roundMoney(sell), money: true },
+        { label: 'Estimated margin', value: roundMoney(sell - purchase), money: true },
+      ],
+      columns: [
+        { key: 'supplier', label: 'Supplier' },
+        { key: 'name', label: 'Product' },
+        { key: 'sku', label: 'SKU' },
+        { key: 'purchasePrice', label: 'Purchase', align: 'right', money: true },
+        { key: 'sellPrice', label: 'Sell', align: 'right', money: true },
+        { key: 'margin', label: 'Margin', align: 'right', money: true },
+        { key: 'active', label: 'Status' },
+      ],
+      rows: products.map((product) => ({
+        supplier: product.supplier?.name ?? 'Unassigned',
+        name: product.name,
+        sku: product.sku,
+        purchasePrice: roundMoney(product.purchasePrice),
+        sellPrice: roundMoney(product.sellPrice),
+        margin: roundMoney(product.sellPrice - product.purchasePrice),
+        active: product.active ? 'Active' : 'Inactive',
+      })),
+      footerNote: 'Values are catalog price exposure, not posted supplier liabilities.',
+    };
+  }
+
+  private async supplierCostSummary(companyId: string, query: ReportQuery): Promise<ReportResult> {
+    const selected = await this.supplier(companyId, query.supplierId);
+    const suppliers = await this.prisma.supplier.findMany({
+      where: { companyId, ...(query.supplierId ? { id: query.supplierId } : {}) },
+      orderBy: { name: 'asc' },
+      include: { products: { select: { purchasePrice: true, sellPrice: true, active: true } } },
+    });
+    const rows = suppliers.map((supplier) => {
+      const purchase = supplier.products.reduce((sum, product) => sum + product.purchasePrice, 0);
+      const sell = supplier.products.reduce((sum, product) => sum + product.sellPrice, 0);
+      return { supplier: supplier.name, products: supplier.products.length, activeProducts: supplier.products.filter((product) => product.active).length, purchaseValue: roundMoney(purchase), sellValue: roundMoney(sell), margin: roundMoney(sell - purchase) };
+    });
+    return {
+      key: 'supplier-cost-summary',
+      title: selected ? `Supplier cost summary — ${selected.name}` : 'Supplier cost summary',
+      params: { supplierId: selected?.id ?? null, supplierName: selected?.name ?? null },
+      summary: [
+        { label: 'Suppliers', value: rows.length },
+        { label: 'Purchase exposure', value: roundMoney(rows.reduce((sum, row) => sum + row.purchaseValue, 0)), money: true },
+        { label: 'Estimated margin', value: roundMoney(rows.reduce((sum, row) => sum + row.margin, 0)), money: true },
+      ],
+      columns: [
+        { key: 'supplier', label: 'Supplier' },
+        { key: 'products', label: 'Products', align: 'right' },
+        { key: 'activeProducts', label: 'Active', align: 'right' },
+        { key: 'purchaseValue', label: 'Purchase value', align: 'right', money: true },
+        { key: 'sellValue', label: 'Sell value', align: 'right', money: true },
+        { key: 'margin', label: 'Estimated margin', align: 'right', money: true },
+      ],
+      rows,
+    };
+  }
+
+  private async supplierQuotationUsage(companyId: string, query: ReportQuery): Promise<ReportResult> {
+    const selected = await this.supplier(companyId, query.supplierId);
+    const { from, to } = this.period(query);
+    const lines = await this.prisma.quotationLine.findMany({
+      where: {
+        quotation: { companyId, createdAt: { gte: from, lte: to } },
+        product: { supplierId: query.supplierId ?? { not: null } },
+      },
+      include: {
+        product: { include: { supplier: { select: { id: true, name: true } } } },
+        quotation: { include: { customer: { select: { name: true } } } },
+      },
+      orderBy: { quotation: { createdAt: 'desc' } },
+    });
+    const filtered = query.supplierId ? lines.filter((line) => line.product?.supplier?.id === query.supplierId) : lines;
+    const rows = filtered.map((line) => ({ quotation: line.quotation.number, customer: line.quotation.customer.name, supplier: line.product?.supplier?.name ?? 'Unassigned', product: line.product?.name ?? line.description, qty: line.qty, purchaseTotal: roundMoney(line.purchasePrice * line.qty), sellTotal: roundMoney(line.sellPrice * line.qty), margin: roundMoney((line.sellPrice - line.purchasePrice) * line.qty) }));
+    return {
+      key: 'supplier-quotation-usage',
+      title: selected ? `Supplier quotation usage — ${selected.name}` : 'Supplier quotation usage',
+      params: { from: isoDate(from), to: isoDate(to), supplierId: selected?.id ?? null, supplierName: selected?.name ?? null },
+      summary: [{ label: 'Quoted lines', value: rows.length }, { label: 'Purchase cost', value: roundMoney(rows.reduce((sum, row) => sum + row.purchaseTotal, 0)), money: true }, { label: 'Estimated margin', value: roundMoney(rows.reduce((sum, row) => sum + row.margin, 0)), money: true }],
+      columns: [{ key: 'quotation', label: 'Quotation' }, { key: 'customer', label: 'Customer' }, { key: 'supplier', label: 'Supplier' }, { key: 'product', label: 'Product' }, { key: 'qty', label: 'Qty', align: 'right' }, ...moneyCols([['purchaseTotal', 'Purchase cost'], ['sellTotal', 'Sell total'], ['margin', 'Margin']])],
+      rows,
+    };
+  }
+
+  private async supplierJobCosting(companyId: string, query: ReportQuery): Promise<ReportResult> {
+    const selected = await this.supplier(companyId, query.supplierId);
+    const { from, to } = this.period(query);
+    const jobs = await this.prisma.job.findMany({
+      where: { companyId, createdAt: { gte: from, lte: to } },
+      include: { customer: { select: { name: true } }, quotation: { include: { lines: { include: { product: { include: { supplier: { select: { id: true, name: true } } } } } } } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const grouped = new Map<string, { job: string; customer: string; supplier: string; purchaseCost: number; sellValue: number }>();
+    for (const job of jobs) {
+      for (const line of job.quotation.lines) {
+        const supplier = line.product?.supplier;
+        if (!supplier || (query.supplierId && supplier.id !== query.supplierId)) continue;
+        const key = `${job.id}:${supplier.id}`;
+        const row = grouped.get(key) ?? { job: job.number, customer: job.customer.name, supplier: supplier.name, purchaseCost: 0, sellValue: 0 };
+        row.purchaseCost += line.purchasePrice * line.qty;
+        row.sellValue += line.sellPrice * line.qty;
+        grouped.set(key, row);
+      }
+    }
+    const rows = [...grouped.values()].map((row) => ({ ...row, purchaseCost: roundMoney(row.purchaseCost), sellValue: roundMoney(row.sellValue), margin: roundMoney(row.sellValue - row.purchaseCost) }));
+    return {
+      key: 'supplier-job-costing',
+      title: selected ? `Supplier job costing — ${selected.name}` : 'Supplier job costing',
+      params: { from: isoDate(from), to: isoDate(to), supplierId: selected?.id ?? null, supplierName: selected?.name ?? null },
+      summary: [{ label: 'Job/supplier rows', value: rows.length }, { label: 'Purchase cost', value: roundMoney(rows.reduce((sum, row) => sum + row.purchaseCost, 0)), money: true }, { label: 'Estimated margin', value: roundMoney(rows.reduce((sum, row) => sum + row.margin, 0)), money: true }],
+      columns: [{ key: 'job', label: 'Job' }, { key: 'customer', label: 'Customer' }, { key: 'supplier', label: 'Supplier' }, ...moneyCols([['purchaseCost', 'Purchase cost'], ['sellValue', 'Sell value'], ['margin', 'Margin']])],
+      rows,
+      footerNote: 'Supplier costs are derived from quotation line snapshots. This is not a payable ledger.',
+    };
+  }
+
+  private async supplierAccounting(companyId: string, key: ReportKey, query: ReportQuery): Promise<ReportResult> {
+    const { from, to } = this.period(query);
+    const supplierWhere = query.supplierId ? { supplierId: query.supplierId } : {};
+    const [suppliers, invoices, payments, entries, lpos, prices] = await Promise.all([
+      this.prisma.supplier.findMany({ where: { companyId, ...(query.supplierId ? { id: query.supplierId } : {}) }, select: { id: true, name: true } }),
+      this.prisma.purchaseInvoice.findMany({ where: { companyId, ...supplierWhere, issueDate: { gte: from, lte: to } }, include: { supplier: { select: { name: true } } }, orderBy: { issueDate: 'asc' } }),
+      this.prisma.supplierPayment.findMany({ where: { companyId, ...supplierWhere, paidAt: { gte: from, lte: to } }, include: { supplier: { select: { name: true } } }, orderBy: { paidAt: 'asc' } }),
+      this.prisma.supplierLedgerEntry.findMany({ where: { companyId, ...supplierWhere, occurredAt: { gte: from, lte: to } }, include: { supplier: { select: { name: true } } }, orderBy: { occurredAt: 'asc' } }),
+      this.prisma.lpo.findMany({ where: { companyId, ...supplierWhere, createdAt: { gte: from, lte: to } }, include: { supplier: { select: { name: true } }, lines: true }, orderBy: { createdAt: 'asc' } }),
+      this.prisma.supplierPriceHistory.findMany({ where: { companyId, ...supplierWhere, effectiveAt: { gte: from, lte: to } }, include: { supplier: { select: { name: true } } }, orderBy: { effectiveAt: 'asc' } }),
+    ]);
+    const title = REPORT_NAV.find((report) => report.key === key)?.label ?? key;
+    let rows: Array<Record<string, string | number | null>> = [];
+    let columns: ReportResult['columns'] = [];
+    if (key === 'supplier-statement') {
+      let balance = 0;
+      rows = entries.map((entry) => {
+        balance += entry.direction === 'credit' ? entry.amount : -entry.amount;
+        return { date: dayLabel(entry.occurredAt), supplier: entry.supplier.name, description: entry.description, direction: entry.direction, amount: roundMoney(entry.amount), balance: roundMoney(balance) };
+      });
+      columns = [{ key: 'date', label: 'Date' }, { key: 'supplier', label: 'Supplier' }, { key: 'description', label: 'Description' }, { key: 'direction', label: 'Direction' }, ...moneyCols([['amount', 'Amount'], ['balance', 'Balance']])];
+    } else if (key === 'aged-payables') {
+      const asOf = this.asOf(query);
+      const aged = await this.prisma.purchaseInvoice.findMany({ where: { companyId, ...supplierWhere, status: { in: ['posted', 'partially_paid'] }, dueDate: { lte: asOf } }, include: { supplier: { select: { name: true } } }, orderBy: { dueDate: 'asc' } });
+      rows = aged.map((invoice) => {
+        const days = Math.max(0, Math.floor((asOf.getTime() - (invoice.dueDate?.getTime() ?? asOf.getTime())) / 86400000));
+        return { number: invoice.number, supplier: invoice.supplier.name, dueDate: dayLabel(invoice.dueDate), ageDays: days, bucket: days <= 30 ? '0–30' : days <= 60 ? '31–60' : days <= 90 ? '61–90' : '90+', balance: roundMoney(invoice.balance) };
+      });
+      columns = [{ key: 'number', label: 'Invoice' }, { key: 'supplier', label: 'Supplier' }, { key: 'dueDate', label: 'Due date' }, { key: 'ageDays', label: 'Age days' }, { key: 'bucket', label: 'Bucket' }, ...moneyCols([['balance', 'Balance']])];
+    } else if (key === 'purchase-invoice-register') {
+      rows = invoices.map((invoice) => ({ number: invoice.number, supplier: invoice.supplier.name, supplierReference: invoice.supplierInvoiceNumber, issueDate: dayLabel(invoice.issueDate), dueDate: dayLabel(invoice.dueDate), status: invoice.status, subtotal: roundMoney(invoice.subtotal), inputVat: roundMoney(invoice.inputVat), total: roundMoney(invoice.total), balance: roundMoney(invoice.balance) }));
+      columns = [{ key: 'number', label: 'Invoice' }, { key: 'supplier', label: 'Supplier' }, { key: 'supplierReference', label: 'Supplier ref' }, { key: 'issueDate', label: 'Issue date' }, { key: 'dueDate', label: 'Due date' }, { key: 'status', label: 'Status' }, ...moneyCols([['subtotal', 'Subtotal'], ['inputVat', 'Input VAT'], ['total', 'Total'], ['balance', 'Balance']])];
+    } else if (key === 'supplier-payment-register') {
+      rows = payments.map((payment) => ({ number: payment.number, supplier: payment.supplier.name, date: dayLabel(payment.paidAt), method: payment.method, amount: roundMoney(payment.amount), unapplied: roundMoney(payment.unappliedAmount), reference: payment.reference ? `••••${payment.reference.slice(-4)}` : null }));
+      columns = [{ key: 'number', label: 'Payment' }, { key: 'supplier', label: 'Supplier' }, { key: 'date', label: 'Date' }, { key: 'method', label: 'Method' }, ...moneyCols([['amount', 'Amount'], ['unapplied', 'Unapplied']]), { key: 'reference', label: 'Reference' }];
+    } else if (key === 'lpo-register') {
+      rows = lpos.map((lpo) => ({ number: lpo.number, supplier: lpo.supplier.name, date: dayLabel(lpo.createdAt), status: lpo.status, ordered: roundMoney(lpo.lines.reduce((sum, line) => sum + line.orderedQty * line.unitCost, 0)), received: roundMoney(lpo.lines.reduce((sum, line) => sum + line.receivedQty * line.unitCost, 0)), invoiced: roundMoney(lpo.lines.reduce((sum, line) => sum + line.invoicedQty * line.unitCost, 0)), remaining: roundMoney(lpo.lines.reduce((sum, line) => sum + (line.orderedQty - line.invoicedQty) * line.unitCost, 0)) }));
+      columns = [{ key: 'number', label: 'LPO' }, { key: 'supplier', label: 'Supplier' }, { key: 'date', label: 'Date' }, { key: 'status', label: 'Status' }, ...moneyCols([['ordered', 'Ordered'], ['received', 'Received'], ['invoiced', 'Invoiced'], ['remaining', 'Remaining']])];
+    } else if (key === 'supplier-price-history') {
+      rows = prices.map((price) => ({ date: dayLabel(price.effectiveAt), supplier: price.supplier.name, product: price.productName, unitCost: roundMoney(price.unitCost), source: price.sourceType }));
+      columns = [{ key: 'date', label: 'Date' }, { key: 'supplier', label: 'Supplier' }, { key: 'product', label: 'Product' }, ...moneyCols([['unitCost', 'Unit cost']]), { key: 'source', label: 'Source' }];
+    } else {
+      const bySupplier = new Map<string, { supplier: string; spend: number; inputVat: number; payments: number }>();
+      for (const invoice of invoices.filter((item) => ['posted', 'partially_paid', 'paid'].includes(item.status))) { const row = bySupplier.get(invoice.supplier.name) ?? { supplier: invoice.supplier.name, spend: 0, inputVat: 0, payments: 0 }; row.spend += invoice.total; row.inputVat += invoice.inputVat; bySupplier.set(invoice.supplier.name, row); }
+      for (const payment of payments) { const row = bySupplier.get(payment.supplier.name) ?? { supplier: payment.supplier.name, spend: 0, inputVat: 0, payments: 0 }; row.payments += payment.amount; bySupplier.set(payment.supplier.name, row); }
+      rows = [...bySupplier.values()].map((row) => ({ ...row, spend: roundMoney(row.spend), inputVat: roundMoney(row.inputVat), payments: roundMoney(row.payments), cashOut: roundMoney(row.payments) }));
+      columns = [{ key: 'supplier', label: 'Supplier' }, ...moneyCols([['spend', 'Spend'], ['inputVat', 'Input VAT'], ['payments', 'Payments'], ['cashOut', 'Cash out']])];
+    }
+    return { key, title, params: { from: isoDate(from), to: isoDate(to), supplierId: query.supplierId ?? null }, summary: [{ label: 'Rows', value: rows.length }, { label: 'Suppliers', value: suppliers.length }, { label: 'Invoices', value: invoices.length }, { label: 'Payments', value: payments.length }], columns, rows, footerNote: 'Supplier purchasing reports are company-scoped. Payment references are masked.' };
   }
 
   private async company(companyId: string): Promise<PdfCompany> {

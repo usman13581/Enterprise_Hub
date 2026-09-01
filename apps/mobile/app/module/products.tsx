@@ -24,6 +24,8 @@ import {
   usePagination,
   usePolledList,
 } from "../../lib/useCollection";
+import { FormPicker } from "../../components/FormField";
+import { SearchablePicker } from "../../components/SearchablePicker";
 import { Pagination, SearchBox, Toast } from "../../components/ListControls";
 import { ScreenScroll } from "../../components/ScreenScroll";
 import { LinkAction, RecordRow, UploadChip } from "../../components/Finance";
@@ -200,44 +202,17 @@ export default function ProductsScreen() {
               keyboardType="decimal-pad"
               onChangeText={(v) => setDraft({ ...draft, sellPrice: v })}
             />
-            <Text style={ui.label}>Supplier (optional)</Text>
-            <View style={styles.chips}>
-              <Pressable
-                style={[
-                  styles.chip,
-                  draft.supplierId === "" && styles.chipActive,
-                ]}
-                onPress={() => setDraft({ ...draft, supplierId: "" })}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    draft.supplierId === "" && styles.chipTextActive,
-                  ]}
-                >
-                  None
-                </Text>
-              </Pressable>
-              {suppliers.map((s) => (
-                <Pressable
-                  key={s.id}
-                  style={[
-                    styles.chip,
-                    draft.supplierId === s.id && styles.chipActive,
-                  ]}
-                  onPress={() => setDraft({ ...draft, supplierId: s.id })}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      draft.supplierId === s.id && styles.chipTextActive,
-                    ]}
-                  >
-                    {s.name}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            <FormPicker label="Supplier (optional)">
+              <SearchablePicker
+                value={draft.supplierId}
+                allowEmpty
+                emptyLabel="None"
+                options={suppliers.map((s) => ({ id: s.id, label: s.name }))}
+                searchPlaceholder="Search suppliers…"
+                emptyText="No suppliers match your search."
+                onChange={(supplierId) => setDraft({ ...draft, supplierId })}
+              />
+            </FormPicker>
             <Text style={ui.label}>Description</Text>
             <TextInput
               style={[ui.input, { height: 80 }]}

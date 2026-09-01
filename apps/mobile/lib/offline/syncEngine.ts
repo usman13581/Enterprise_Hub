@@ -86,6 +86,14 @@ const COLLECTION_MAP: Record<string, string> = {
   advances: 'advances',
   ledger: 'ledger',
   audit: 'audit',
+  lpos: 'lpos',
+  purchaseInvoices: 'purchaseInvoices',
+  hrEmployees: 'hrEmployees',
+  hrLeaveRequests: 'hrLeaveRequests',
+  hrPayrollPeriods: 'hrPayrollPeriods',
+  accountsOverview: 'accountsOverview',
+  hrDashboard: 'hrDashboard',
+  hrOrganization: 'hrOrganization',
 };
 
 /** Maps REST list paths to SQLite collection names for offline reads. */
@@ -97,8 +105,20 @@ export const PATH_COLLECTION: Record<string, string> = {
   '/jobs': 'jobs',
   '/invoices': 'invoices',
   '/advances': 'advances',
+  '/lpos': 'lpos',
+  '/purchase-invoices': 'purchaseInvoices',
+  '/company/hr/employees': 'hrEmployees',
+  '/company/hr/leave-requests': 'hrLeaveRequests',
+  '/company/hr/payroll': 'hrPayrollPeriods',
   '/company/profile': 'profile',
   '/audit': 'audit',
+};
+
+/** Single-object API responses cached by fixed id. */
+export const SINGLETON_PATHS: Record<string, { collection: string; id: string }> = {
+  '/accounts/overview': { collection: 'accountsOverview', id: 'overview' },
+  '/company/hr/dashboard': { collection: 'hrDashboard', id: 'dashboard' },
+  '/company/hr/organization': { collection: 'hrOrganization', id: 'organization' },
 };
 
 let syncing = false;
@@ -157,13 +177,24 @@ export async function runSync(): Promise<SyncStatus> {
       return snapshotStatus();
     }
 
-    await flushImageQueue();
-    await flushRestMutationQueue();
     await pullAndStore();
-    await flushSyncMutationQueue();
-
     await setMeta('lastSyncAt', new Date().toISOString());
     lastError = null;
+    try {
+      await flushImageQueue();
+    } catch (error) {
+      lastError = syncErrorMessage(error);
+    }
+    try {
+      await flushRestMutationQueue();
+    } catch (error) {
+      if (!lastError) lastError = syncErrorMessage(error);
+    }
+    try {
+      await flushSyncMutationQueue();
+    } catch (error) {
+      if (!lastError) lastError = syncErrorMessage(error);
+    }
   } catch (error) {
     lastError = syncErrorMessage(error);
   } finally {
@@ -323,6 +354,29 @@ export async function queueRestMutation(input: {
     body: input.body,
   });
   await emit();
+}
+
+/** Attendance is server-authoritative, but its device capture time must survive
+ * an offline queue and be submitted unchanged when connectivity returns. */
+export async function queueAttendanceCapture(input: {
+  checkIn: boolean;
+  capturedAt: string;
+  context?: string;
+  devicePlatform?: string;
+}) {
+  await queueRestMutation({
+    method: 'POST',
+    path: input.checkIn
+      ? '/company/hr/attendance/check-in'
+      : '/company/hr/attendance/check-out',
+    body: input.checkIn
+      ? {
+          context: input.context ?? 'mobile',
+          devicePlatform: input.devicePlatform ?? 'mobile',
+          capturedAt: input.capturedAt,
+        }
+      : {},
+  });
 }
 
 /** Queue a sync upsert for catalog/CRM/draft quotation rows. */

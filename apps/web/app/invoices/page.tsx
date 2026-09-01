@@ -19,6 +19,7 @@ import {
   StatusBadge,
   TableScroll,
 } from '@/components/Finance';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import {
   EMPTY_INVOICE_LINE,
   InvoiceLineEditor,
@@ -29,6 +30,7 @@ import {
   AllocationPicker,
   allocationPayload,
 } from '@/components/MoneyForms';
+import { PurchaseInvoiceForm } from '@/components/PurchasingForms';
 import type { Customer, Invoice, JobListItem } from '@/lib/types';
 import page from '../page.module.css';
 import styles from '@/components/crud.module.css';
@@ -63,6 +65,7 @@ export default function InvoicesPage() {
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [showPurchaseForm, setShowPurchaseForm] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [allocations, setAllocations] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -152,44 +155,45 @@ export default function InvoicesPage() {
         />
       ) : null}
 
-      {showForm ? (
+      {showPurchaseForm ? (
+        <PurchaseInvoiceForm
+          onSaved={async () => {
+            setShowPurchaseForm(false);
+            notify('Purchase invoice saved');
+          }}
+          onError={setError}
+          onCancel={() => setShowPurchaseForm(false)}
+        />
+      ) : showForm ? (
         <form className={styles.form} onSubmit={onSubmit}>
           <p className={styles.formTitle}>New invoice</p>
           <div className={styles.grid}>
-            <div className={styles.field}>
-              <label className={styles.label}>Customer *</label>
-              <select
-                className={styles.select}
-                value={draft.customerId}
-                onChange={(e) =>
-                  setDraft({ ...draft, customerId: e.target.value, jobId: '' })
-                }
-                required
-              >
-                <option value="">Select a customer</option>
-                {customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className={styles.field}>
-              <label className={styles.label}>Job</label>
-              <select
-                className={styles.select}
-                value={draft.jobId}
-                onChange={(e) => setDraft({ ...draft, jobId: e.target.value })}
-                disabled={!draft.customerId}
-              >
-                <option value="">No job (standalone invoice)</option>
-                {eligibleJobs.map((job) => (
-                  <option key={job.id} value={job.id}>
-                    {job.number} · {job.title ?? 'No subject'}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <SearchableSelect
+              label="Customer *"
+              value={draft.customerId}
+              onChange={(customerId) =>
+                setDraft({ ...draft, customerId, jobId: '' })
+              }
+              required
+              placeholder="Search customers…"
+              options={customers.map((customer) => ({
+                id: customer.id,
+                label: customer.name,
+              }))}
+            />
+            <SearchableSelect
+              label="Job"
+              value={draft.jobId}
+              onChange={(jobId) => setDraft({ ...draft, jobId })}
+              allowEmpty
+              emptyLabel="No job (standalone invoice)"
+              disabled={!draft.customerId}
+              placeholder="Search jobs…"
+              options={eligibleJobs.map((job) => ({
+                id: job.id,
+                label: `${job.number} · ${job.title ?? 'No subject'}`,
+              }))}
+            />
             <div className={styles.field}>
               <label className={styles.label}>Kind</label>
               <select
@@ -265,13 +269,27 @@ export default function InvoicesPage() {
         <>
           <div className={styles.toolbar}>
             <span className={styles.count}>{items.length} invoices</span>
+          </div>
+          <div className={styles.actions}>
             <button
               className={styles.button}
               onClick={startCreate}
               disabled={customers.length === 0}
             >
-              New invoice
+              New job invoice
             </button>
+            <button
+              className={styles.ghost}
+              onClick={() => {
+                setShowForm(false);
+                setShowPurchaseForm(true);
+              }}
+            >
+              New purchase invoice
+            </button>
+            <Link className={styles.ghost} href="/purchase-invoices">
+              View purchase invoices
+            </Link>
           </div>
 
           <FilterBar

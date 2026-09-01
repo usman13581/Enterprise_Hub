@@ -9,6 +9,7 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed-platform.ts",
     "db:seed:pilot": "tsx prisma/seed.ts",
+    "db:seed:sample:binhaj": "tsx prisma/seed-sample-binhaj.ts",
     "prisma:generate": "prisma generate",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

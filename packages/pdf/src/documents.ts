@@ -9,7 +9,6 @@ import { Document, Page, Text, View } from '@react-pdf/renderer';
 type PdfDocumentElement = ReactElement<ComponentProps<typeof Document>>;
 import { formatMoney } from '@marble/domain';
 import {
-  clientSignatureBlock,
   companyHeader,
   compactSection,
   counterTopIntro,
@@ -20,8 +19,10 @@ import {
   generalIntro,
   generalLineTable,
   generalThankYouBlock,
+  keepTogether,
   lineTable,
   partyBlock,
+  quotationSignatureRow,
   section,
   signatureBlock,
   splitQuotationTerms,
@@ -96,23 +97,9 @@ function CounterTopQuotationDocument(
         data.company.currency,
       ),
       termsBody
-        ? el(
-            View,
-            { key: 'terms-page', break: true },
-            compactSection('Terms & Conditions', termsBody, 'terms'),
-            el(
-              View,
-              { wrap: false },
-              signatureBlock(data.company),
-              clientSignatureBlock(),
-            ),
-          )
-        : el(
-            View,
-            { wrap: false },
-            signatureBlock(data.company),
-            clientSignatureBlock(),
-          ),
+        ? compactSection('Terms & Conditions', termsBody, 'terms')
+        : null,
+      keepTogether([quotationSignatureRow(data.company)], 130),
       footer(data.company, 'This quotation is not a tax invoice'),
     ),
   );
@@ -163,19 +150,15 @@ function GeneralQuotationDocument(data: QuotationPdfData): PdfDocumentElement {
         ? compactSection('Payment Terms', paymentTerms, 'pay')
         : null,
       data.notes ? compactSection('Notes', data.notes, 'notes') : null,
-      generalThankYouBlock(data.company),
-      el(
-        View,
-        { wrap: false },
-        signatureBlock(data.company),
-        clientSignatureBlock(),
+      keepTogether(
+        [
+          generalThankYouBlock(data.company),
+          quotationSignatureRow(data.company),
+        ],
+        140,
       ),
       conditions
-        ? el(
-            View,
-            { key: 'terms-page', break: true },
-            compactSection('Terms and Conditions', conditions, 'terms'),
-          )
+        ? compactSection('Terms and Conditions', conditions, 'terms')
         : null,
       footer(data.company, 'This quotation is not a tax invoice'),
     ),
@@ -202,7 +185,7 @@ export function QuotationDocument(data: QuotationPdfData): PdfDocumentElement {
     { title: `Quotation ${data.number}` },
     el(
       Page,
-      { size: 'A4', style: styles.page },
+      { size: 'A4', style: styles.page, wrap: true },
       data.status === 'cancelled'
         ? el(Text, { style: styles.watermark, fixed: true }, 'CANCELLED')
         : null,
@@ -226,7 +209,7 @@ export function QuotationDocument(data: QuotationPdfData): PdfDocumentElement {
       data.company.bankDetails
         ? section('Bank details', data.company.bankDetails, 'bank')
         : null,
-      signatureBlock(data.company),
+      keepTogether([signatureBlock(data.company)], 100),
       footer(data.company, 'This quotation is not a tax invoice'),
     ),
   );
@@ -277,7 +260,7 @@ export function InvoiceDocument(data: InvoicePdfData): PdfDocumentElement {
     { title: `${INVOICE_TITLE[data.kind] ?? 'Invoice'} ${data.number}` },
     el(
       Page,
-      { size: 'A4', style: styles.page },
+      { size: 'A4', style: styles.page, wrap: true },
       data.status === 'cancelled'
         ? el(Text, { style: styles.watermark, fixed: true }, 'CANCELLED')
         : null,
@@ -302,7 +285,7 @@ export function InvoiceDocument(data: InvoicePdfData): PdfDocumentElement {
       data.company.bankDetails
         ? section('Payment details', data.company.bankDetails, 'bank')
         : null,
-      signatureBlock(data.company),
+      keepTogether([signatureBlock(data.company)], 100),
       footer(
         data.company,
         isCreditNote
@@ -328,7 +311,7 @@ export function AdvanceReceiptDocument(
     { title: `Advance receipt ${data.number}` },
     el(
       Page,
-      { size: 'A4', style: styles.page },
+      { size: 'A4', style: styles.page, wrap: true },
       companyHeader(data.company, 'Advance Receipt', data.number, meta),
       el(
         View,
@@ -351,7 +334,7 @@ export function AdvanceReceiptDocument(
           'Received as an advance against work in progress. This receipt is not a tax invoice; VAT is accounted for on the tax invoice that adjusts this advance.',
         'note',
       ),
-      signatureBlock(data.company),
+      keepTogether([signatureBlock(data.company)], 100),
       footer(data.company, 'Advance receipt'),
     ),
   );
@@ -474,7 +457,7 @@ export function ReportDocument(data: ReportPdfData): PdfDocumentElement {
     { title: data.title },
     el(
       Page,
-      { size: 'A4', style: styles.page, orientation: 'landscape' as never },
+      { size: 'A4', style: styles.page, orientation: 'landscape' as never, wrap: true },
       companyHeader(data.company, data.title, data.subtitle ?? 'Report', data.meta),
       summaryBlock,
       el(View, null, head, ...rows),

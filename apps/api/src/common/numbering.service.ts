@@ -8,7 +8,10 @@ export type DocumentFamily =
   | 'job'
   | 'invoice'
   | 'creditNote'
-  | 'advance';
+  | 'advance'
+  | 'lpo'
+  | 'purchaseInvoice'
+  | 'supplierPayment';
 
 const PREFIX_FIELD: Record<DocumentFamily, string> = {
   quotation: 'quotationPrefix',
@@ -16,6 +19,9 @@ const PREFIX_FIELD: Record<DocumentFamily, string> = {
   invoice: 'invoicePrefix',
   creditNote: 'creditNotePrefix',
   advance: 'advancePrefix',
+  lpo: 'lpoPrefix',
+  purchaseInvoice: 'purchaseInvoicePrefix',
+  supplierPayment: 'supplierPaymentPrefix',
 };
 
 const FALLBACK_PREFIX: Record<DocumentFamily, string> = {
@@ -24,6 +30,9 @@ const FALLBACK_PREFIX: Record<DocumentFamily, string> = {
   invoice: 'INV',
   creditNote: 'CN',
   advance: 'ADV',
+  lpo: 'LPO',
+  purchaseInvoice: 'PINV',
+  supplierPayment: 'SPAY',
 };
 
 @Injectable()
@@ -81,6 +90,18 @@ export class NumberingService {
       case 'invoice':
       case 'creditNote': {
         const rows = await tx.invoice.findMany({ where, select });
+        return rows.map((row) => row.number);
+      }
+      case 'lpo': {
+        const rows = await tx.lpo.findMany({ where, select });
+        return rows.map((row) => row.number);
+      }
+      case 'purchaseInvoice': {
+        const rows = await tx.purchaseInvoice.findMany({ where, select });
+        return rows.map((row) => row.number);
+      }
+      case 'supplierPayment': {
+        const rows = await tx.supplierPayment.findMany({ where, select });
         return rows.map((row) => row.number);
       }
     }

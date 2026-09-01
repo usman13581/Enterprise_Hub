@@ -6,6 +6,8 @@ import { apiFetch, apiPost } from '../lib/api';
 import { day, label, money } from '../lib/format';
 import type { AvailableAdvance, Invoice } from '../lib/types';
 import { colors, ui } from '../lib/ui';
+import { FormPicker } from './FormField';
+import { SearchablePicker } from './SearchablePicker';
 import { ActionButton, FilterChips, RowActions } from './Finance';
 
 const num = (value: string) => {
@@ -285,17 +287,18 @@ export function AdvanceForm({
     <View style={ui.card}>
       <Text style={ui.cardTitle}>Record an advance</Text>
       {customers ? (
-        <>
-          <Text style={ui.label}>Customer *</Text>
-          <ChipSelect
+        <FormPicker label="Customer *">
+          <SearchablePicker
             value={draft.customerId}
-            onChange={(id) => setDraft({ ...draft, customerId: id })}
             options={customers.map((customer) => ({
-              key: customer.id,
+              id: customer.id,
               label: customer.name,
             }))}
+            searchPlaceholder="Search customers…"
+            emptyText="No customers match your search."
+            onChange={(id) => setDraft({ ...draft, customerId: id })}
           />
-        </>
+        </FormPicker>
       ) : null}
       <Text style={ui.label}>Amount received *</Text>
       <TextInput

@@ -216,6 +216,72 @@ export class DocumentsService {
     return { buffer, filename: `advance-receipt-${advance.number}.pdf` };
   }
 
+  async purchaseInvoicePdf(companyId: string, id: string) {
+    const invoice = await this.prisma.purchaseInvoice.findFirst({
+      where: { id, companyId },
+      include: { supplier: true, lines: { orderBy: { createdAt: 'asc' } } },
+    });
+    if (!invoice) throw new NotFoundException('Purchase invoice not found');
+    const buffer = await renderInvoicePdf({
+      company: await this.company(companyId),
+      customer: this.party(invoice.supplier),
+      number: invoice.number,
+      kind: 'purchase_invoice',
+      status: invoice.status,
+      issueDate: invoice.issueDate.toISOString(),
+      dueDate: invoice.dueDate?.toISOString() ?? null,
+      jobNumber: null,
+      notes: invoice.notes,
+      vatRate: invoice.vatRate,
+      subtotal: invoice.subtotal,
+      vatAmount: invoice.inputVat,
+      total: invoice.total,
+      advanceApplied: 0,
+      netPayable: invoice.balance,
+      lines: invoice.lines.map((line) => ({
+        description: line.productName,
+        unit: line.unit,
+        qty: line.qty,
+        unitPrice: line.unitCost,
+        lineTotal: line.lineTotal,
+      })),
+      allocations: [],
+    });
+    return { buffer, filename: `purchase-invoice-${invoice.number}.pdf` };
+  }
+
+  async lpoPdf(companyId: string, id: string) {
+    const lpo = await this.prisma.lpo.findFirst({
+      where: { id, companyId },
+      include: { supplier: true, lines: { orderBy: { sortOrder: 'asc' } } },
+    });
+    if (!lpo) throw new NotFoundException('LPO not found');
+    const buffer = await renderQuotationPdf({
+      kind: 'general',
+      company: await this.company(companyId),
+      customer: this.party(lpo.supplier),
+      number: lpo.number,
+      status: lpo.status,
+      createdAt: lpo.createdAt.toISOString(),
+      validUntil: lpo.requestedDeliveryDate?.toISOString() ?? null,
+      title: 'Local purchase order',
+      notes: lpo.notes,
+      terms: null,
+      vatRate: lpo.lines[0]?.vatRate ?? 0,
+      subtotal: lpo.subtotal,
+      vatAmount: lpo.inputVat,
+      total: lpo.total,
+      lines: lpo.lines.map((line) => ({
+        description: line.productName,
+        unit: line.unit,
+        qty: line.orderedQty,
+        unitPrice: line.unitCost,
+        lineTotal: line.lineTotal,
+      })),
+    });
+    return { buffer, filename: `lpo-${lpo.number}.pdf` };
+  }
+
   private async company(companyId: string): Promise<PdfCompany> {
     const profile = await this.prisma.companyProfile.findUnique({
       where: { companyId },

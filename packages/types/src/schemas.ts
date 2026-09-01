@@ -312,3 +312,171 @@ export const demoRequestSchema = z.object({
   honeypot: optionalText(200),
 });
 export type DemoRequestInput = z.infer<typeof demoRequestSchema>;
+
+export const hrEmployeeSchema = z.object({
+  firstName: requiredText(100),
+  lastName: optionalText(100),
+  preferredName: optionalText(100),
+  email: optionalEmail,
+  phone: optionalText(50),
+  nationality: optionalText(100),
+  employmentType: requiredText(40).default('full_time'),
+  joiningDate: z.string().refine((value) => !Number.isNaN(Date.parse(value)), { message: 'must be a valid date' }),
+  userId: optionalText(80),
+  departmentId: optionalText(80),
+  designationId: optionalText(80),
+  managerId: optionalText(80),
+  status: requiredText(30).default('active'),
+  notes: optionalText(1000),
+  bankName: optionalText(120),
+  bankAccountLast4: optionalText(4),
+  ibanLast4: optionalText(4),
+  emiratesIdNumber: optionalText(80),
+  emiratesIdExpiry: optionalText(40),
+  passportNumber: optionalText(80),
+  passportCountry: optionalText(100),
+  passportExpiry: optionalText(40),
+  visaExpiry: optionalText(40),
+  workPermitExpiry: optionalText(40),
+});
+export type HREmployeeInput = z.infer<typeof hrEmployeeSchema>;
+export const hrEmployeeUpdateSchema = hrEmployeeSchema.partial();
+export type HREmployeeUpdateInput = z.infer<typeof hrEmployeeUpdateSchema>;
+
+export const hrAttendanceCheckInSchema = z.object({
+  context: requiredText(30).default('office'),
+  workLocationId: optionalText(80),
+  latitude: numeric.optional(),
+  longitude: numeric.optional(),
+  accuracyMeters: numeric.optional(),
+  devicePlatform: optionalText(30),
+  capturedAt: optionalText(50),
+});
+export const hrLeaveRequestSchema = z.object({
+  employeeId: optionalText(80),
+  leaveTypeId: requiredText(80),
+  startDate: requiredText(50),
+  endDate: requiredText(50),
+  reason: optionalText(1000),
+});
+export const hrOvertimeSchema = z.object({
+  employeeId: optionalText(80),
+  workDate: requiredText(50),
+  startedAt: requiredText(50),
+  endedAt: requiredText(50),
+  breakMinutes: numeric.refine((value) => Number.isInteger(value) && value >= 0, { message: 'must be a non-negative whole number' }).default(0),
+  reason: requiredText(1000),
+});
+export const hrOrganizationSchema = z.object({
+  kind: z.enum(['department', 'designation', 'location', 'holiday']),
+  name: requiredText(200),
+  date: optionalText(50),
+  address: optionalText(500),
+  locationKind: optionalText(30),
+});
+export const hrOrganizationUpdateSchema = z.object({
+  kind: z.enum(['department', 'designation', 'location', 'holiday']),
+  name: optionalText(200),
+  active: z.boolean().optional(),
+  date: optionalText(50),
+  address: optionalText(500),
+  locationKind: optionalText(30),
+});
+export type HROrganizationInput = z.infer<typeof hrOrganizationSchema>;
+export type HROrganizationUpdateInput = z.infer<typeof hrOrganizationUpdateSchema>;
+export const hrLeaveTypeSchema = z.object({
+  name: requiredText(100),
+  code: requiredText(40),
+  paid: z.boolean().optional().default(true),
+});
+export const hrLeaveTypeUpdateSchema = hrLeaveTypeSchema.partial().extend({
+  active: z.boolean().optional(),
+});
+export type HRLeaveTypeInput = z.infer<typeof hrLeaveTypeSchema>;
+export type HRLeaveTypeUpdateInput = z.infer<typeof hrLeaveTypeUpdateSchema>;
+export const hrApprovalSchema = z.object({
+  status: z.enum(['approved', 'rejected']),
+  note: optionalText(1000),
+  approvedHours: numeric.optional(),
+});
+export const hrLeaveReviewSchema = z.object({
+  status: z.enum(['approved', 'rejected', 'cancelled']),
+  note: optionalText(1000),
+});
+export const hrExpenseReviewSchema = z.object({
+  status: z.enum(['approved', 'rejected', 'reimbursed']),
+});
+export const hrPayrollPeriodSchema = z.object({
+  name: requiredText(100),
+  startDate: requiredText(50),
+  endDate: requiredText(50),
+  payDate: optionalText(50),
+});
+export const hrPayrollStatusSchema = z.object({
+  status: z.enum(['approved', 'locked', 'paid']),
+});
+
+export const lpoLineSchema = z.object({
+  productId: optionalText(80),
+  productName: requiredText(300),
+  unit: requiredText(30).default('unit'),
+  orderedQty: numeric.refine((value) => value > 0, { message: 'must be greater than zero' }),
+  unitCost: money,
+  vatRate: numeric.refine((value) => value >= 0 && value <= 1, { message: 'must be between 0 and 1' }).default(0.05),
+});
+
+export const lpoSchema = z.object({
+  supplierId: requiredText(80),
+  requestedDeliveryDate: optionalText(50),
+  notes: optionalText(2000),
+  lines: z.array(lpoLineSchema).min(1).max(200),
+});
+
+export const lpoReceiptSchema = z.object({
+  receiptDate: requiredText(50),
+  note: optionalText(1000),
+  lines: z.array(z.object({
+    lpoLineId: requiredText(80),
+    receivedQty: numeric.refine((value) => value > 0, { message: 'must be greater than zero' }),
+    varianceNote: optionalText(1000),
+  })).min(1).max(200),
+});
+
+export const purchaseInvoiceLineSchema = z.object({
+  lpoLineId: optionalText(80),
+  productId: optionalText(80),
+  productName: requiredText(300),
+  unit: requiredText(30).default('unit'),
+  qty: numeric.refine((value) => value > 0, { message: 'must be greater than zero' }),
+  unitCost: money,
+  vatRate: numeric.refine((value) => value >= 0 && value <= 1, { message: 'must be between 0 and 1' }).default(0.05),
+});
+
+export const purchaseInvoiceSchema = z.object({
+  supplierId: requiredText(80),
+  lpoId: optionalText(80),
+  supplierInvoiceNumber: optionalText(120),
+  issueDate: requiredText(50),
+  dueDate: optionalText(50),
+  taxInclusive: z.boolean().default(false),
+  notes: optionalText(2000),
+  lines: z.array(purchaseInvoiceLineSchema).min(1).max(200),
+});
+
+export const supplierPaymentSchema = z.object({
+  supplierId: requiredText(80),
+  paidAt: requiredText(50),
+  amount: positiveMoney,
+  method: requiredText(40),
+  reference: optionalText(200),
+  notes: optionalText(1000),
+  allocations: z.array(z.object({
+    purchaseInvoiceId: requiredText(80),
+    amount: positiveMoney,
+  })).max(200).default([]),
+}).superRefine((value, context) => {
+  const allocated = value.allocations.reduce((sum, allocation) => sum + allocation.amount, 0);
+  if (allocated > value.amount) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['allocations'], message: 'allocations cannot exceed payment amount' });
+  }
+});

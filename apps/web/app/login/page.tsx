@@ -1,11 +1,16 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { APP_NAME, APP_POWERED_BY, APP_VERSION } from '@marble/types';
 import { apiLogin } from '@/lib/api';
 import { setAuthToken } from '@/lib/auth';
+import {
+  clearRememberedLogin,
+  loadRememberedLogin,
+  saveRememberedLogin,
+} from '@/lib/rememberLogin';
 import styles from '@/components/crud.module.css';
 import page from '../page.module.css';
 import login from './login.module.css';
@@ -14,8 +19,17 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const saved = loadRememberedLogin('company');
+    if (!saved) return;
+    setEmail(saved.email);
+    setPassword(saved.password);
+    setRemember(true);
+  }, []);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -24,6 +38,11 @@ export default function LoginPage() {
     setError(null);
     try {
       const result = await apiLogin({ email, password });
+      if (remember) {
+        saveRememberedLogin('company', email, password);
+      } else {
+        clearRememberedLogin('company');
+      }
       setAuthToken(result.token);
       router.replace(result.session.mustChangePassword ? '/change-password' : '/');
     } catch (err) {
@@ -75,6 +94,14 @@ export default function LoginPage() {
               required
             />
           </div>
+          <label className={login.remember}>
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+            />
+            Remember credentials
+          </label>
           {error ? <p className={styles.error}>{error}</p> : null}
           <div className={styles.actions}>
             <button className={styles.button} type="submit" disabled={saving}>

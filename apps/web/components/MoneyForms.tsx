@@ -5,6 +5,7 @@ import { PAYMENT_METHODS } from '@marble/types';
 import { apiFetch, apiPost } from '@/lib/api';
 import { day, label, money } from '@/lib/format';
 import type { AvailableAdvance } from '@/lib/types';
+import { SearchableSelect } from './SearchableSelect';
 import { TotalsBlock } from './Finance';
 import styles from './crud.module.css';
 import finance from './finance.module.css';
@@ -150,24 +151,17 @@ export function AdvanceForm({
       <p className={styles.formTitle}>Record an advance</p>
       <div className={styles.grid}>
         {customers ? (
-          <div className={styles.field}>
-            <label className={styles.label}>Customer *</label>
-            <select
-              className={styles.select}
-              value={draft.customerId}
-              onChange={(e) =>
-                setDraft({ ...draft, customerId: e.target.value })
-              }
-              required
-            >
-              <option value="">Select a customer</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <SearchableSelect
+            label="Customer *"
+            value={draft.customerId}
+            onChange={(customerId) => setDraft({ ...draft, customerId })}
+            required
+            placeholder="Search customers…"
+            options={customers.map((customer) => ({
+              id: customer.id,
+              label: customer.name,
+            }))}
+          />
         ) : null}
         <div className={styles.field}>
           <label className={styles.label}>Amount received *</label>

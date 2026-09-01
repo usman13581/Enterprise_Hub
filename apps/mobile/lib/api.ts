@@ -14,6 +14,7 @@ import { listEntities, getEntity, upsertEntity } from './offline/db';
 import { isOnline } from './offline/net';
 import {
   PATH_COLLECTION,
+  SINGLETON_PATHS,
   queueImageUpload,
   queueRestMutation,
 } from './offline/syncEngine';
@@ -21,15 +22,50 @@ import { prepareUploadImage } from './prepareUploadImage';
 
 export { getApiBaseUrl } from './apiBase';
 
-async function cacheListFromPath<T>(path: string): Promise<T[] | null> {
+function filterCachedList<T extends Record<string, unknown>>(
+  base: string,
+  query: string | undefined,
+  rows: T[],
+): T[] {
+  if (!query) return rows;
+  const params = new URLSearchParams(query);
+  const supplierId = params.get('supplierId');
+  if (!supplierId) return rows;
+  if (base === '/lpos' || base === '/purchase-invoices') {
+    return rows.filter((row) => row.supplierId === supplierId);
+  }
+  return rows;
+}
+
+async function cacheItemFromPath<T>(path: string): Promise<T | null> {
   const base = path.split('?')[0];
+  const singleton = SINGLETON_PATHS[base];
+  if (!singleton) return null;
+  return (await getEntity<T>(singleton.collection, singleton.id)) ?? null;
+}
+
+async function cacheListFromPath<T>(path: string): Promise<T[] | null> {
+  const [base, query] = path.split('?');
   const collection = PATH_COLLECTION[base];
   if (!collection) return null;
   if (collection === 'profile') {
     const profile = await getEntity<T>('profile', 'profile');
     return profile ? [profile] : [];
   }
-  return listEntities<T>(collection);
+  const rows = await listEntities<T>(collection);
+  if (rows.length === 0) return null;
+  return filterCachedList(base, query, rows as Array<Record<string, unknown>>) as T[];
+}
+
+async function rememberGet(path: string, data: unknown) {
+  const base = path.split('?')[0];
+  const singleton = SINGLETON_PATHS[base];
+  if (singleton && data && typeof data === 'object' && !Array.isArray(data)) {
+    const now = new Date().toISOString();
+    await upsertEntity(singleton.collection, singleton.id, now, data);
+    return;
+  }
+  await rememberList(path, data);
 }
 
 async function rememberList(path: string, data: unknown) {
@@ -80,7 +116,12 @@ function isLoginPath(path: string) {
 
 function isNeverQueuedMutation(path: string) {
   const base = path.split('?')[0];
-  return base === '/company/sample-data/erase';
+  return (
+    base === '/company/sample-data/erase' ||
+    /^\/lpos\/[^/]+\/(approve|send|close|cancel|receipts)$/.test(base) ||
+    /^\/purchase-invoices\/[^/]+\/(post|cancel)$/.test(base) ||
+    base === '/supplier-payments'
+  );
 }
 
 function isAdminApiPath(path: string) {
@@ -139,7 +180,7 @@ async function request<T>(
     if (res.status === 204) return undefined as T;
     const data = (await res.json()) as T;
     if (method === 'GET') {
-      void rememberList(path, data).catch(() => undefined);
+      void rememberGet(path, data).catch(() => undefined);
     }
     return data;
   } catch (error) {
@@ -147,12 +188,14 @@ async function request<T>(
       throw error;
     }
     if (method === 'GET') {
-      const cached = await cacheListFromPath(path);
+      const cachedItem = await cacheItemFromPath<T>(path);
+      if (cachedItem !== null) return cachedItem;
+      const cached = await cacheListFromPath<T>(path);
       if (cached) {
         return cached as T;
       }
       const match = path.match(
-        /^\/(customers|suppliers|products|quotations|jobs|invoices|advances)\/([^/]+)(?:\/.*)?$/,
+        /^\/(customers|suppliers|products|quotations|jobs|invoices|advances|lpos|purchase-invoices)\/([^/]+)(?:\/.*)?$/,
       );
       if (match) {
         const collection = match[1];

@@ -1,14 +1,16 @@
 import {
-  APP_NAME,
   APP_POWERED_BY,
   APP_VERSION,
   MODULE_NAV,
+  moduleNavIcon,
+  APP_NAV_ICONS,
   SHOW_NOTIFICATIONS,
 } from '@marble/types';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ScreenScroll } from '../components/ScreenScroll';
+import { ModuleMenuRow } from '../components/Finance';
 import { apiFetch, apiPost } from '../lib/api';
 import {
   clearAuthToken,
@@ -74,7 +76,9 @@ const READY = new Set([
   'quotations',
   'jobs',
   'invoices',
+  'hr',
   'advances',
+  'purchase-orders',
   'accounts',
   'reports',
   'audit',
@@ -124,6 +128,7 @@ export default function HomeScreen() {
     try {
       await apiPost('/company/sample-data/load', {});
       setSample(await apiFetch<SampleStatus>('/company/sample-data'));
+      await clearOfflineStore();
       await runSync();
       await load();
     } catch (e) {
@@ -217,99 +222,110 @@ export default function HomeScreen() {
   return (
     <ScreenScroll>
       <View style={styles.headerRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.brand}>{APP_NAME}</Text>
-          <Text style={ui.lede}>
-            {isAdmin
-              ? 'Work modules and company details.'
-              : 'Same modules and data as the web app.'}
-          </Text>
-        </View>
-        {SHOW_NOTIFICATIONS ? (
-          <Pressable
-            style={({ pressed }) => [
-              styles.bell,
-              pressed && styles.rowPressed,
-            ]}
-            onPress={() => router.push('/module/notifications' as never)}
-          >
-            <Text style={styles.bellIcon}>N</Text>
-            {unread > 0 ? (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>
-                  {unread > 99 ? '99+' : String(unread)}
+        <View style={styles.headerMain}>
+          {session ? (
+            <>
+              <Text style={styles.companyName} numberOfLines={2}>
+                {session.companyName}
+              </Text>
+              {session.companyRole ? (
+                <Text style={styles.companyRole}>
+                  {session.companyRole === 'admin'
+                    ? 'Company admin'
+                    : 'Member'}
                 </Text>
-              </View>
-            ) : null}
-          </Pressable>
-        ) : null}
+              ) : null}
+            </>
+          ) : null}
+        </View>
+        <View style={styles.headerAside}>
+          {SHOW_NOTIFICATIONS ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.bell,
+                pressed && styles.rowPressed,
+              ]}
+              onPress={() => router.push('/module/notifications' as never)}
+            >
+              <Text style={styles.bellIcon}>N</Text>
+              {unread > 0 ? (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {unread > 99 ? '99+' : String(unread)}
+                  </Text>
+                </View>
+              ) : null}
+            </Pressable>
+          ) : null}
+          {session ? (
+            <>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.profileBtn,
+                  pressed && styles.rowPressed,
+                ]}
+                onPress={() => router.push('/module/profile' as never)}
+              >
+                <Text style={styles.profileBtnText}>Company profile</Text>
+              </Pressable>
+              <Text style={styles.headerMeta} numberOfLines={1}>
+                {session.email}
+              </Text>
+            </>
+          ) : null}
+        </View>
       </View>
 
       {error ? <Text style={ui.error}>{error}</Text> : null}
-      {session ? (
-        <View style={ui.card}>
-          <Text style={styles.cardLabel}>Active company</Text>
-          <Text style={ui.cardTitle}>{session.companyName}</Text>
-          <Text style={ui.cardMeta}>{session.email}</Text>
-          {session.companyRole ? (
-            <Text style={styles.pilot}>
-              {session.companyRole === 'admin' ? 'Company admin' : 'Member'}
-            </Text>
-          ) : null}
-          <Pressable
-            style={({ pressed }) => [
-              styles.profileBtn,
-              pressed && styles.rowPressed,
-            ]}
-            onPress={() => router.push('/module/profile' as never)}
-          >
-            <Text style={styles.profileBtnText}>Company profile</Text>
-          </Pressable>
-        </View>
-      ) : null}
 
       <Text style={styles.section}>Work</Text>
       {modules
         .filter((m) =>
           [
-            'customers',
             'suppliers',
             'products',
+            'purchase-orders',
+            'customers',
             'quotations',
             'jobs',
             'invoices',
-            'advances',
-            'accounts',
+            'hr',
           ].includes(m.key),
         )
         .map((item) => (
-          <Pressable
+          <ModuleMenuRow
             key={item.key}
-            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+            icon={moduleNavIcon(item.key)}
+            title={item.label}
+            subtitle={
+              !READY.has(item.key) ? 'Coming in a later phase' : undefined
+            }
             onPress={() => router.push(`/module/${item.key}` as never)}
-          >
-            <View>
-              <Text style={styles.rowText}>{item.label}</Text>
-              {!READY.has(item.key) ? (
-                <Text style={styles.soon}>Coming in a later phase</Text>
-              ) : null}
-            </View>
-            <Text style={styles.chevron}>›</Text>
-          </Pressable>
+          />
+        ))}
+
+      <Text style={styles.section}>Finance</Text>
+      {modules
+        .filter((m) => ['accounts', 'advances'].includes(m.key))
+        .map((item) => (
+          <ModuleMenuRow
+            key={item.key}
+            icon={moduleNavIcon(item.key)}
+            title={item.label}
+            onPress={() => router.push(`/module/${item.key}` as never)}
+          />
         ))}
 
       <Text style={styles.section}>Insights</Text>
       {modules
         .filter((m) => ['reports', 'audit'].includes(m.key))
         .map((item) => (
-          <Pressable
+          <ModuleMenuRow
             key={item.key}
-            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+            icon={moduleNavIcon(item.key)}
+            title={item.label}
             onPress={() => router.push(`/module/${item.key}` as never)}
-          >
-            <Text style={styles.rowText}>{item.label}</Text>
-            <Text style={styles.chevron}>›</Text>
-          </Pressable>
+          />
         ))}
 
       {isAdmin && dashboard ? (
@@ -347,7 +363,7 @@ export default function HomeScreen() {
                 : ''}
             </Text>
           </View>
-          {sample?.eligible ? (
+          {isAdmin && sample?.eligible ? (
             <View style={styles.sampleCard}>
               <Text style={styles.detailLine}>Trial workspace</Text>
               <Text style={styles.detailMeta}>
@@ -449,55 +465,44 @@ export default function HomeScreen() {
 
       <Text style={styles.section}>Account</Text>
       {session?.readOnly ? (
-        <Pressable
-          style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+        <ModuleMenuRow
+          icon={APP_NAV_ICONS.exitAdmin}
+          title="Exit admin view"
           onPress={() => void exitAdminWorkspace()}
-        >
-          <Text style={styles.rowText}>Exit admin view</Text>
-          <Text style={styles.chevron}>›</Text>
-        </Pressable>
+        />
       ) : null}
       {isAdmin ? (
-        <Pressable
-          style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+        <ModuleMenuRow
+          icon={APP_NAV_ICONS.team}
+          title="Team"
           onPress={() => router.push('/module/team' as never)}
-        >
-          <Text style={styles.rowText}>Team</Text>
-          <Text style={styles.chevron}>›</Text>
-        </Pressable>
+        />
       ) : null}
-      <Pressable
-        style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+      <ModuleMenuRow
+        icon={APP_NAV_ICONS.subscription}
+        title="Subscription"
+        subtitle={
+          [
+            sub?.planName,
+            sub?.status,
+            sub?.expiresAt ? `expires ${day(sub.expiresAt)}` : null,
+            sub?.trialEndsAt ? `trial ends ${day(sub.trialEndsAt)}` : null,
+          ]
+            .filter(Boolean)
+            .join(' · ') || 'No subscription loaded'
+        }
         onPress={() => router.push('/module/subscription' as never)}
-      >
-        <View style={{ flex: 1 }}>
-          <Text style={styles.rowText}>Subscription</Text>
-          <Text style={styles.soon}>
-            {[
-              sub?.planName,
-              sub?.status,
-              sub?.expiresAt ? `expires ${day(sub.expiresAt)}` : null,
-              sub?.trialEndsAt ? `trial ends ${day(sub.trialEndsAt)}` : null,
-            ]
-              .filter(Boolean)
-              .join(' · ') || 'No subscription loaded'}
-          </Text>
-        </View>
-        <Text style={styles.chevron}>›</Text>
-      </Pressable>
-      <Pressable
-        style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+      />
+      <ModuleMenuRow
+        icon={APP_NAV_ICONS.support}
+        title="Support"
         onPress={() => router.push('/module/support' as never)}
-      >
-        <Text style={styles.rowText}>Support</Text>
-        <Text style={styles.chevron}>›</Text>
-      </Pressable>
+      />
       {session ? (
-        <Pressable
-          style={({ pressed }) => [
-            styles.signOutRow,
-            pressed && styles.rowPressed,
-          ]}
+        <ModuleMenuRow
+          icon={APP_NAV_ICONS.signOut}
+          title="Sign out"
+          tone="danger"
           onPress={() =>
             void (async () => {
               try {
@@ -509,9 +514,7 @@ export default function HomeScreen() {
               router.replace('/login' as never);
             })()
           }
-        >
-          <Text style={styles.signOutText}>Sign out</Text>
-        </Pressable>
+        />
       ) : null}
 
       <Text style={styles.credit}>{APP_POWERED_BY}</Text>
@@ -526,11 +529,32 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 12,
   },
-  brand: {
+  headerMain: {
+    flex: 1,
+    minWidth: 0,
+  },
+  headerAside: {
+    alignItems: 'flex-end',
+    gap: 6,
+    maxWidth: '46%',
+  },
+  companyName: {
     color: colors.ink,
-    fontSize: 30,
+    fontSize: 26,
     fontWeight: '700',
-    letterSpacing: -0.6,
+    letterSpacing: -0.5,
+    lineHeight: 32,
+  },
+  companyRole: {
+    marginTop: 4,
+    color: colors.muted,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  headerMeta: {
+    color: colors.soft,
+    fontSize: 12,
+    textAlign: 'right',
   },
   bell: {
     width: 44,
@@ -562,54 +586,17 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
   },
-  cardLabel: {
-    color: colors.accent,
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  pilot: {
-    color: colors.soft,
-    fontSize: 12,
-    marginTop: 8,
-  },
   profileBtn: {
-    alignSelf: 'flex-start',
-    marginTop: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.line,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
   },
   profileBtnText: {
     color: colors.ink,
     fontSize: 13,
-    fontWeight: '600',
-  },
-  signOutBtn: {
-    alignSelf: 'center',
-    marginTop: 28,
-    marginBottom: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  signOutRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: 'rgba(194,59,59,0.25)',
-    marginBottom: 8,
-  },
-  signOutText: {
-    color: colors.danger,
-    fontSize: 15,
     fontWeight: '600',
   },
   credit: {
@@ -708,34 +695,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     textTransform: 'uppercase',
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 15,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line,
-    marginBottom: 8,
-  },
   rowPressed: {
     backgroundColor: colors.accentSoft,
-  },
-  rowText: {
-    color: colors.ink,
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  soon: {
-    color: colors.soft,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  chevron: {
-    color: colors.accent,
-    fontSize: 22,
-    fontWeight: '300',
   },
 });

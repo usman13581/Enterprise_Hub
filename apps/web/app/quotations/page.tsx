@@ -38,6 +38,7 @@ import {
   LookupAttachPicker,
   QuotationLookupsPanel,
 } from '@/components/QuotationLookups';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import type { Customer, Product, Quotation } from '@/lib/types';
 import page from '../page.module.css';
 import styles from '@/components/crud.module.css';
@@ -270,24 +271,17 @@ export default function QuotationsPage() {
               : QUOTATION_KIND_LABELS.general}
           </p>
           <div className={styles.grid}>
-            <div className={styles.field}>
-              <label className={styles.label}>Customer *</label>
-              <select
-                className={styles.select}
-                value={draft.customerId}
-                onChange={(e) =>
-                  setDraft({ ...draft, customerId: e.target.value })
-                }
-                required
-              >
-                <option value="">Select a customer</option>
-                {customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <SearchableSelect
+              label="Customer *"
+              value={draft.customerId}
+              onChange={(customerId) => setDraft({ ...draft, customerId })}
+              required
+              placeholder="Search customers…"
+              options={customers.map((customer) => ({
+                id: customer.id,
+                label: customer.name,
+              }))}
+            />
             <div className={styles.field}>
               <label className={styles.label}>Subject</label>
               <input

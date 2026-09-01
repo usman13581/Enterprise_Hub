@@ -28,6 +28,18 @@ const PARAMS: Record<ReportKey, ReportParamsConfig> = {
   'unallocated-advances': { asOf: true, customerId: true },
   unbilled: { asOf: true, customerId: true, jobId: true },
   'allocation-rec': { from: true, to: true, customerId: true },
+  'supplier-product-register': { supplierId: true },
+  'supplier-cost-summary': { supplierId: true },
+  'supplier-quotation-usage': { from: true, to: true, supplierId: true },
+  'supplier-job-costing': { from: true, to: true, supplierId: true },
+  'supplier-statement': { from: true, to: true, supplierId: true },
+  'aged-payables': { asOf: true, supplierId: true },
+  'purchase-invoice-register': { from: true, to: true, supplierId: true },
+  'supplier-payment-register': { from: true, to: true, supplierId: true },
+  'lpo-register': { from: true, to: true, supplierId: true },
+  'supplier-spend': { from: true, to: true, supplierId: true },
+  'supplier-price-history': { from: true, to: true, supplierId: true },
+  'input-vat-summary': { from: true, to: true, supplierId: true },
 };
 
 export default function ReportKeyPage() {

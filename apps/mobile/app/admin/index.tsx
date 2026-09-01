@@ -2,13 +2,15 @@ import {
   APP_NAME,
   APP_POWERED_BY,
   APP_VERSION,
+  ADMIN_NAV_ICONS,
+  APP_NAV_ICONS,
   SHOW_NOTIFICATIONS,
 } from '@marble/types';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ScreenScroll } from '../../components/ScreenScroll';
-import { StatCard } from '../../components/Finance';
+import { ModuleMenuRow, StatCard } from '../../components/Finance';
 import { apiFetch, apiPost } from '../../lib/api';
 import { clearAuthToken } from '../../lib/auth';
 import { colors, ui } from '../../lib/ui';
@@ -38,23 +40,23 @@ const NAV_GROUPS = [
   {
     label: 'Tenants',
     items: [
-      { label: 'Companies', href: '/admin/companies' },
-      { label: 'Applications', href: '/admin/applications' },
+      { label: 'Companies', href: '/admin/companies', key: 'companies' },
+      { label: 'Applications', href: '/admin/applications', key: 'applications' },
     ],
   },
   {
     label: 'Billing',
     items: [
-      { label: 'Plans', href: '/admin/plans' },
-      { label: 'Renewals', href: '/admin/renewals' },
+      { label: 'Plans', href: '/admin/plans', key: 'plans' },
+      { label: 'Renewals', href: '/admin/renewals', key: 'renewals' },
     ],
   },
   {
     label: 'Ops',
     items: [
-      { label: 'Notifications', href: '/admin/notifications' },
-      { label: 'Support', href: '/admin/support' },
-      { label: 'Audit', href: '/admin/audit' },
+      { label: 'Notifications', href: '/admin/notifications', key: 'notifications' },
+      { label: 'Support', href: '/admin/support', key: 'support' },
+      { label: 'Audit', href: '/admin/audit', key: 'audit' },
     ].filter(
       (item) => SHOW_NOTIFICATIONS || item.label !== 'Notifications',
     ),
@@ -209,28 +211,26 @@ export default function AdminHomeScreen() {
         <View key={group.label}>
           <Text style={styles.section}>{group.label}</Text>
           {group.items.map((item) => (
-            <Pressable
+            <ModuleMenuRow
               key={item.href}
-              style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+              icon={ADMIN_NAV_ICONS[item.key] ?? '•'}
+              title={item.label}
               onPress={() => router.push(item.href as never)}
-            >
-              <Text style={styles.rowText}>{item.label}</Text>
-              <Text style={styles.chevron}>›</Text>
-            </Pressable>
+            />
           ))}
         </View>
       ))}
 
       <Text style={styles.section}>Account</Text>
-      <Pressable
-        style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+      <ModuleMenuRow
+        icon={APP_NAV_ICONS.support}
+        title="Support"
         onPress={() => router.push('/admin/support' as never)}
-      >
-        <Text style={styles.rowText}>Support</Text>
-        <Text style={styles.chevron}>›</Text>
-      </Pressable>
-      <Pressable
-        style={({ pressed }) => [styles.signOutRow, pressed && styles.pressed]}
+      />
+      <ModuleMenuRow
+        icon={APP_NAV_ICONS.signOut}
+        title="Sign out"
+        tone="danger"
         onPress={() =>
           void (async () => {
             try {
@@ -242,9 +242,7 @@ export default function AdminHomeScreen() {
             router.replace('/admin-login' as never);
           })()
         }
-      >
-        <Text style={styles.signOutText}>Sign out</Text>
-      </Pressable>
+      />
 
       <Text style={styles.credit}>{APP_POWERED_BY}</Text>
       <Text style={styles.version}>v{APP_VERSION}</Text>
@@ -318,46 +316,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   half: { flex: 1 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line,
-    marginBottom: 8,
-  },
   pressed: { backgroundColor: colors.accentSoft },
-  rowText: {
-    color: colors.ink,
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  chevron: {
-    color: colors.accent,
-    fontSize: 22,
-    fontWeight: '300',
-  },
-  signOutRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: 'rgba(194,59,59,0.25)',
-    marginBottom: 8,
-  },
-  signOutText: {
-    color: colors.danger,
-    fontSize: 15,
-    fontWeight: '600',
-  },
   credit: {
     marginTop: 12,
     color: colors.soft,

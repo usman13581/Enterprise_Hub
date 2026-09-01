@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "scripts": {
-    "dev": "expo start --lan",
-    "start": "expo start --lan",
+    "dev": "expo start --lan --clear",
+    "start": "expo start --lan --clear",
+    "mobile:qr": "bash scripts/expo-go-qr.sh",
     "android": "expo start --lan --android",
     "ios": "expo start --lan --ios",
     "web": "expo start --web",

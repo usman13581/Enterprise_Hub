@@ -82,6 +82,8 @@ export const ui = StyleSheet.create({
     borderColor: colors.line,
     padding: 14,
     marginTop: 10,
+    width: '100%',
+    alignSelf: 'stretch',
   },
   cardTitle: {
     color: colors.ink,
@@ -116,6 +118,9 @@ export const ui = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
     color: colors.ink,
+    width: '100%',
+    alignSelf: 'stretch',
+    minHeight: 48,
   },
   error: {
     color: colors.danger,

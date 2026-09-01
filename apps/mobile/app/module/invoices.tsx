@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useRouter } from 'expo-router';
 import {
   ActivityIndicator,
   Pressable,
@@ -24,9 +25,10 @@ import {
   RecordRow,
   RowActions,
 } from '../../components/Finance';
+import { FormField, FormPicker } from '../../components/FormField';
+import { SearchablePicker } from '../../components/SearchablePicker';
 import {
   AllocationPicker,
-  ChipSelect,
   CreditNoteForm,
   EMPTY_INVOICE_LINE,
   InvoiceLineEditor,
@@ -59,6 +61,7 @@ const EMPTY: Draft = {
 };
 
 export default function InvoicesScreen() {
+  const router = useRouter();
   const { items, loading, error, setError, reload } =
     usePolledList<Invoice>('/invoices');
   const { items: customers } = usePolledList<Customer>('/customers', 20000);
@@ -161,8 +164,8 @@ export default function InvoicesScreen() {
           <View style={ui.card}>
             <Text style={ui.cardTitle}>New invoice</Text>
             <Text style={ui.label}>Kind</Text>
-            <ChipSelect
-              value={draft.kind}
+            <FilterChips
+              active={draft.kind}
               onChange={(kind) => setDraft({ ...draft, kind })}
               options={[
                 { key: 'progressive', label: 'Progressive' },
@@ -170,40 +173,41 @@ export default function InvoicesScreen() {
                 { key: 'final', label: 'Final' },
               ]}
             />
-            <Text style={ui.label}>Customer *</Text>
-            <ChipSelect
-              value={draft.customerId}
-              onChange={(customerId) =>
-                setDraft({ ...draft, customerId, jobId: '' })
-              }
-              options={customers.map((customer) => ({
-                key: customer.id,
-                label: customer.name,
-              }))}
-            />
+            <FormPicker label="Customer *">
+              <SearchablePicker
+                value={draft.customerId}
+                options={customers.map((customer) => ({
+                  id: customer.id,
+                  label: customer.name,
+                }))}
+                searchPlaceholder="Search customers…"
+                emptyText="No customers match your search."
+                onChange={(customerId) =>
+                  setDraft({ ...draft, customerId, jobId: '' })
+                }
+              />
+            </FormPicker>
             {eligibleJobs.length > 0 ? (
-              <>
-                <Text style={ui.label}>Job (optional)</Text>
-                <ChipSelect
+              <FormPicker label="Job (optional)">
+                <SearchablePicker
                   value={draft.jobId}
+                  allowEmpty
+                  emptyLabel="No job"
+                  options={eligibleJobs.map((job) => ({
+                    id: job.id,
+                    label: job.number,
+                  }))}
+                  searchPlaceholder="Search jobs…"
+                  emptyText="No jobs match your search."
                   onChange={(jobId) => setDraft({ ...draft, jobId })}
-                  options={[
-                    { key: '', label: 'No job' },
-                    ...eligibleJobs.map((job) => ({
-                      key: job.id,
-                      label: job.number,
-                    })),
-                  ]}
                 />
-              </>
+              </FormPicker>
             ) : null}
-            <Text style={ui.label}>Due date (YYYY-MM-DD)</Text>
-            <TextInput
-              style={ui.input}
+            <FormField
+              label="Due date (YYYY-MM-DD)"
               value={draft.dueDate}
               onChangeText={(dueDate) => setDraft({ ...draft, dueDate })}
               placeholder="Optional"
-              placeholderTextColor={colors.soft}
             />
             <InvoiceLineEditor
               lines={draft.lines}
@@ -242,7 +246,10 @@ export default function InvoicesScreen() {
                 onPress={startCreate}
                 disabled={customers.length === 0}
               >
-                <Text style={ui.buttonText}>New</Text>
+                <Text style={ui.buttonText}>New job invoice</Text>
+              </Pressable>
+              <Pressable style={ui.ghost} onPress={() => router.push('/module/purchase-invoices' as never)}>
+                <Text style={ui.ghostText}>New purchase invoice</Text>
               </Pressable>
             </View>
 

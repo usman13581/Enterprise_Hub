@@ -38,6 +38,41 @@ model Company {
   notifications        Notification[]
   supportRequests      SupportRequest[]
   sampleDataSets       SampleDataSet[]
+  hrDepartments        HRDepartment[]
+  hrDesignations       HRDesignation[]
+  hrWorkLocations      HRWorkLocation[]
+  hrHolidays           HRHoliday[]
+  hrEmployees          HREmployee[]
+  hrEmployeeDocuments  HREmployeeDocument[]
+  hrAttendance         HRAttendance[]
+  hrOvertimeRequests   HROvertimeRequest[]
+  hrLeaveTypes         HRLeaveType[]
+  hrLeavePolicies      HRLeavePolicy[]
+  hrLeaveBalances      HRLeaveBalance[]
+  hrLeaveRequests      HRLeaveRequest[]
+  hrPayrollPeriods     HRPayrollPeriod[]
+  hrSalaryProfiles     HRSalaryProfile[]
+  hrPayrollEntries     HRPayrollEntry[]
+  hrExpenses           HRExpenseClaim[]
+  hrLoans              HRLoan[]
+  hrBenefits           HRBenefitPlan[]
+  hrEmployeeBenefits   HREmployeeBenefit[]
+  hrAssets             HRAsset[]
+  hrAssetAssignments   HRAssetAssignment[]
+  hrComplianceRecords  HRComplianceRecord[]
+  hrPerformanceGoals   HRPerformanceGoal[]
+  hrTrainingRecords    HRTrainingRecord[]
+  hrPolicyProfile      HRPolicyProfile?
+  lpos                 Lpo[]
+  lpoLines             LpoLine[]
+  lpoReceipts          LpoReceipt[]
+  lpoReceiptLines      LpoReceiptLine[]
+  purchaseInvoices     PurchaseInvoice[]
+  purchaseInvoiceLines PurchaseInvoiceLine[]
+  supplierPayments     SupplierPayment[]
+  supplierPaymentAllocations SupplierPaymentAllocation[]
+  supplierLedgerEntries SupplierLedgerEntry[]
+  purchasePriceHistory SupplierPriceHistory[]
 }
 
 model PlatformAdmin {
@@ -110,6 +145,8 @@ model SampleDataSet {
   loadedAt       DateTime @default(now())
   erasedAt       DateTime?
   error          String?
+  /// Internal linkage for HR and other entities without sampleSetId (not shown in UI).
+  metadata       Json?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -304,6 +341,9 @@ model CompanyProfile {
   jobPrefix        String   @default("JOB")
   advancePrefix    String   @default("ADV")
   creditNotePrefix String   @default("CN")
+  lpoPrefix        String   @default("LPO")
+  purchaseInvoicePrefix String @default("PINV")
+  supplierPaymentPrefix String @default("SPAY")
   currency         String   @default("AED")
   vatRate          Float    @default(0.05)
   /// Bumped on every sync-visible write for offline conflict checks.
@@ -337,9 +377,804 @@ model User {
   supportCreated       SupportRequest[]             @relation("SupportCreatedBy")
   supportClosed        SupportRequest[]             @relation("SupportClosedByUser")
   sessions              AuthSession[]
+  hrEmployee            HREmployee?
 
   @@unique([companyId, email])
   @@index([companyId, companyRole, active])
+}
+
+model HRDepartment {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company   Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employees HREmployee[]
+
+  @@unique([companyId, name])
+  @@index([companyId, active])
+}
+
+model HRDesignation {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company   Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employees HREmployee[]
+
+  @@unique([companyId, name])
+  @@index([companyId, active])
+}
+
+model HRWorkLocation {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  kind      String   @default("office")
+  address   String?
+  latitude  Float?
+  longitude Float?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company    Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  attendance HRAttendance[]
+
+  @@unique([companyId, name])
+  @@index([companyId, active])
+}
+
+model HRHoliday {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  date      DateTime
+  recurring Boolean  @default(false)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, date])
+  @@index([companyId, date])
+}
+
+model HRPolicyProfile {
+  id                 String   @id @default(cuid())
+  companyId          String   @unique
+  jurisdiction       String   @default("mainland")
+  payFrequency       String   @default("monthly")
+  standardHoursPerDay Float   @default(8)
+  workingDaysPerWeek Int      @default(6)
+  overtimeMultiplier  Float    @default(1.25)
+  annualLeaveDays    Float    @default(30)
+  sickLeaveDays      Float    @default(90)
+  emiratisationTarget Float?
+  currency           String   @default("AED")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+model HREmployee {
+  id                String    @id @default(cuid())
+  companyId         String
+  userId            String?   @unique
+  employeeNumber    String
+  firstName         String
+  lastName          String?
+  preferredName     String?
+  email             String?
+  phone             String?
+  photoUrl          String?
+  nationality       String?
+  emergencyContact  String?
+  emergencyPhone    String?
+  emiratesIdNumber  String?
+  emiratesIdIssueDate DateTime?
+  emiratesIdExpiry  DateTime?
+  passportNumber    String?
+  passportCountry   String?
+  passportIssueDate DateTime?
+  passportExpiry    DateTime?
+  visaExpiry        DateTime?
+  workPermitExpiry  DateTime?
+  employmentType    String    @default("full_time")
+  status            String    @default("active")
+  departmentId      String?
+  designationId     String?
+  managerId         String?
+  joiningDate       DateTime
+  probationEndDate  DateTime?
+  terminationDate   DateTime?
+  bankName          String?
+  bankAccountLast4  String?
+  ibanLast4         String?
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  company       Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user          User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
+  department    HRDepartment?         @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  designation   HRDesignation?        @relation(fields: [designationId], references: [id], onDelete: SetNull)
+  manager       HREmployee?           @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: SetNull)
+  reports       HREmployee[]          @relation("EmployeeManager")
+  documents     HREmployeeDocument[]
+  attendance    HRAttendance[]
+  overtime      HROvertimeRequest[]
+  leaveRequests HRLeaveRequest[]
+  leaveBalances HRLeaveBalance[]
+  salaryProfiles HRSalaryProfile[]
+  payrollEntries HRPayrollEntry[]
+  expenses      HRExpenseClaim[]
+  loans         HRLoan[]
+  benefits      HREmployeeBenefit[]
+  assignedAssets HRAssetAssignment[]
+  compliance    HRComplianceRecord[]
+  performanceGoals HRPerformanceGoal[]
+  trainingRecords HRTrainingRecord[]
+
+  @@unique([companyId, employeeNumber])
+  @@index([companyId, status, departmentId])
+  @@index([companyId, joiningDate])
+}
+
+model HREmployeeDocument {
+  id             String    @id @default(cuid())
+  companyId      String
+  employeeId     String
+  documentType   String
+  documentNumber String?
+  issueDate      DateTime?
+  expiryDate     DateTime?
+  issuingCountry String?
+  issuingAuthority String?
+  fileUrl        String?
+  notes          String?
+  status         String    @default("current")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  company  Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee HREmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, employeeId, documentType])
+  @@index([companyId, expiryDate])
+}
+
+model HRAttendance {
+  id             String    @id @default(cuid())
+  companyId      String
+  employeeId     String
+  workLocationId String?
+  checkInAt      DateTime
+  checkOutAt     DateTime?
+  breakStartedAt DateTime?
+  breakEndedAt   DateTime?
+  context        String    @default("office")
+  latitude       Float?
+  longitude      Float?
+  accuracyMeters Float?
+  capturedAt     DateTime
+  devicePlatform String?
+  ipAddress      String?
+  status         String    @default("present")
+  correctionNote String?
+  suspicious     Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  company      Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee     HREmployee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  workLocation HRWorkLocation?  @relation(fields: [workLocationId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, employeeId, checkInAt])
+  @@index([companyId, status, checkInAt])
+}
+
+model HROvertimeRequest {
+  id             String    @id @default(cuid())
+  companyId      String
+  employeeId     String
+  workDate       DateTime
+  startedAt      DateTime
+  endedAt        DateTime
+  breakMinutes   Int       @default(0)
+  requestedHours Float
+  approvedHours  Float?
+  multiplier     Float     @default(1.25)
+  reason         String
+  status         String    @default("pending")
+  reviewedByUserId String?
+  reviewedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  company  Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee HREmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, employeeId, workDate])
+  @@index([companyId, status, workDate])
+}
+
+model HRLeaveType {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String
+  code        String
+  paid        Boolean  @default(true)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company  Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  policies HRLeavePolicy[]
+  requests HRLeaveRequest[]
+  balances HRLeaveBalance[]
+
+  @@unique([companyId, code])
+  @@index([companyId, active])
+}
+
+model HRLeavePolicy {
+  id             String   @id @default(cuid())
+  companyId      String
+  leaveTypeId    String
+  employmentType String?
+  annualDays     Float
+  carryForwardDays Float @default(0)
+  effectiveFrom  DateTime
+  effectiveTo    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  leaveType HRLeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, leaveTypeId, effectiveFrom])
+}
+
+model HRLeaveBalance {
+  id          String   @id @default(cuid())
+  companyId   String
+  employeeId  String
+  leaveTypeId String
+  year        Int
+  entitled    Float
+  used        Float    @default(0)
+  carried    Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee HREmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType HRLeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, employeeId, leaveTypeId, year])
+  @@index([companyId, employeeId, year])
+}
+
+model HRLeaveRequest {
+  id            String   @id @default(cuid())
+  companyId     String
+  employeeId    String
+  leaveTypeId   String
+  startDate     DateTime
+  endDate       DateTime
+  days          Float
+  reason        String?
+  status        String   @default("pending")
+  reviewedByUserId String?
+  reviewedAt    DateTime?
+  reviewNote    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company  Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee HREmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType HRLeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, employeeId, startDate, endDate])
+  @@index([companyId, status, startDate])
+}
+
+model HRPayrollPeriod {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String
+  startDate   DateTime
+  endDate     DateTime
+  payDate     DateTime?
+  status      String   @default("draft")
+  calculatedAt DateTime?
+  approvedAt  DateTime?
+  lockedAt    DateTime?
+  paidAt      DateTime?
+  totalGross  Float    @default(0)
+  totalDeductions Float @default(0)
+  totalNet    Float    @default(0)
+  warningsJson String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  entries HRPayrollEntry[]
+
+  @@unique([companyId, startDate, endDate])
+  @@index([companyId, status, startDate])
+}
+
+model HRSalaryProfile {
+  id             String   @id @default(cuid())
+  companyId      String
+  employeeId     String
+  effectiveFrom  DateTime
+  effectiveTo    DateTime?
+  basicSalary    Float    @default(0)
+  housingAllowance Float  @default(0)
+  transportAllowance Float @default(0)
+  otherAllowance Float    @default(0)
+  overtimeRate   Float    @default(1.25)
+  currency       String   @default("AED")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  company  Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee HREmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, employeeId, effectiveFrom])
+}
+
+model HRPayrollEntry {
+  id             String   @id @default(cuid())
+  companyId      String
+  periodId       String
+  employeeId     String
+  basicSalary    Float    @default(0)
+  allowances     Float    @default(0)
+  overtimeAmount Float    @default(0)
+  bonus          Float    @default(0)
+  deductions     Float    @default(0)
+  unpaidLeaveDeduction Float @default(0)
+  loanDeduction  Float    @default(0)
+  grossAmount    Float    @default(0)
+  netAmount      Float    @default(0)
+  breakdownJson  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  company  Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  period   HRPayrollPeriod  @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  employee HREmployee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([periodId, employeeId])
+  @@index([companyId, employeeId])
+}
+
+model HRExpenseClaim {
+  id          String   @id @default(cuid())
+  companyId   String
+  employeeId  String
+  expenseDate DateTime
+  category    String
+  amount      Float
+  description String
+  receiptUrl  String?
+  status      String   @default("pending")
+  reviewedByUserId String?
+  reviewedAt  DateTime?
+  reimbursedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company  Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee HREmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, employeeId, expenseDate])
+  @@index([companyId, status, expenseDate])
+}
+
+model HRLoan {
+  id             String   @id @default(cuid())
+  companyId      String
+  employeeId     String
+  kind           String
+  principal      Float
+  outstanding    Float
+  installment    Float
+  startDate      DateTime
+  endDate        DateTime?
+  status         String   @default("active")
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  company  Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee HREmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, employeeId, status])
+}
+
+model HRBenefitPlan {
+  id          String   @id @default(cuid())
+  companyId   String
+  name        String
+  kind        String
+  provider    String?
+  expiryDate  DateTime?
+  active      Boolean  @default(true)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employees HREmployeeBenefit[]
+
+  @@index([companyId, active, expiryDate])
+}
+
+model HREmployeeBenefit {
+  id         String   @id @default(cuid())
+  companyId  String
+  employeeId String
+  benefitId  String
+  startDate  DateTime
+  endDate    DateTime?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  company  Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee HREmployee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  benefit  HRBenefitPlan @relation(fields: [benefitId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, benefitId, startDate])
+  @@index([companyId, employeeId])
+}
+
+model HRAsset {
+  id          String   @id @default(cuid())
+  companyId   String
+  assetType   String
+  name        String
+  serialNumber String?
+  condition   String?
+  status      String   @default("available")
+  purchasedAt DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company   Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assignment HRAssetAssignment?
+
+  @@index([companyId, status])
+}
+
+model HRAssetAssignment {
+  id         String    @id @default(cuid())
+  companyId  String
+  assetId    String    @unique
+  employeeId String
+  assignedAt DateTime
+  returnedAt DateTime?
+  handoverNote String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  company  Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  asset    HRAsset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  employee HREmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, employeeId, returnedAt])
+}
+
+model HRComplianceRecord {
+  id          String   @id @default(cuid())
+  companyId   String
+  employeeId  String?
+  kind        String
+  status      String   @default("open")
+  reference   String?
+  issueDate   DateTime?
+  expiryDate  DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company  Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee HREmployee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, kind, expiryDate])
+}
+
+model HRPerformanceGoal {
+  id          String   @id @default(cuid())
+  companyId   String
+  employeeId  String
+  title       String
+  description String?
+  periodStart DateTime
+  periodEnd   DateTime
+  target      String?
+  progress    Float    @default(0)
+  status      String   @default("open")
+  managerNote String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company  Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee HREmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, employeeId, periodStart])
+}
+
+model HRTrainingRecord {
+  id           String   @id @default(cuid())
+  companyId    String
+  employeeId   String
+  title        String
+  provider     String?
+  completedAt  DateTime?
+  expiryDate   DateTime?
+  certificateUrl String?
+  status       String   @default("planned")
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company  Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee HREmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, employeeId, expiryDate])
+}
+
+model Lpo {
+  id                   String   @id @default(cuid())
+  companyId            String
+  supplierId           String
+  number               String
+  status               String   @default("draft")
+  requestedDeliveryDate DateTime?
+  notes                String?
+  subtotal             Float    @default(0)
+  inputVat             Float    @default(0)
+  total                Float    @default(0)
+  currency             String   @default("AED")
+  approvedAt           DateTime?
+  sentAt               DateTime?
+  closedAt             DateTime?
+  cancelledAt          DateTime?
+  version              Int      @default(1)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  company          Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier         Supplier      @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  lines            LpoLine[]
+  receipts         LpoReceipt[]
+  purchaseInvoices PurchaseInvoice[]
+
+  @@unique([companyId, number])
+  @@index([companyId, supplierId, status])
+  @@index([companyId, createdAt])
+}
+
+model LpoLine {
+  id              String   @id @default(cuid())
+  companyId       String
+  lpoId           String
+  productId       String?
+  productName     String
+  unit            String   @default("unit")
+  orderedQty      Float
+  receivedQty     Float    @default(0)
+  invoicedQty     Float    @default(0)
+  unitCost        Float
+  vatRate         Float    @default(0.05)
+  lineTotal       Float
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lpo     Lpo      @relation(fields: [lpoId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  receiptLines LpoReceiptLine[]
+  purchaseInvoiceLines PurchaseInvoiceLine[]
+
+  @@index([companyId, lpoId])
+  @@index([companyId, productId])
+}
+
+model LpoReceipt {
+  id          String   @id @default(cuid())
+  companyId   String
+  lpoId       String
+  number      String
+  receiptDate DateTime
+  note        String?
+  createdByUserId String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lpo     Lpo             @relation(fields: [lpoId], references: [id], onDelete: Cascade)
+  lines   LpoReceiptLine[]
+
+  @@unique([companyId, number])
+  @@index([companyId, lpoId, receiptDate])
+}
+
+model LpoReceiptLine {
+  id           String   @id @default(cuid())
+  companyId    String
+  receiptId    String
+  lpoLineId    String
+  receivedQty  Float
+  varianceNote String?
+  createdAt    DateTime @default(now())
+
+  company Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  receipt LpoReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  lpoLine LpoLine   @relation(fields: [lpoLineId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, receiptId])
+  @@index([companyId, lpoLineId])
+}
+
+model PurchaseInvoice {
+  id                   String   @id @default(cuid())
+  companyId            String
+  supplierId           String
+  lpoId                String?
+  number               String
+  supplierInvoiceNumber String?
+  issueDate            DateTime
+  dueDate              DateTime?
+  status               String   @default("draft")
+  taxInclusive         Boolean  @default(false)
+  vatRate              Float    @default(0.05)
+  subtotal             Float    @default(0)
+  inputVat             Float    @default(0)
+  total                Float    @default(0)
+  paidAmount           Float    @default(0)
+  balance              Float    @default(0)
+  currency             String   @default("AED")
+  attachmentUrl        String?
+  notes                String?
+  postedAt             DateTime?
+  cancelledAt          DateTime?
+  version              Int      @default(1)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  company  Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier Supplier               @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  lpo      Lpo?                   @relation(fields: [lpoId], references: [id], onDelete: SetNull)
+  lines    PurchaseInvoiceLine[]
+  payments SupplierPaymentAllocation[]
+  ledger   SupplierLedgerEntry[]
+
+  @@unique([companyId, number])
+  @@unique([companyId, supplierId, supplierInvoiceNumber])
+  @@index([companyId, supplierId, status])
+  @@index([companyId, dueDate, status])
+}
+
+model PurchaseInvoiceLine {
+  id             String   @id @default(cuid())
+  companyId      String
+  purchaseInvoiceId String
+  lpoLineId      String?
+  productId      String?
+  productName    String
+  unit           String   @default("unit")
+  qty            Float
+  unitCost       Float
+  vatRate        Float    @default(0.05)
+  lineTotal      Float
+  createdAt      DateTime @default(now())
+
+  company         Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  purchaseInvoice PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)
+  lpoLine         LpoLine?        @relation(fields: [lpoLineId], references: [id], onDelete: SetNull)
+  product         Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, purchaseInvoiceId])
+  @@index([companyId, productId])
+}
+
+model SupplierPayment {
+  id            String   @id @default(cuid())
+  companyId     String
+  supplierId    String
+  number        String
+  paidAt        DateTime
+  amount        Float
+  method        String
+  reference     String?
+  notes         String?
+  unappliedAmount Float  @default(0)
+  status        String   @default("posted")
+  reversedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company     Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier    Supplier                   @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  allocations SupplierPaymentAllocation[]
+
+  @@unique([companyId, number])
+  @@index([companyId, supplierId, paidAt])
+}
+
+model SupplierPaymentAllocation {
+  id                String   @id @default(cuid())
+  companyId         String
+  paymentId         String
+  purchaseInvoiceId String
+  amount            Float
+  createdAt         DateTime @default(now())
+
+  company         Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payment         SupplierPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  purchaseInvoice PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentId, purchaseInvoiceId])
+  @@index([companyId, purchaseInvoiceId])
+}
+
+model SupplierLedgerEntry {
+  id                String   @id @default(cuid())
+  companyId         String
+  supplierId        String
+  purchaseInvoiceId String?
+  paymentId         String?
+  direction         String
+  amount            Float
+  occurredAt        DateTime @default(now())
+  description       String
+  reversalOfId      String?
+  createdAt         DateTime @default(now())
+
+  company         Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier        Supplier        @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  purchaseInvoice PurchaseInvoice? @relation(fields: [purchaseInvoiceId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, supplierId, occurredAt])
+  @@index([companyId, purchaseInvoiceId])
+}
+
+model SupplierPriceHistory {
+  id           String   @id @default(cuid())
+  companyId    String
+  supplierId   String
+  productId    String?
+  productName  String
+  unitCost     Float
+  currency     String   @default("AED")
+  sourceType   String
+  sourceId     String
+  effectiveAt  DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  product  Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, supplierId, productId, effectiveAt])
 }
 
 model AuthSession {
@@ -382,6 +1217,11 @@ model Supplier {
 
   company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   products Product[]
+  lpos Lpo[]
+  purchaseInvoices PurchaseInvoice[]
+  supplierPayments SupplierPayment[]
+  supplierLedgerEntries SupplierLedgerEntry[]
+  priceHistory SupplierPriceHistory[]
 
   @@index([companyId, name])
   @@index([sampleSetId])
@@ -410,6 +1250,9 @@ model Product {
   images         ProductImage[]
   quotationLines QuotationLine[]
   quotationSections QuotationSection[]
+  lpoLines LpoLine[]
+  purchaseInvoiceLines PurchaseInvoiceLine[]
+  priceHistory SupplierPriceHistory[]
 
   @@index([companyId, name])
   @@index([companyId, updatedAt])

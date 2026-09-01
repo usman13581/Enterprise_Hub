@@ -22,7 +22,7 @@ import page from '../page.module.css';
 import styles from '@/components/crud.module.css';
 import finance from '@/components/finance.module.css';
 
-type Tab = 'receivables' | 'profit';
+type Tab = 'receivables' | 'payables' | 'profit';
 
 export default function AccountsPage() {
   const { item, error } = usePolledItem<AccountsOverview>('/accounts/overview');
@@ -32,11 +32,13 @@ export default function AccountsPage() {
     item?.receivableByCustomer ?? [],
     query,
   );
+  const filteredPayables = searchItems(item?.payableBySupplier ?? [], query);
   const filteredProfit = searchItems(item?.profitByJob ?? [], query);
   const receivablesPager = usePagination(
     filteredReceivables,
     `receivables:${query}`,
   );
+  const payablesPager = usePagination(filteredPayables, `payables:${query}`);
   const profitPager = usePagination(filteredProfit, `profit:${query}`);
 
   if (!item) {
@@ -58,8 +60,8 @@ export default function AccountsPage() {
     <section className={page.page}>
       <h1 className={page.title}>Accounts</h1>
       <p className={page.lede}>
-        Company position across every customer and job. Balances come from the
-        ledger, so they always agree with the individual statements.
+        Company position across customers, suppliers, and jobs. Balances come
+        from the ledger, so they always agree with the individual statements.
       </p>
 
       <div className={finance.statGrid}>
@@ -71,6 +73,10 @@ export default function AccountsPage() {
         <BalanceStat
           title="Receivable"
           amount={item.summary.balanceDue}
+        />
+        <BalanceStat
+          title="Payable"
+          amount={item.totalPayable}
         />
         <Stat
           title="Unapplied advances"
@@ -97,6 +103,11 @@ export default function AccountsPage() {
             count: item.receivableByCustomer.length,
           },
           {
+            key: 'payables',
+            label: 'Payable by supplier',
+            count: item.payableBySupplier.length,
+          },
+          {
             key: 'profit',
             label: 'Margin by job',
             count: item.profitByJob.length,
@@ -110,7 +121,9 @@ export default function AccountsPage() {
         placeholder={
           tab === 'receivables'
             ? 'Search customers…'
-            : 'Search jobs or customers…'
+            : tab === 'payables'
+              ? 'Search suppliers…'
+              : 'Search jobs or customers…'
         }
       />
 
@@ -141,6 +154,48 @@ export default function AccountsPage() {
                     </td>
                     <td className={finance.numeric}>{money(row.billed)}</td>
                     <td className={finance.numeric}>{money(row.received)}</td>
+                    <td
+                      className={`${finance.numeric} ${
+                        row.balance > 0 ? finance.due : finance.clear
+                      }`}
+                    >
+                      {money(row.balance)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScroll>
+        )
+      ) : null}
+
+      {tab === 'payables' ? (
+        filteredPayables.length === 0 ? (
+          <EmptyState>No supplier payables yet.</EmptyState>
+        ) : (
+          <TableScroll>
+            <table className={finance.table}>
+              <thead>
+                <tr>
+                  <th>Supplier</th>
+                  <th className={finance.numeric}>Invoiced</th>
+                  <th className={finance.numeric}>Paid</th>
+                  <th className={finance.numeric}>Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payablesPager.paged.map((row) => (
+                  <tr key={row.supplierId}>
+                    <td>
+                      <Link
+                        className={finance.link}
+                        href={`/suppliers/${row.supplierId}`}
+                      >
+                        {row.supplierName}
+                      </Link>
+                    </td>
+                    <td className={finance.numeric}>{money(row.invoiced)}</td>
+                    <td className={finance.numeric}>{money(row.paid)}</td>
                     <td
                       className={`${finance.numeric} ${
                         row.balance > 0 ? finance.due : finance.clear
@@ -208,6 +263,16 @@ export default function AccountsPage() {
           setPageSize={receivablesPager.setPageSize}
           pageCount={receivablesPager.pageCount}
           total={receivablesPager.total}
+        />
+      ) : null}
+      {tab === 'payables' && filteredPayables.length > 0 ? (
+        <Pagination
+          page={payablesPager.page}
+          setPage={payablesPager.setPage}
+          pageSize={payablesPager.pageSize}
+          setPageSize={payablesPager.setPageSize}
+          pageCount={payablesPager.pageCount}
+          total={payablesPager.total}
         />
       ) : null}
       {tab === 'profit' && filteredProfit.length > 0 ? (

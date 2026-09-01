@@ -1,7 +1,6 @@
 import { createElement, type ReactElement } from 'react';
 import { Image, Text, View } from '@react-pdf/renderer';
 import { formatMoney } from '@marble/domain';
-import { APP_POWERED_BY, APP_VERSION } from '@marble/types';
 import { styles } from './theme';
 import type { PdfCompany, PdfLine, PdfParty } from './types';
 
@@ -151,7 +150,7 @@ export function totalsBlock(
 ): ReactElement {
   return el(
     View,
-    { style: styles.totals },
+    { style: styles.totals, wrap: false, minPresenceAhead: 72 },
     el(
       View,
       { style: styles.totalsBox },
@@ -186,6 +185,17 @@ export function section(
   );
 }
 
+export function keepTogether(
+  children: Array<ReactElement | null>,
+  minPresenceAhead = 120,
+): ReactElement {
+  return el(
+    View,
+    { wrap: false, minPresenceAhead },
+    ...children.filter(Boolean),
+  );
+}
+
 export function signatureBlock(company: PdfCompany): ReactElement {
   return el(
     View,
@@ -206,23 +216,53 @@ export function signatureBlock(company: PdfCompany): ReactElement {
   );
 }
 
-export function footer(company: PdfCompany, extra?: string): ReactElement {
-  const base = [
-    company.legalName,
-    company.trn ? `TRN ${company.trn}` : null,
-    extra,
-  ].filter(Boolean) as string[];
+function clientSignatureField(label: string, key: string): ReactElement {
+  return el(
+    View,
+    { style: styles.clientSigRow, key },
+    text(styles.clientSigLabel, `${label}:`, `${key}-l`),
+    el(View, { style: styles.clientSigLine, key: `${key}-u` }),
+  );
+}
 
+/** Client acceptance lines left, issuer signature right — one row per field. */
+export function quotationSignatureRow(company: PdfCompany): ReactElement {
+  return el(
+    View,
+    { style: styles.signatureRow, wrap: false },
+    el(
+      View,
+      { style: styles.clientSignatureCol },
+      clientSignatureField('Client Name', 'cs-name'),
+      clientSignatureField('Date', 'cs-date'),
+      clientSignatureField('Signature', 'cs-sig'),
+    ),
+    el(
+      View,
+      { style: styles.issuerSignatureCol },
+      company.signatureUrl
+        ? el(Image, { style: styles.signature, src: company.signatureUrl })
+        : el(View, { style: styles.signaturePlaceholder }),
+      text(
+        styles.signatureLabel,
+        `For ${company.tradeName || company.legalName}`,
+        'sig',
+      ),
+    ),
+  );
+}
+
+export function footer(_company?: PdfCompany, _extra?: string): ReactElement {
   return el(Text, {
     style: styles.footer,
     fixed: true,
-    render: ({ pageNumber }: { pageNumber: number }) => {
-      const parts = [...base];
-      if (pageNumber === 1) {
-        parts.push(`${APP_POWERED_BY}  ·  v${APP_VERSION}`);
-      }
-      return parts.join('   ·   ');
-    },
+    render: ({
+      pageNumber,
+      totalPages,
+    }: {
+      pageNumber: number;
+      totalPages: number;
+    }) => (totalPages > 1 ? `${pageNumber} / ${totalPages}` : String(pageNumber)),
   } as never);
 }
 
@@ -326,7 +366,7 @@ export function counterTopTotalsBlock(
 ): ReactElement {
   return el(
     View,
-    { style: styles.ctTotalsWrap, wrap: false },
+    { style: styles.ctTotalsWrap, wrap: false, minPresenceAhead: 72 },
     el(
       View,
       { style: styles.ctTotalsBox },
@@ -359,16 +399,6 @@ export function compactSection(
     { style: styles.ctCompactSection, key },
     text(styles.sectionTitle, title.toUpperCase(), `${key}-t`),
     text(styles.ctTermsBody, normalized, `${key}-b`),
-  );
-}
-
-export function clientSignatureBlock(): ReactElement {
-  return el(
-    View,
-    { style: { marginTop: 12 }, wrap: false },
-    text(styles.ctClientSig, 'Client:_______________________', 'cs1'),
-    text(styles.ctClientSig, 'Name:_______________________', 'cs2'),
-    text(styles.ctClientSig, 'Date:_______________________', 'cs3'),
   );
 }
 
@@ -460,7 +490,7 @@ export function generalThankYouBlock(company: PdfCompany): ReactElement {
   const companyName = company.tradeName || company.legalName;
   return el(
     View,
-    { style: { marginTop: 8 }, wrap: false },
+    { style: styles.genThankYouWrap, wrap: false },
     text(
       styles.genThankYou,
       'Thank you and we hope the above is in line with your requirement',

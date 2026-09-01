@@ -7,7 +7,9 @@ import {
   APP_NAME,
   APP_POWERED_BY,
   APP_VERSION,
+  APP_NAV_ICONS,
   MODULE_NAV,
+  moduleNavIcon,
   SHOW_NOTIFICATIONS,
   type SessionPayload,
 } from '@marble/types';
@@ -34,25 +36,6 @@ type NavItem = {
   label: string;
   href: string;
   icon: string;
-};
-
-const ICONS: Record<string, string> = {
-  home: '⌂',
-  customers: '◎',
-  suppliers: '◇',
-  products: '▣',
-  quotations: '✎',
-  jobs: '⚒',
-  invoices: '▤',
-  advances: '↓',
-  accounts: '☰',
-  reports: '▦',
-  audit: '◉',
-  team: '☷',
-  subscription: '★',
-  notifications: '🔔',
-  profile: '⚙',
-  support: '?',
 };
 
 function isActive(pathname: string, href: string) {
@@ -138,15 +121,16 @@ export function AppShell({
   const groups = useMemo(() => {
     const byKey = new Map(MODULE_NAV.map((item) => [item.key, item]));
     const workKeys = [
-      'customers',
       'suppliers',
       'products',
+      'purchase-orders',
+      'customers',
       'quotations',
       'jobs',
       'invoices',
-      'advances',
-      'accounts',
+      'hr',
     ] as const;
+    const financeKeys = ['accounts', 'advances'] as const;
     const insightKeys = ['reports', 'audit'] as const;
 
     const work: NavItem[] = workKeys
@@ -156,7 +140,7 @@ export function AppShell({
         key: item!.key,
         label: item!.label,
         href: item!.href,
-        icon: ICONS[item!.key] ?? '•',
+        icon: moduleNavIcon(item!.key),
       }));
 
     const insights: NavItem[] = insightKeys
@@ -166,7 +150,17 @@ export function AppShell({
         key: item!.key,
         label: item!.label,
         href: item!.href,
-        icon: ICONS[item!.key] ?? '•',
+        icon: moduleNavIcon(item!.key),
+      }));
+
+    const finance: NavItem[] = financeKeys
+      .map((key) => byKey.get(key))
+      .filter(Boolean)
+      .map((item) => ({
+        key: item!.key,
+        label: item!.label,
+        href: item!.href,
+        icon: moduleNavIcon(item!.key),
       }));
 
     const account: NavItem[] = [];
@@ -175,23 +169,23 @@ export function AppShell({
         key: 'notifications',
         label: unread > 0 ? `Notifications (${unread})` : 'Notifications',
         href: '/notifications',
-        icon: ICONS.notifications,
+        icon: APP_NAV_ICONS.notifications,
       });
     }
     account.push({
       key: 'profile',
       label: 'Company profile',
       href: '/profile',
-      icon: ICONS.profile,
+      icon: APP_NAV_ICONS.profile,
     });
     if (isAdmin) {
       account.push(
-        { key: 'team', label: 'Team', href: '/team', icon: ICONS.team },
+        { key: 'team', label: 'Team', href: '/team', icon: APP_NAV_ICONS.team },
         {
           key: 'subscription',
           label: 'Subscription',
           href: '/subscription',
-          icon: ICONS.subscription,
+          icon: APP_NAV_ICONS.subscription,
         },
       );
     }
@@ -205,11 +199,12 @@ export function AppShell({
             key: 'home',
             label: 'Home',
             href: '/',
-            icon: ICONS.home,
+            icon: moduleNavIcon('home'),
           },
         ],
       },
       { id: 'work', label: 'Work', items: work },
+      { id: 'finance', label: 'Finance', items: finance },
       { id: 'insights', label: 'Insights', items: insights },
       { id: 'account', label: 'Account', items: account },
     ];
@@ -325,7 +320,7 @@ export function AppShell({
               className={styles.footerLink}
               title="Support"
             >
-              <span className={styles.navIcon}>{ICONS.support}</span>
+              <span className={styles.navIcon}>{APP_NAV_ICONS.support}</span>
               <span className={styles.navLabel}>Support</span>
             </Link>
             <button

@@ -13,7 +13,9 @@ import {
   Stat,
   TableScroll,
 } from '@/components/Finance';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import type { Customer, JobListItem } from '@/lib/types';
+import type { Supplier } from '@marble/types';
 import page from '../app/page.module.css';
 import styles from '@/components/crud.module.css';
 import finance from '@/components/finance.module.css';
@@ -47,6 +49,8 @@ export type ReportParamsConfig = {
   asOf?: boolean;
   customerId?: boolean;
   jobId?: boolean;
+  supplierId?: boolean;
+  supplierRequired?: boolean;
   kind?: boolean;
   status?: boolean;
   customerRequired?: boolean;
@@ -92,6 +96,7 @@ export function ReportRunner({
   const [asOf, setAsOf] = useState(defaults.asOf);
   const [customerId, setCustomerId] = useState('');
   const [jobId, setJobId] = useState('');
+  const [supplierId, setSupplierId] = useState('');
   const [kind, setKind] = useState('all');
   const [status, setStatus] = useState(
     paramConfig.status ? 'issued' : 'all',
@@ -104,6 +109,7 @@ export function ReportRunner({
 
   const { items: customers } = usePolledList<Customer>('/customers', 30_000);
   const { items: jobs } = usePolledList<JobListItem>('/jobs', 30_000);
+  const { items: suppliers } = usePolledList<Supplier>('/suppliers', 30_000);
   const reportRows = result?.rows ?? [];
   const filteredRows = searchItems(reportRows, rowQuery);
   const rowPager = usePagination(filteredRows, rowQuery);
@@ -115,6 +121,7 @@ export function ReportRunner({
     if (paramConfig.asOf) params.asOf = asOf;
     if (paramConfig.customerId && customerId) params.customerId = customerId;
     if (paramConfig.jobId && jobId) params.jobId = jobId;
+    if (paramConfig.supplierId && supplierId) params.supplierId = supplierId;
     if (paramConfig.kind && kind !== 'all') params.kind = kind;
     if (paramConfig.status && status !== 'all') params.status = status;
     return params;
@@ -125,6 +132,7 @@ export function ReportRunner({
     asOf,
     customerId,
     jobId,
+    supplierId,
     kind,
     status,
   ]);
@@ -136,6 +144,10 @@ export function ReportRunner({
     }
     if (paramConfig.jobRequired && !params.jobId) {
       setError('Select a job');
+      return;
+    }
+    if (paramConfig.supplierRequired && !params.supplierId) {
+      setError('Select a supplier');
       return;
     }
     setLoading(true);
@@ -203,42 +215,56 @@ export function ReportRunner({
           </label>
         ) : null}
         {paramConfig.customerId ? (
-          <label className={finance.paramField}>
-            <span>Customer{paramConfig.customerRequired ? ' *' : ''}</span>
-            <select
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-            >
-              <option value="">
-                {paramConfig.customerRequired ? 'Select…' : 'All customers'}
-              </option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <SearchableSelect
+            label={`Customer${paramConfig.customerRequired ? ' *' : ''}`}
+            value={customerId}
+            onChange={setCustomerId}
+            allowEmpty={!paramConfig.customerRequired}
+            emptyLabel={
+              paramConfig.customerRequired ? 'Select customer…' : 'All customers'
+            }
+            placeholder="Search customers…"
+            required={paramConfig.customerRequired}
+            options={customers.map((customer) => ({
+              id: customer.id,
+              label: customer.name,
+            }))}
+          />
         ) : null}
         {paramConfig.jobId ? (
-          <label className={finance.paramField}>
-            <span>Job{paramConfig.jobRequired ? ' *' : ''}</span>
-            <select value={jobId} onChange={(e) => setJobId(e.target.value)}>
-              <option value="">
-                {paramConfig.jobRequired ? 'Select…' : 'All jobs'}
-              </option>
-              {jobs
-                .filter(
-                  (job) => !customerId || job.customerId === customerId,
-                )
-                .map((job) => (
-                  <option key={job.id} value={job.id}>
-                    {job.number}
-                    {job.customer?.name ? ` — ${job.customer.name}` : ''}
-                  </option>
-                ))}
-            </select>
-          </label>
+          <SearchableSelect
+            label={`Job${paramConfig.jobRequired ? ' *' : ''}`}
+            value={jobId}
+            onChange={setJobId}
+            allowEmpty={!paramConfig.jobRequired}
+            emptyLabel={paramConfig.jobRequired ? 'Select job…' : 'All jobs'}
+            placeholder="Search jobs…"
+            required={paramConfig.jobRequired}
+            disabled={!customerId && paramConfig.customerRequired}
+            options={jobs
+              .filter((job) => !customerId || job.customerId === customerId)
+              .map((job) => ({
+                id: job.id,
+                label: `${job.number}${job.customer?.name ? ` — ${job.customer.name}` : ''}`,
+              }))}
+          />
+        ) : null}
+        {paramConfig.supplierId ? (
+          <SearchableSelect
+            label={`Supplier${paramConfig.supplierRequired ? ' *' : ''}`}
+            value={supplierId}
+            onChange={setSupplierId}
+            allowEmpty={!paramConfig.supplierRequired}
+            emptyLabel={
+              paramConfig.supplierRequired ? 'Select supplier…' : 'All suppliers'
+            }
+            placeholder="Search suppliers…"
+            required={paramConfig.supplierRequired}
+            options={suppliers.map((supplier) => ({
+              id: supplier.id,
+              label: supplier.name,
+            }))}
+          />
         ) : null}
         {paramConfig.kind ? (
           <label className={finance.paramField}>

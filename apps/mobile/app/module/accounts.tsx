@@ -22,7 +22,7 @@ import {
 import type { AccountsOverview } from '../../lib/types';
 import { colors, ui } from '../../lib/ui';
 
-type Tab = 'receivables' | 'profit';
+type Tab = 'receivables' | 'payables' | 'profit';
 
 export default function AccountsScreen() {
   const router = useRouter();
@@ -34,11 +34,13 @@ export default function AccountsScreen() {
     item?.receivableByCustomer ?? [],
     query,
   );
+  const filteredPayables = searchItems(item?.payableBySupplier ?? [], query);
   const filteredProfit = searchItems(item?.profitByJob ?? [], query);
   const receivablesPager = usePagination(
     filteredReceivables,
     `receivables:${query}`,
   );
+  const payablesPager = usePagination(filteredPayables, `payables:${query}`);
   const profitPager = usePagination(filteredProfit, `profit:${query}`);
 
   if (!item) {
@@ -58,8 +60,8 @@ export default function AccountsScreen() {
       <ScreenScroll>
         <Text style={ui.title}>Accounts</Text>
         <Text style={ui.lede}>
-          Company position across every customer and job. Balances come from the
-          ledger, so they always agree with the individual statements.
+          Company position across customers, suppliers, and jobs. Balances come
+          from the ledger, so they always agree with the individual statements.
         </Text>
 
         <View style={styles.stats}>
@@ -69,6 +71,7 @@ export default function AccountsScreen() {
             value={money(item.summary.advancesReceived)}
           />
           <BalanceCard title="Receivable" amount={item.summary.balanceDue} />
+          <BalanceCard title="Payable" amount={item.totalPayable} />
           <StatCard
             title="Unapplied advances"
             value={money(item.summary.unallocatedAdvances)}
@@ -93,6 +96,10 @@ export default function AccountsScreen() {
               label: `Receivables (${item.receivableByCustomer.length})`,
             },
             {
+              key: 'payables',
+              label: `Payable by supplier (${item.payableBySupplier.length})`,
+            },
+            {
               key: 'profit',
               label: `Margin by job (${item.profitByJob.length})`,
             },
@@ -104,7 +111,9 @@ export default function AccountsScreen() {
           placeholder={
             tab === 'receivables'
               ? 'Search customers…'
-              : 'Search jobs or customers…'
+              : tab === 'payables'
+                ? 'Search suppliers…'
+                : 'Search jobs or customers…'
           }
         />
 
@@ -125,6 +134,27 @@ export default function AccountsScreen() {
                     )
                   }
                   meta={`Billed ${money(row.billed)} · received ${money(row.received)} · bal ${money(row.balance)}`}
+                />
+              ))
+          : null}
+
+        {tab === 'payables'
+          ? filteredPayables.length === 0
+            ? (
+                <View style={ui.empty}>
+                  <Text style={ui.emptyText}>No supplier payables yet.</Text>
+                </View>
+              )
+            : payablesPager.paged.map((row) => (
+                <RecordRow
+                  key={row.supplierId}
+                  title={row.supplierName}
+                  onPress={() =>
+                    router.push(
+                      `/module/supplier/${row.supplierId}` as never,
+                    )
+                  }
+                  meta={`Invoiced ${money(row.invoiced)} · paid ${money(row.paid)} · bal ${money(row.balance)}`}
                 />
               ))
           : null}
@@ -156,6 +186,16 @@ export default function AccountsScreen() {
             setPageSize={receivablesPager.setPageSize}
             pageCount={receivablesPager.pageCount}
             total={receivablesPager.total}
+          />
+        ) : null}
+        {tab === 'payables' && filteredPayables.length > 0 ? (
+          <Pagination
+            page={payablesPager.page}
+            setPage={payablesPager.setPage}
+            pageSize={payablesPager.pageSize}
+            setPageSize={payablesPager.setPageSize}
+            pageCount={payablesPager.pageCount}
+            total={payablesPager.total}
           />
         ) : null}
         {tab === 'profit' && filteredProfit.length > 0 ? (

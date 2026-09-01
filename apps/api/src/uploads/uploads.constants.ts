@@ -1,4 +1,5 @@
 import { join } from 'path';
+import { mkdirSync } from 'node:fs';
 
 /**
  * Local default: <cwd>/uploads.
@@ -7,6 +8,10 @@ import { join } from 'path';
  */
 export const UPLOADS_DIR =
   process.env.UPLOADS_DIR?.trim() || join(process.cwd(), 'uploads');
+/** Private attachments are kept outside the /static tree and require an API session. */
+export const PRIVATE_UPLOADS_DIR =
+  process.env.PRIVATE_UPLOADS_DIR?.trim() || join(process.cwd(), 'private-uploads');
+mkdirSync(PRIVATE_UPLOADS_DIR, { recursive: true });
 
 export const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
 

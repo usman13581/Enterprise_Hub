@@ -74,9 +74,14 @@ export function DashboardShortcuts({
 }: {
   items: Array<{ href: string; label: string }>;
 }) {
+  const unique = items.filter(
+    (item, index, list) =>
+      list.findIndex((entry) => entry.href === item.href) === index,
+  );
+
   return (
     <div className={styles.shortcutGrid}>
-      {items.map((item) => (
+      {unique.map((item) => (
         <Link key={item.href} href={item.href} className={styles.shortcut}>
           {item.label}
         </Link>

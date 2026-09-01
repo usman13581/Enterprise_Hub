@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { openPdf } from '../lib/api';
 import { colors, ui } from '../lib/ui';
 import { label, money } from '../lib/format';
@@ -71,32 +71,119 @@ export function StatusPill({ status }: { status: string }) {
   );
 }
 
+function ChipOption<T extends string>({
+  option,
+  selected,
+  onChange,
+}: {
+  option: { key: T; label: string };
+  selected: boolean;
+  onChange: (key: T) => void;
+}) {
+  return (
+    <Pressable
+      style={[styles.chip, selected && styles.chipActive]}
+      onPress={() => onChange(option.key)}
+    >
+      <Text style={[styles.chipText, selected && styles.chipTextActive]}>
+        {option.label}
+      </Text>
+    </Pressable>
+  );
+}
+
 export function FilterChips<T extends string>({
   options,
   active,
   onChange,
+  scrollable = false,
 }: {
   options: Array<{ key: T; label: string }>;
   active: T;
   onChange: (key: T) => void;
+  scrollable?: boolean;
 }) {
+  if (scrollable) {
+    return (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipsScroll}
+      >
+        {options.map((option) => (
+          <ChipOption
+            key={option.key}
+            option={option}
+            selected={option.key === active}
+            onChange={onChange}
+          />
+        ))}
+      </ScrollView>
+    );
+  }
+
   return (
     <View style={styles.chips}>
-      {options.map((option) => {
-        const selected = option.key === active;
-        return (
-          <Pressable
-            key={option.key}
-            style={[styles.chip, selected && styles.chipActive]}
-            onPress={() => onChange(option.key)}
-          >
-            <Text style={[styles.chipText, selected && styles.chipTextActive]}>
-              {option.label}
-            </Text>
-          </Pressable>
-        );
-      })}
+      {options.map((option) => (
+        <ChipOption
+          key={option.key}
+          option={option}
+          selected={option.key === active}
+          onChange={onChange}
+        />
+      ))}
     </View>
+  );
+}
+
+/**
+ * Home / settings menu row with the same icon + label pattern as web sidebar.
+ */
+export function ModuleMenuRow({
+  icon,
+  title,
+  subtitle,
+  onPress,
+  tone = 'default',
+}: {
+  icon: string;
+  title: string;
+  subtitle?: string;
+  onPress: () => void;
+  tone?: 'default' | 'danger';
+}) {
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.menuRow,
+        tone === 'danger' && styles.menuRowDanger,
+        pressed && styles.menuRowPressed,
+      ]}
+      onPress={onPress}
+    >
+      <View style={styles.menuRowMain}>
+        <View style={styles.menuIconWrap}>
+          <Text style={styles.menuIcon}>{icon}</Text>
+        </View>
+        <View style={styles.menuTextWrap}>
+          <Text
+            style={[
+              styles.menuTitle,
+              tone === 'danger' && styles.menuTitleDanger,
+            ]}
+            numberOfLines={2}
+          >
+            {title}
+          </Text>
+          {subtitle ? (
+            <Text style={styles.menuSubtitle} numberOfLines={2}>
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
+      </View>
+      {tone === 'default' ? <Text style={styles.menuChevron}>›</Text> : null}
+    </Pressable>
   );
 }
 
@@ -174,8 +261,19 @@ export function BackLink({
   );
 }
 
-export function RowActions({ children }: { children: React.ReactNode }) {
-  return <View style={styles.actions}>{children}</View>;
+export function RowActions({
+  children,
+  variant = 'inline',
+}: {
+  children: React.ReactNode;
+  /** Extra spacing + divider above Save/Add buttons in form cards. */
+  variant?: 'inline' | 'form';
+}) {
+  return (
+    <View style={[styles.actions, variant === 'form' && styles.actionsForm]}>
+      {children}
+    </View>
+  );
 }
 
 export function EditIconButton({
@@ -379,6 +477,14 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 14,
   },
+  chipsScroll: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 2,
+    paddingRight: 4,
+    marginTop: 14,
+  },
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 7,
@@ -481,9 +587,15 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: 'row',
-    flexWrap: 'nowrap',
+    flexWrap: 'wrap',
     gap: 8,
     marginTop: 12,
+  },
+  actionsForm: {
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.line,
   },
   dangerBorder: {
     borderColor: 'rgba(194,59,59,0.3)',
@@ -526,5 +638,70 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.3,
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    marginBottom: 8,
+  },
+  menuRowDanger: {
+    borderColor: 'rgba(194,59,59,0.25)',
+    backgroundColor: colors.surface,
+  },
+  menuRowPressed: {
+    backgroundColor: colors.accentSoft,
+  },
+  menuRowMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+    minWidth: 0,
+  },
+  menuIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: colors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuIcon: {
+    color: colors.accentStrong,
+    fontSize: 16,
+    lineHeight: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  menuTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  menuTitle: {
+    color: colors.ink,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  menuTitleDanger: {
+    color: colors.danger,
+    fontWeight: '600',
+  },
+  menuSubtitle: {
+    marginTop: 2,
+    color: colors.soft,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  menuChevron: {
+    color: colors.soft,
+    fontSize: 22,
+    marginLeft: 8,
   },
 });

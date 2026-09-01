@@ -9,6 +9,7 @@ import {
 } from '@marble/domain';
 import type { SyncMutation, SyncPushInput } from '@marble/types';
 import { AuditService } from '../audit/audit.service';
+import { AccountsService } from '../accounts/accounts.service';
 import { SessionContext } from '../auth/session.types';
 import { NumberingService } from '../common/numbering.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -28,6 +29,7 @@ export class SyncService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly numbering: NumberingService,
+    private readonly accounts: AccountsService,
   ) {}
 
   async pull(companyId: string, sinceRaw?: string) {
@@ -48,6 +50,17 @@ export class SyncService {
       advances,
       ledger,
       audit,
+      lpos,
+      purchaseInvoices,
+      hrEmployees,
+      hrLeaveRequests,
+      hrPayrollPeriods,
+      hrDepartments,
+      hrDesignations,
+      hrWorkLocations,
+      hrHolidays,
+      accountsOverview,
+      hrDashboard,
     ] = await Promise.all([
       this.prisma.company.findUnique({
         where: { id: companyId },
@@ -151,10 +164,83 @@ export class SyncService {
         orderBy: { createdAt: 'asc' },
         take: 1000,
       }),
+      this.prisma.lpo.findMany({
+        where: {
+          companyId,
+          ...(since ? { updatedAt: { gt: since } } : {}),
+        },
+        orderBy: { updatedAt: 'asc' },
+        include: {
+          supplier: { select: { id: true, name: true } },
+          lines: { orderBy: { sortOrder: 'asc' } },
+        },
+      }),
+      this.prisma.purchaseInvoice.findMany({
+        where: {
+          companyId,
+          ...(since ? { updatedAt: { gt: since } } : {}),
+        },
+        orderBy: { updatedAt: 'asc' },
+        include: {
+          supplier: { select: { id: true, name: true } },
+          lpo: { select: { id: true, number: true } },
+        },
+      }),
+      this.prisma.hREmployee.findMany({
+        where: {
+          companyId,
+          ...(since ? { updatedAt: { gt: since } } : {}),
+        },
+        orderBy: { updatedAt: 'asc' },
+        include: {
+          department: { select: { id: true, name: true } },
+          designation: { select: { id: true, name: true } },
+        },
+      }),
+      this.prisma.hRLeaveRequest.findMany({
+        where: {
+          companyId,
+          ...(since ? { updatedAt: { gt: since } } : {}),
+        },
+        orderBy: { updatedAt: 'asc' },
+        include: {
+          leaveType: { select: { name: true, code: true, paid: true } },
+          employee: {
+            select: { employeeNumber: true, firstName: true, lastName: true },
+          },
+        },
+      }),
+      this.prisma.hRPayrollPeriod.findMany({
+        where: {
+          companyId,
+          ...(since ? { updatedAt: { gt: since } } : {}),
+        },
+        orderBy: { updatedAt: 'asc' },
+      }),
+      this.prisma.hRDepartment.findMany({
+        where: { companyId, active: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.hRDesignation.findMany({
+        where: { companyId, active: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.hRWorkLocation.findMany({
+        where: { companyId, active: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.hRHoliday.findMany({
+        where: { companyId },
+        orderBy: { date: 'asc' },
+      }),
+      this.accounts.overview(companyId),
+      this.hrDashboardSnapshot(companyId),
     ]);
 
+    const stamped = serverTime.toISOString();
+
     return {
-      serverTime: serverTime.toISOString(),
+      serverTime: stamped,
       dataEpoch: company?.dataEpoch ?? 0,
       since: since ? since.toISOString() : null,
       entities: {
@@ -170,7 +256,67 @@ export class SyncService {
         advances,
         ledger,
         audit,
+        lpos,
+        purchaseInvoices,
+        hrEmployees,
+        hrLeaveRequests,
+        hrPayrollPeriods,
+        accountsOverview: [
+          {
+            id: 'overview',
+            updatedAt: stamped,
+            ...accountsOverview,
+          },
+        ],
+        hrDashboard: [
+          {
+            id: 'dashboard',
+            updatedAt: stamped,
+            ...hrDashboard,
+          },
+        ],
+        hrOrganization: [
+          {
+            id: 'organization',
+            updatedAt: stamped,
+            departments: hrDepartments,
+            designations: hrDesignations,
+            locations: hrWorkLocations,
+            holidays: hrHolidays,
+          },
+        ],
       },
+    };
+  }
+
+  private async hrDashboardSnapshot(companyId: string) {
+    const now = new Date();
+    const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const [
+      employees,
+      activeEmployees,
+      openAttendance,
+      pendingLeave,
+      pendingOvertime,
+      expiringDocuments,
+    ] = await Promise.all([
+      this.prisma.hREmployee.count({ where: { companyId } }),
+      this.prisma.hREmployee.count({ where: { companyId, status: 'active' } }),
+      this.prisma.hRAttendance.count({ where: { companyId, checkOutAt: null } }),
+      this.prisma.hRLeaveRequest.count({ where: { companyId, status: 'pending' } }),
+      this.prisma.hROvertimeRequest.count({ where: { companyId, status: 'pending' } }),
+      this.prisma.hREmployeeDocument.count({
+        where: { companyId, expiryDate: { lte: in30 }, status: 'current' },
+      }),
+    ]);
+    return {
+      employees,
+      activeEmployees,
+      openAttendance,
+      pendingLeave,
+      pendingOvertime,
+      expiringDocuments,
+      canManage: true,
     };
   }
 

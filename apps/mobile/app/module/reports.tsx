@@ -9,6 +9,9 @@ import {
 import {
   INVOICE_REPORT_VIEWS,
   REPORT_NAV,
+  countVisibleReports,
+  groupFinanceReports,
+  groupInvoiceReports,
   type InvoiceReportView,
   type ReportKey,
 } from '@marble/types';
@@ -21,8 +24,10 @@ import {
 } from '../../lib/useCollection';
 import { ScreenScroll } from '../../components/ScreenScroll';
 import { Pagination, SearchBox } from '../../components/ListControls';
+import { FormPicker } from '../../components/FormField';
 import { PdfButton, StatCard } from '../../components/Finance';
-import type { Customer, JobListItem } from '../../lib/types';
+import { SearchablePicker } from '../../components/SearchablePicker';
+import type { Customer, JobListItem, Supplier } from '../../lib/types';
 import { colors, ui } from '../../lib/ui';
 
 type ReportColumn = {
@@ -52,6 +57,8 @@ type Selection =
   | { kind: 'finance'; key: ReportKey }
   | { kind: 'invoice'; key: InvoiceReportView }
   | null;
+
+type Scope = 'all' | 'finance' | 'invoices';
 
 function monthBounds() {
   const now = new Date();
@@ -83,6 +90,7 @@ function paramsFor(selection: NonNullable<Selection>) {
       asOf: needsAsOf,
       customerId: true,
       jobId: true,
+      supplierId: true,
       customerRequired: false,
       jobRequired: false,
     };
@@ -152,6 +160,21 @@ function paramsFor(selection: NonNullable<Selection>) {
         customerRequired: false,
         jobRequired: false,
       };
+    case 'supplier-product-register':
+    case 'supplier-cost-summary':
+      return { from: false, to: false, asOf: false, customerId: false, jobId: false, supplierId: true, customerRequired: false, jobRequired: false };
+    case 'supplier-quotation-usage':
+    case 'supplier-job-costing':
+    case 'supplier-statement':
+    case 'purchase-invoice-register':
+    case 'supplier-payment-register':
+    case 'lpo-register':
+    case 'supplier-spend':
+    case 'supplier-price-history':
+    case 'input-vat-summary':
+      return { from: true, to: true, asOf: false, customerId: false, jobId: false, supplierId: true, customerRequired: false, jobRequired: false };
+    case 'aged-payables':
+      return { from: false, to: false, asOf: true, customerId: false, jobId: false, supplierId: true, customerRequired: false, jobRequired: false };
     default:
       return {
         from: true,
@@ -173,19 +196,41 @@ export default function ReportsScreen() {
   const [asOf, setAsOf] = useState(defaults.asOf);
   const [customerId, setCustomerId] = useState('');
   const [jobId, setJobId] = useState('');
+  const [supplierId, setSupplierId] = useState('');
   const [result, setResult] = useState<ReportResult | null>(null);
   const [applied, setApplied] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [rowQuery, setRowQuery] = useState('');
+  const [catalogQuery, setCatalogQuery] = useState('');
+  const [scope, setScope] = useState<Scope>('all');
 
+  const financeGroups = useMemo(
+    () => groupFinanceReports(catalogQuery),
+    [catalogQuery],
+  );
+  const invoiceGroups = useMemo(
+    () => groupInvoiceReports(catalogQuery),
+    [catalogQuery],
+  );
+  const catalogCounts = useMemo(
+    () => countVisibleReports(catalogQuery),
+    [catalogQuery],
+  );
   const { items: customers } = usePolledList<Customer>('/customers', 30_000);
   const { items: jobs } = usePolledList<JobListItem>('/jobs', 30_000);
+  const { items: suppliers } = usePolledList<Supplier>('/suppliers', 30_000);
   const reportRows = result?.rows ?? [];
   const filteredRows = searchItems(reportRows, rowQuery);
   const rowPager = usePagination(filteredRows, rowQuery);
 
   const config = selection ? paramsFor(selection) : null;
+  const showFinance = scope === 'all' || scope === 'finance';
+  const showInvoices = scope === 'all' || scope === 'invoices';
+  const catalogEmpty =
+    (showFinance ? financeGroups.length : 0) +
+      (showInvoices ? invoiceGroups.length : 0) ===
+    0;
 
   const apiBase = selection
     ? selection.kind === 'finance'
@@ -201,8 +246,9 @@ export default function ReportsScreen() {
     if (config.asOf) params.asOf = asOf;
     if (config.customerId && customerId) params.customerId = customerId;
     if (config.jobId && jobId) params.jobId = jobId;
+    if (config.supplierId && supplierId) params.supplierId = supplierId;
     return params;
-  }, [config, from, to, asOf, customerId, jobId]);
+  }, [config, from, to, asOf, customerId, jobId, supplierId]);
 
   const run = useCallback(async () => {
     if (!apiBase || !config) return;
@@ -247,36 +293,129 @@ export default function ReportsScreen() {
         <ScreenScroll>
           <Text style={ui.title}>Reports</Text>
           <Text style={ui.lede}>
-            Finance and invoice views with summary, table, and Print PDF.
+            Browse by category, search by name, then open a report for
+            parameters, summary, table, and Print PDF.
           </Text>
 
-          <Text style={styles.section}>Finance</Text>
-          {REPORT_NAV.map((report) => (
-            <Pressable
-              key={report.key}
-              style={({ pressed }) => [styles.card, pressed && styles.pressed]}
-              onPress={() =>
-                setSelection({ kind: 'finance', key: report.key })
-              }
-            >
-              <Text style={styles.cardTitle}>{report.label}</Text>
-              <Text style={styles.cardBody}>{report.description}</Text>
-            </Pressable>
-          ))}
+          <SearchBox
+            value={catalogQuery}
+            onChange={setCatalogQuery}
+            placeholder="Search reports…"
+          />
+          <Text style={styles.meta}>
+            {catalogCounts.total} reports · {catalogCounts.finance} finance ·{' '}
+            {catalogCounts.invoices} invoice views
+          </Text>
 
-          <Text style={styles.section}>Invoices</Text>
-          {INVOICE_REPORT_VIEWS.map((view) => (
-            <Pressable
-              key={view.key}
-              style={({ pressed }) => [styles.card, pressed && styles.pressed]}
-              onPress={() =>
-                setSelection({ kind: 'invoice', key: view.key })
-              }
-            >
-              <Text style={styles.cardTitle}>{view.label}</Text>
-              <Text style={styles.cardBody}>{view.description}</Text>
-            </Pressable>
-          ))}
+          <View style={styles.scopeRow}>
+            {(
+              [
+                ['all', 'All'],
+                ['finance', 'Finance'],
+                ['invoices', 'Invoices'],
+              ] as const
+            ).map(([key, label]) => (
+              <Pressable
+                key={key}
+                style={[
+                  styles.scopeChip,
+                  scope === key && styles.scopeChipActive,
+                ]}
+                onPress={() => setScope(key)}
+              >
+                <Text
+                  style={[
+                    styles.scopeChipText,
+                    scope === key && styles.scopeChipTextActive,
+                  ]}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {catalogEmpty ? (
+            <View style={ui.empty}>
+              <Text style={ui.emptyText}>No reports match your search.</Text>
+            </View>
+          ) : null}
+
+          {showFinance && financeGroups.length > 0 ? (
+            <>
+              <Text style={styles.pillar}>Finance</Text>
+              {financeGroups.map((group) => (
+                <View key={group.key} style={styles.groupPanel}>
+                  <View style={styles.groupHead}>
+                    <Text style={styles.groupTitle}>{group.label}</Text>
+                    <Text style={styles.groupHint}>{group.hint}</Text>
+                    <Text style={styles.groupCount}>
+                      {group.reports.length} report
+                      {group.reports.length === 1 ? '' : 's'}
+                    </Text>
+                  </View>
+                  {group.reports.map((report) => (
+                    <Pressable
+                      key={report.key}
+                      style={({ pressed }) => [
+                        styles.reportRow,
+                        pressed && styles.pressed,
+                      ]}
+                      onPress={() =>
+                        setSelection({ kind: 'finance', key: report.key })
+                      }
+                    >
+                      <View style={styles.reportText}>
+                        <Text style={styles.reportTitle}>{report.label}</Text>
+                        <Text style={styles.reportBody} numberOfLines={2}>
+                          {report.description}
+                        </Text>
+                      </View>
+                      <Text style={styles.reportArrow}>→</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ))}
+            </>
+          ) : null}
+
+          {showInvoices && invoiceGroups.length > 0 ? (
+            <>
+              <Text style={styles.pillar}>Invoices</Text>
+              {invoiceGroups.map((group) => (
+                <View key={group.key} style={styles.groupPanel}>
+                  <View style={styles.groupHead}>
+                    <Text style={styles.groupTitle}>{group.label}</Text>
+                    <Text style={styles.groupHint}>{group.hint}</Text>
+                    <Text style={styles.groupCount}>
+                      {group.reports.length} view
+                      {group.reports.length === 1 ? '' : 's'}
+                    </Text>
+                  </View>
+                  {group.reports.map((view) => (
+                    <Pressable
+                      key={view.key}
+                      style={({ pressed }) => [
+                        styles.reportRow,
+                        pressed && styles.pressed,
+                      ]}
+                      onPress={() =>
+                        setSelection({ kind: 'invoice', key: view.key })
+                      }
+                    >
+                      <View style={styles.reportText}>
+                        <Text style={styles.reportTitle}>{view.label}</Text>
+                        <Text style={styles.reportBody} numberOfLines={2}>
+                          {view.description}
+                        </Text>
+                      </View>
+                      <Text style={styles.reportArrow}>→</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ))}
+            </>
+          ) : null}
         </ScreenScroll>
       </View>
     );
@@ -322,38 +461,58 @@ export default function ReportsScreen() {
         ) : null}
 
         {config?.customerId ? (
-          <Picker
+          <FormPicker
             label={`Customer${config.customerRequired ? ' *' : ''}`}
-            value={customerId}
-            options={[
-              {
-                id: '',
-                label: config.customerRequired ? 'Select…' : 'All customers',
-              },
-              ...customers.map((c) => ({ id: c.id, label: c.name })),
-            ]}
-            onChange={setCustomerId}
-          />
+            first={!config?.from && !config?.to && !config?.asOf}
+          >
+            <SearchablePicker
+              value={customerId}
+              allowEmpty={!config.customerRequired}
+              emptyLabel={
+                config.customerRequired ? 'Select customer…' : 'All customers'
+              }
+              options={customers.map((c) => ({ id: c.id, label: c.name }))}
+              searchPlaceholder="Search customers…"
+              emptyText="No customers match your search."
+              onChange={setCustomerId}
+            />
+          </FormPicker>
         ) : null}
 
         {config?.jobId ? (
-          <Picker
-            label={`Job${config.jobRequired ? ' *' : ''}`}
-            value={jobId}
-            options={[
-              {
-                id: '',
-                label: config.jobRequired ? 'Select…' : 'All jobs',
-              },
-              ...jobs
+          <FormPicker label={`Job${config.jobRequired ? ' *' : ''}`}>
+            <SearchablePicker
+              value={jobId}
+              allowEmpty={!config.jobRequired}
+              emptyLabel={config.jobRequired ? 'Select job…' : 'All jobs'}
+              options={jobs
                 .filter((j) => !customerId || j.customerId === customerId)
                 .map((j) => ({
                   id: j.id,
                   label: `${j.number}${j.customer?.name ? ` — ${j.customer.name}` : ''}`,
-                })),
-            ]}
-            onChange={setJobId}
-          />
+                }))}
+              searchPlaceholder="Search jobs…"
+              emptyText="No jobs match your search."
+              onChange={setJobId}
+            />
+          </FormPicker>
+        ) : null}
+
+        {config?.supplierId ? (
+          <FormPicker label="Supplier">
+            <SearchablePicker
+              value={supplierId}
+              allowEmpty
+              emptyLabel="All suppliers"
+              options={suppliers.map((supplier) => ({
+                id: supplier.id,
+                label: supplier.name,
+              }))}
+              searchPlaceholder="Search suppliers…"
+              emptyText="No suppliers match your search."
+              onChange={setSupplierId}
+            />
+          </FormPicker>
         ) : null}
 
         <View style={styles.actions}>
@@ -477,47 +636,108 @@ function Field({
   );
 }
 
-function Picker({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: Array<{ id: string; label: string }>;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <View style={styles.chipWrap}>
-        {options.slice(0, 12).map((option) => (
-          <Pressable
-            key={option.id || 'all'}
-            style={[
-              styles.chip,
-              value === option.id && styles.chipActive,
-            ]}
-            onPress={() => onChange(option.id)}
-          >
-            <Text
-              style={[
-                styles.chipText,
-                value === option.id && styles.chipTextActive,
-              ]}
-              numberOfLines={1}
-            >
-              {option.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-    </View>
-  );
-}
-
 const styles = {
+  meta: {
+    marginTop: 8,
+    marginBottom: 10,
+    color: colors.soft,
+    fontSize: 12,
+  },
+  scopeRow: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    gap: 8,
+    marginBottom: 12,
+  },
+  scopeChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+  },
+  scopeChipActive: {
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.accent,
+  },
+  scopeChipText: {
+    color: colors.muted,
+    fontSize: 13,
+    fontWeight: '600' as const,
+  },
+  scopeChipTextActive: {
+    color: colors.accent,
+  },
+  pillar: {
+    marginTop: 18,
+    marginBottom: 8,
+    color: colors.ink,
+    fontSize: 18,
+    fontWeight: '700' as const,
+  },
+  groupPanel: {
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.line,
+    marginBottom: 10,
+    overflow: 'hidden' as const,
+  },
+  groupHead: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+    backgroundColor: colors.bg,
+  },
+  groupTitle: {
+    color: colors.ink,
+    fontSize: 14,
+    fontWeight: '700' as const,
+  },
+  groupHint: {
+    marginTop: 2,
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  groupCount: {
+    marginTop: 4,
+    color: colors.accent,
+    fontSize: 11,
+    fontWeight: '600' as const,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase' as const,
+  },
+  reportRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  reportText: {
+    flex: 1,
+  },
+  reportTitle: {
+    color: colors.ink,
+    fontSize: 15,
+    fontWeight: '600' as const,
+  },
+  reportBody: {
+    marginTop: 2,
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  reportArrow: {
+    color: colors.accent,
+    fontSize: 16,
+    fontWeight: '600' as const,
+  },
   section: {
     marginTop: 18,
     marginBottom: 8,

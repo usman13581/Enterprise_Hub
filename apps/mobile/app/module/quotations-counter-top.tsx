@@ -12,6 +12,8 @@ import { QUOTATION_KIND_LABELS, type QuotationLookup } from '@marble/types';
 import { apiFetch, apiPost, apiPut } from '../../lib/api';
 import { money } from '../../lib/format';
 import { usePolledList } from '../../lib/useCollection';
+import { FormPicker } from '../../components/FormField';
+import { SearchablePicker } from '../../components/SearchablePicker';
 import { ScreenScroll } from '../../components/ScreenScroll';
 import { LookupAttachPicker } from '../../components/LookupAttachPicker';
 import { ActionButton, BackLink, RowActions } from '../../components/Finance';
@@ -234,28 +236,18 @@ export default function CounterTopQuotationScreen() {
       {error ? <Text style={ui.error}>{error}</Text> : null}
 
       <View style={ui.card}>
-        <Text style={ui.label}>Customer *</Text>
-        <View style={styles.picker}>
-          {customers.map((customer) => (
-            <Pressable
-              key={customer.id}
-              style={[
-                styles.option,
-                customerId === customer.id && styles.optionActive,
-              ]}
-              onPress={() => setCustomerId(customer.id)}
-            >
-              <Text
-                style={[
-                  styles.optionText,
-                  customerId === customer.id && styles.optionTextActive,
-                ]}
-              >
-                {customer.name}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        <FormPicker label="Customer *" first>
+          <SearchablePicker
+            value={customerId}
+            options={customers.map((customer) => ({
+              id: customer.id,
+              label: customer.name,
+            }))}
+            searchPlaceholder="Search customers…"
+            emptyText="No customers match your search."
+            onChange={setCustomerId}
+          />
+        </FormPicker>
         <Text style={ui.label}>Subject</Text>
         <TextInput style={ui.input} value={title} onChangeText={setTitle} />
         <Text style={ui.label}>Attn</Text>

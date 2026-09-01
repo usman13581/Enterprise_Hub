@@ -16,11 +16,15 @@ export class AccountsService {
    * job at approval, so re-pricing the catalog never rewrites history.
    */
   async overview(companyId: string) {
-    const [summary, entries, jobs] = await Promise.all([
+    const [summary, entries, supplierEntries, jobs] = await Promise.all([
       this.ledger.summaryForCompany(companyId),
       this.prisma.ledgerEntry.findMany({
         where: { companyId },
         include: { customer: { select: { id: true, name: true } } },
+      }),
+      this.prisma.supplierLedgerEntry.findMany({
+        where: { companyId },
+        include: { supplier: { select: { id: true, name: true } } },
       }),
       this.prisma.job.findMany({
         where: { companyId },
@@ -58,6 +62,38 @@ export class AccountsService {
       }))
       .sort((a, b) => b.balance - a.balance);
 
+    const bySupplier = new Map<
+      string,
+      {
+        supplierId: string;
+        supplierName: string;
+        invoiced: number;
+        paid: number;
+      }
+    >();
+
+    for (const entry of supplierEntries) {
+      const row = bySupplier.get(entry.supplierId) ?? {
+        supplierId: entry.supplierId,
+        supplierName: entry.supplier.name,
+        invoiced: 0,
+        paid: 0,
+      };
+      if (entry.direction === 'credit') row.invoiced += entry.amount;
+      else row.paid += entry.amount;
+      bySupplier.set(entry.supplierId, row);
+    }
+
+    const payableBySupplier = [...bySupplier.values()]
+      .map((row) => ({
+        ...row,
+        invoiced: roundMoney(row.invoiced),
+        paid: roundMoney(row.paid),
+        balance: roundMoney(row.invoiced - row.paid),
+      }))
+      .filter((row) => row.invoiced > 0 || row.paid > 0 || row.balance !== 0)
+      .sort((a, b) => b.balance - a.balance);
+
     const profitByJob = jobs.map((job) => ({
       jobId: job.id,
       jobNumber: job.number,
@@ -72,10 +108,14 @@ export class AccountsService {
     return {
       summary,
       receivableByCustomer,
+      payableBySupplier,
       profitByJob,
       openJobs: jobs.filter((job) => job.status === 'open').length,
       totalProfit: roundMoney(
         profitByJob.reduce((total, job) => total + job.profit, 0),
+      ),
+      totalPayable: roundMoney(
+        payableBySupplier.reduce((total, row) => total + row.balance, 0),
       ),
     };
   }

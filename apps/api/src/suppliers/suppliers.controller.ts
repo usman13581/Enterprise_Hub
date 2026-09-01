@@ -30,6 +30,11 @@ export class SuppliersController {
     return this.service.get(session.companyId, id);
   }
 
+  @Get(':id/hub')
+  hub(@CurrentSession() session: SessionContext, @Param('id') id: string) {
+    return this.service.hub(session.companyId, id);
+  }
+
   @Post()
   create(
     @CurrentSession() session: SessionContext,

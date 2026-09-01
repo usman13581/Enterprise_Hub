@@ -3,6 +3,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, View } from 'react-native';
+import { SmartHeaderBack } from '../components/SmartHeaderBack';
 import { apiFetch } from '../lib/api';
 import {
   clearAuthToken,
@@ -145,13 +146,24 @@ export default function RootLayout() {
           headerTitleStyle: { fontWeight: '600', fontSize: 17 },
           headerShadowVisible: false,
           contentStyle: { backgroundColor: '#f4f6f8' },
+          headerBackVisible: false,
+          headerLeft: () => <SmartHeaderBack />,
         }}
       >
-        <Stack.Screen name="login" options={{ headerShown: false }} />
-        <Stack.Screen name="admin-login" options={{ headerShown: false }} />
-        <Stack.Screen name="change-password" options={{ title: 'Set password' }} />
-        <Stack.Screen name="index" options={{ title: APP_NAME }} />
-        <Stack.Screen name="admin/index" options={{ title: 'Platform admin' }} />
+        <Stack.Screen
+          name="login"
+          options={{ headerTitle: APP_NAME, gestureEnabled: false }}
+        />
+        <Stack.Screen
+          name="admin-login"
+          options={{ headerTitle: APP_NAME, gestureEnabled: false }}
+        />
+        <Stack.Screen name="change-password" options={{ title: 'Set password', gestureEnabled: false }} />
+        <Stack.Screen
+          name="index"
+          options={{ headerTitle: APP_NAME, gestureEnabled: false }}
+        />
+        <Stack.Screen name="admin/index" options={{ title: 'Platform admin', gestureEnabled: false }} />
         <Stack.Screen name="admin/companies" options={{ title: 'Companies' }} />
         <Stack.Screen
           name="admin/companies/[id]"
@@ -172,6 +184,7 @@ export default function RootLayout() {
         <Stack.Screen name="admin/audit" options={{ title: 'Audit' }} />
         <Stack.Screen name="module/customers" options={{ title: 'Customers' }} />
         <Stack.Screen name="module/suppliers" options={{ title: 'Suppliers' }} />
+        <Stack.Screen name="module/supplier/[id]" options={{ title: 'Supplier hub' }} />
         <Stack.Screen name="module/products" options={{ title: 'Products' }} />
         <Stack.Screen name="module/quotations" options={{ title: 'Quotations' }} />
         <Stack.Screen
@@ -180,8 +193,17 @@ export default function RootLayout() {
         />
         <Stack.Screen name="module/jobs" options={{ title: 'Jobs' }} />
         <Stack.Screen name="module/invoices" options={{ title: 'Invoices' }} />
+        <Stack.Screen name="module/purchase-invoices" options={{ title: 'Purchase invoices' }} />
+        <Stack.Screen name="module/purchase-invoices/[id]" options={{ title: 'Purchase invoice' }} />
+        <Stack.Screen name="module/supplier-payments" options={{ title: 'Supplier payments' }} />
+        <Stack.Screen name="module/supplier-statement" options={{ title: 'Supplier statement' }} />
         <Stack.Screen name="module/advances" options={{ title: 'Advances' }} />
+        <Stack.Screen name="module/purchase-orders" options={{ title: 'Purchase Orders' }} />
+        <Stack.Screen name="module/purchase-orders/[id]" options={{ title: 'Purchase order' }} />
+        <Stack.Screen name="module/lpos" options={{ title: 'Purchase Orders' }} />
+        <Stack.Screen name="module/lpos/[id]" options={{ title: 'Purchase order' }} />
         <Stack.Screen name="module/accounts" options={{ title: 'Accounts' }} />
+        <Stack.Screen name="module/hr" options={{ title: 'Human Resource' }} />
         <Stack.Screen name="module/reports" options={{ title: 'Reports' }} />
         <Stack.Screen name="module/profile" options={{ title: 'Company profile' }} />
         <Stack.Screen name="module/audit" options={{ title: 'Audit' }} />

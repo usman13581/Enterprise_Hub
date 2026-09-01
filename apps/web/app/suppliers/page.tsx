@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { apiPost, apiPut } from "@/lib/api";
 import {
   searchItems,
@@ -244,7 +245,7 @@ export default function SuppliersPage() {
                     <EditIconButton onClick={() => startEdit(item)} />
                     <div className={styles.cardContent}>
                       <h2 className={styles.cardTitle}>
-                        {item.name}
+                        <Link href={`/suppliers/${item.id}`}>{item.name}</Link>
                         {item.active === false ? " (inactive)" : ""}
                       </h2>
                       <p className={styles.cardMeta}>
@@ -260,6 +261,12 @@ export default function SuppliersPage() {
                       </span>
                     </div>
                     <div className={styles.cardActions}>
+                      <Link
+                        className={styles.button}
+                        href={`/suppliers/${item.id}`}
+                      >
+                        Supplier Hub
+                      </Link>
                       <button
                         className={styles.ghost}
                         onClick={() => void setActive(item, !item.active)}

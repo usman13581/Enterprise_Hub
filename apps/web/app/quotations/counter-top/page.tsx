@@ -17,6 +17,7 @@ import {
   sumSpecItemAmounts,
   type SpecItemDraft,
 } from '@/components/SpecItemEditor';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import type { Customer, Product, Quotation, QuotationLookup } from '@/lib/types';
 import page from '../../page.module.css';
 import styles from '@/components/crud.module.css';
@@ -224,22 +225,17 @@ export default function CounterTopQuotationPage() {
 
       <form className={styles.form} onSubmit={onSubmit}>
         <div className={styles.grid}>
-          <div className={styles.field}>
-            <label className={styles.label}>Customer *</label>
-            <select
-              className={styles.select}
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              required
-            >
-              <option value="">Select a customer</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <SearchableSelect
+            label="Customer *"
+            value={customerId}
+            onChange={setCustomerId}
+            required
+            placeholder="Search customers…"
+            options={customers.map((customer) => ({
+              id: customer.id,
+              label: customer.name,
+            }))}
+          />
           <div className={styles.field}>
             <label className={styles.label}>Subject</label>
             <input
@@ -309,21 +305,18 @@ export default function CounterTopQuotationPage() {
             </p>
 
             <div className={styles.grid}>
-              <div className={styles.field}>
-                <label className={styles.label}>Catalog product</label>
-                <select
-                  className={styles.select}
-                  value={section.productId}
-                  onChange={(e) => pickProduct(sectionIndex, e.target.value)}
-                >
-                  <option value="">Custom / type name below</option>
-                  {products.map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <SearchableSelect
+                label="Catalog product"
+                value={section.productId}
+                onChange={(value) => pickProduct(sectionIndex, value)}
+                allowEmpty
+                emptyLabel="Custom / type name below"
+                placeholder="Search products…"
+                options={products.map((product) => ({
+                  id: product.id,
+                  label: product.name,
+                }))}
+              />
               <div className={styles.field}>
                 <label className={styles.label}>Product name *</label>
                 <input
