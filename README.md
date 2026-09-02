@@ -1,6 +1,6 @@
-# Marble with Nuage
+# Enterprise Hub
 
-Multi-company marble business SaaS — web (Next.js) + mobile (Expo) + NestJS API.
+Multi-company business SaaS — web (Next.js) + mobile (Expo) + NestJS API.
 
 ## Phase status
 

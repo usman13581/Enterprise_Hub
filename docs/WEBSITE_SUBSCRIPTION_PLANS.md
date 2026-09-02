@@ -1,4 +1,4 @@
-# Marble with Nuage — Website subscription plans brief
+# Enterprise Hub — Website subscription plans brief
 
 Share this with the website agent to implement the pricing / plans section.
 
