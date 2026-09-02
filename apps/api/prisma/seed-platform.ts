@@ -122,6 +122,33 @@ async function main() {
     await upsertPlan(plan);
   }
 
+  // Remove legacy Pilot plan — Demo (7-day) covers testing access.
+  const pilot = await prisma.plan.findUnique({ where: { code: 'pilot' } });
+  if (pilot) {
+    const demo = await prisma.plan.findUniqueOrThrow({
+      where: { code: 'demo-trial-7d' },
+    });
+    const trialEnds = new Date();
+    trialEnds.setDate(trialEnds.getDate() + (demo.trialDays || 7));
+
+    const moved = await prisma.companySubscription.updateMany({
+      where: { planId: pilot.id },
+      data: {
+        planId: demo.id,
+        status: 'trial',
+        seatsIncluded: demo.maxUsers,
+        trialEndsAt: trialEnds,
+        expiresAt: trialEnds,
+        note: 'Migrated from retired Pilot plan to Enterprise Hub Demo (7-day).',
+      },
+    });
+
+    await prisma.plan.delete({ where: { id: pilot.id } });
+    console.log(
+      `Removed Pilot plan; moved ${moved.count} subscription(s) to ${demo.code}.`,
+    );
+  }
+
   const category = await prisma.industryCategory.upsert({
     where: { code: 'marble' },
     update: { name: 'Marble & Stone', active: true },

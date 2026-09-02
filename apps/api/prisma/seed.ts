@@ -3,13 +3,13 @@ import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
-/** Pilot login for Binhaj Marble (change after go-live). */
+/** Local test login for Binhaj Marble (change after go-live). */
 const PILOT_PASSWORD = process.env.SEED_OWNER_PASSWORD || 'binhaj123';
 
 /**
- * Seeds the Binhaj Marble pilot tenant with catalog data and one completed
- * quotation → job → advance → progressive invoice story so staging / demos
- * are not empty shells.
+ * Seeds the Binhaj Marble test tenant with catalog data and one completed
+ * quotation → job → advance → progressive invoice story so local demos
+ * are not empty shells. Subscription uses Enterprise Hub Demo (7-day trial).
  */
 async function main() {
   const company = await prisma.company.upsert({
@@ -128,23 +128,23 @@ async function main() {
     },
   });
 
-  const pilotPlan = await prisma.plan.upsert({
-    where: { code: 'pilot' },
+  const demoPlan = await prisma.plan.upsert({
+    where: { code: 'demo-trial-7d' },
     update: {
-      name: 'Pilot',
-      interval: 'yearly',
+      name: 'Enterprise Hub Demo',
+      interval: 'monthly',
       priceUsd: 0,
-      trialDays: 365,
-      maxUsers: 5,
+      trialDays: 7,
+      maxUsers: 3,
       active: true,
     },
     create: {
-      name: 'Pilot',
-      code: 'pilot',
-      interval: 'yearly',
+      name: 'Enterprise Hub Demo',
+      code: 'demo-trial-7d',
+      interval: 'monthly',
       priceUsd: 0,
-      trialDays: 365,
-      maxUsers: 5,
+      trialDays: 7,
+      maxUsers: 3,
       active: true,
     },
   });
@@ -200,24 +200,36 @@ async function main() {
     });
   }
 
-  const farExpiry = new Date();
-  farExpiry.setFullYear(farExpiry.getFullYear() + 2);
+  // Drop legacy Pilot if a prior local seed created it.
+  const legacyPilot = await prisma.plan.findUnique({ where: { code: 'pilot' } });
+  if (legacyPilot) {
+    await prisma.companySubscription.updateMany({
+      where: { planId: legacyPilot.id },
+      data: { planId: demoPlan.id },
+    });
+    await prisma.plan.delete({ where: { id: legacyPilot.id } });
+  }
+
+  const trialEnds = new Date();
+  trialEnds.setDate(trialEnds.getDate() + demoPlan.trialDays);
 
   await prisma.companySubscription.upsert({
     where: { companyId: company.id },
     update: {
-      planId: pilotPlan.id,
-      status: 'active',
-      seatsIncluded: pilotPlan.maxUsers,
-      expiresAt: farExpiry,
+      planId: demoPlan.id,
+      status: 'trial',
+      seatsIncluded: demoPlan.maxUsers,
+      trialEndsAt: trialEnds,
+      expiresAt: trialEnds,
     },
     create: {
       companyId: company.id,
-      planId: pilotPlan.id,
-      status: 'active',
-      seatsIncluded: pilotPlan.maxUsers,
+      planId: demoPlan.id,
+      status: 'trial',
+      seatsIncluded: demoPlan.maxUsers,
       startsAt: new Date(),
-      expiresAt: farExpiry,
+      trialEndsAt: trialEnds,
+      expiresAt: trialEnds,
     },
   });
 
@@ -829,7 +841,7 @@ F) Guarantee:
   }
 
   console.log(
-    'Seeded Binhaj Marble pilot: plans, subscription, industry features, platform admin, suppliers, products, customers, lookups, villa job path, counter-top demo',
+    'Seeded Binhaj Marble test tenant: demo trial plan, subscription, industry features, platform admin, suppliers, products, customers, lookups, villa job path, counter-top demo',
   );
 }
 
