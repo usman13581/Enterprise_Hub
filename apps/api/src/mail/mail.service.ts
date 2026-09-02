@@ -32,7 +32,7 @@ export class MailService {
       : `${webUrl.replace(/\/$/, '')}/login`;
     const mobileUrl =
       process.env.MOBILE_APP_URL ||
-      'https://expo.dev/accounts/preuqaliq/projects/marble-with-nuage';
+      'https://expo.dev/accounts/preuqaliq/projects/enterprise-hub';
     const from = process.env.MAIL_FROM || 'PrequaliQ <info@prequaliq.com>';
     const replyTo = process.env.MAIL_REPLY_TO || 'info@prequaliq.com';
     const company = escapeHtml(input.companyName);

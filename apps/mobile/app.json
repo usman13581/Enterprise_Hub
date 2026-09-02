@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "Enterprise Hub",
-    "slug": "marble-with-nuage",
+    "slug": "enterprise-hub",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "marblewithnuage",
+    "scheme": "enterprisehub",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.marblewithnuage.app",
+      "bundleIdentifier": "com.enterprisehub.app",
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
@@ -23,7 +23,7 @@
       }
     },
     "android": {
-      "package": "com.marblewithnuage.app",
+      "package": "com.enterprisehub.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#f4f6f8"
@@ -53,7 +53,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "c90cde1e-6a20-4654-94b6-6b6c2ace85f4"
+        "projectId": "186e2c78-d07b-4a39-b3ea-9d9c424397b1"
       }
     },
     "owner": "preuqaliq"
