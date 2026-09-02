@@ -206,6 +206,13 @@ async function request<T>(
     }
 
     if (
+      method === 'DELETE' &&
+      !isLoginPath(path) &&
+      !(await isOnline())
+    ) {
+      throw new Error('This action needs a network connection.');
+    }
+    if (
       method !== 'GET' &&
       !isLoginPath(path) &&
       isNeverQueuedMutation(path) &&

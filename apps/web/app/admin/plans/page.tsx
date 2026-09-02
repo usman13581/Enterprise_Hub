@@ -2,7 +2,6 @@
 
 import { FormEvent, useState } from "react";
 import { apiPatch, apiPost } from "@/lib/api";
-import { money } from "@/lib/format";
 import {
   searchItems,
   usePagination,
@@ -17,7 +16,7 @@ type Plan = {
   name: string;
   code: string;
   interval: string;
-  priceAed: number;
+  priceUsd: number;
   trialDays: number;
   maxUsers: number;
   active: boolean;
@@ -27,7 +26,7 @@ const EMPTY = {
   name: "",
   code: "",
   interval: "monthly",
-  priceAed: "0",
+  priceUsd: "0",
   trialDays: "14",
   maxUsers: "5",
   active: true,
@@ -47,7 +46,7 @@ export default function AdminPlansPage() {
       name: plan.name,
       code: plan.code,
       interval: plan.interval,
-      priceAed: String(plan.priceAed),
+      priceUsd: String(plan.priceUsd),
       trialDays: String(plan.trialDays),
       maxUsers: String(plan.maxUsers),
       active: plan.active,
@@ -70,7 +69,7 @@ export default function AdminPlansPage() {
       name: draft.name,
       code: draft.code,
       interval: draft.interval,
-      priceAed: Number(draft.priceAed),
+      priceUsd: Number(draft.priceUsd),
       trialDays: Number(draft.trialDays),
       maxUsers: Number(draft.maxUsers),
       active: draft.active,
@@ -148,15 +147,15 @@ export default function AdminPlansPage() {
               </select>
             </div>
             <div className={styles.field}>
-              <label className={styles.label}>Price (AED)</label>
+              <label className={styles.label}>Price (USD)</label>
               <input
                 className={styles.input}
                 type="number"
                 min="0"
                 step="0.01"
-                value={draft.priceAed}
+                value={draft.priceUsd}
                 onChange={(e) =>
-                  setDraft({ ...draft, priceAed: e.target.value })
+                  setDraft({ ...draft, priceUsd: e.target.value })
                 }
                 required
               />
@@ -174,11 +173,11 @@ export default function AdminPlansPage() {
               />
             </div>
             <div className={styles.field}>
-              <label className={styles.label}>Max users</label>
+              <label className={styles.label}>Max users (0 = unlimited)</label>
               <input
                 className={styles.input}
                 type="number"
-                min="1"
+                min="0"
                 value={draft.maxUsers}
                 onChange={(e) =>
                   setDraft({ ...draft, maxUsers: e.target.value })
@@ -221,8 +220,12 @@ export default function AdminPlansPage() {
               <div className={styles.cardContent}>
                 <p className={styles.cardTitle}>{p.name}</p>
                 <p className={styles.cardMeta}>
-                  {p.code} · {p.interval} · {money(p.priceAed)} · trial{" "}
-                  {p.trialDays}d · max {p.maxUsers} ·{" "}
+                  {p.code} · {p.interval} ·{" "}
+                  {p.code === "custom"
+                    ? "Contact sales"
+                    : `USD ${Number(p.priceUsd).toFixed(2)}`}{" "}
+                  · trial {p.trialDays}d ·{" "}
+                  {p.maxUsers === 0 ? "unlimited users" : `max ${p.maxUsers}`} ·{" "}
                   {p.active ? "active" : "inactive"}
                 </p>
               </div>

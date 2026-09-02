@@ -21,6 +21,7 @@ import { NumberingService } from '../common/numbering.service';
 import { AuthService } from '../auth/auth.service';
 import {
   SessionContext,
+  requireCompanyAdmin,
   requireCompanySession,
 } from '../auth/session.types';
 import { QuotationLookupsService } from './quotation-lookups.service';
@@ -38,6 +39,8 @@ const DETAIL_INCLUDE = {
     include: { lookup: true },
   },
   job: { select: { id: true, number: true, status: true } },
+  revisionOf: { select: { id: true, number: true } },
+  rootQuotation: { select: { id: true, number: true } },
 } as const;
 
 @Injectable()
@@ -393,7 +396,193 @@ export class QuotationsService {
   }
 
   async remove(session: SessionContext, id: string) {
-    return this.cancel(session, id);
+    const s = requireCompanyAdmin(session);
+    const before = await this.prisma.quotation.findFirst({
+      where: { id, companyId: s.companyId },
+      include: { job: { select: { id: true } } },
+    });
+    if (!before) throw new NotFoundException('Quotation not found');
+    if (before.status !== 'draft') {
+      throw new ConflictException('Only draft quotations can be deleted');
+    }
+    if (before.job) {
+      throw new ConflictException('This quotation has a linked job');
+    }
+
+    await this.prisma.quotation.delete({ where: { id } });
+    await this.audit.write({
+      companyId: s.companyId,
+      actorId: s.userId,
+      entityType: 'Quotation',
+      entityId: id,
+      action: 'delete',
+      before,
+    });
+    return { ok: true, id };
+  }
+
+  async revise(session: SessionContext, id: string) {
+    return this.duplicate(session, id, 'revise');
+  }
+
+  async copyAsNew(session: SessionContext, id: string) {
+    return this.duplicate(session, id, 'copy');
+  }
+
+  private async duplicate(
+    session: SessionContext,
+    sourceId: string,
+    mode: 'revise' | 'copy',
+  ) {
+    const s = requireCompanySession(session);
+    const source = await this.prisma.quotation.findFirst({
+      where: { id: sourceId, companyId: s.companyId },
+      include: {
+        lines: { orderBy: { sortOrder: 'asc' } },
+        sections: {
+          orderBy: { sortOrder: 'asc' },
+          include: { items: { orderBy: { sortOrder: 'asc' } } },
+        },
+        lookupLinks: true,
+      },
+    });
+    if (!source) throw new NotFoundException('Quotation not found');
+
+    if (mode === 'revise') {
+      if (source.status !== 'approved') {
+        throw new ConflictException('Only approved quotations can be revised');
+      }
+      const rootId = source.rootQuotationId ?? source.id;
+      const draftInChain = await this.prisma.quotation.findFirst({
+        where: {
+          companyId: s.companyId,
+          status: 'draft',
+          OR: [{ id: rootId }, { rootQuotationId: rootId }],
+        },
+        select: { id: true, number: true },
+      });
+      if (draftInChain) {
+        throw new ConflictException(
+          `Finish or cancel draft ${draftInChain.number} before creating another revision`,
+        );
+      }
+    }
+
+    const quotation = await this.prisma.$transaction(async (tx) => {
+      let number: string;
+      let revisionOfId: string | null = null;
+      let rootQuotationId: string | null = null;
+      let revisionNumber = 1;
+
+      if (mode === 'revise') {
+        const rootId = source.rootQuotationId ?? source.id;
+        const root =
+          rootId === source.id
+            ? source
+            : await tx.quotation.findFirstOrThrow({
+                where: { id: rootId, companyId: s.companyId },
+              });
+        const maxRow = await tx.quotation.aggregate({
+          where: {
+            companyId: s.companyId,
+            OR: [{ id: rootId }, { rootQuotationId: rootId }],
+          },
+          _max: { revisionNumber: true },
+        });
+        revisionNumber = (maxRow._max.revisionNumber ?? 1) + 1;
+        const baseNumber = root.number.replace(/-R\d+$/i, '');
+        number = `${baseNumber}-R${revisionNumber}`;
+        revisionOfId = source.id;
+        rootQuotationId = rootId;
+      } else {
+        number = await this.numbering.next(tx, s.companyId, 'quotation');
+      }
+
+      return tx.quotation.create({
+        data: {
+          companyId: s.companyId,
+          customerId: source.customerId,
+          number,
+          kind: source.kind,
+          status: 'draft',
+          title: source.title,
+          notes: source.notes,
+          contactName: source.contactName,
+          contactPhone: source.contactPhone,
+          location: source.location,
+          validUntil: source.validUntil,
+          discountMode: source.discountMode,
+          discountValue: source.discountValue,
+          discount: source.discount,
+          lineDiscountTotal: source.lineDiscountTotal,
+          subtotal: source.subtotal,
+          vatAmount: source.vatAmount,
+          total: source.total,
+          purchaseTotal: source.purchaseTotal,
+          revisionOfId,
+          rootQuotationId,
+          revisionNumber,
+          lines:
+            source.kind === 'general'
+              ? {
+                  create: source.lines.map((line, index) => ({
+                    productId: line.productId,
+                    description: line.description,
+                    unit: line.unit,
+                    qty: line.qty,
+                    purchasePrice: line.purchasePrice,
+                    sellPrice: line.sellPrice,
+                    discountMode: line.discountMode,
+                    discountValue: line.discountValue,
+                    lineTotal: line.lineTotal,
+                    sortOrder: index,
+                  })),
+                }
+              : undefined,
+          sections:
+            source.kind === 'counter_top'
+              ? {
+                  create: source.sections.map((section, index) => ({
+                    productId: section.productId,
+                    productName: section.productName,
+                    amount: section.amount,
+                    discountMode: section.discountMode,
+                    discountValue: section.discountValue,
+                    sortOrder: index,
+                    items: {
+                      create: section.items.map((item, itemIndex) => ({
+                        label: item.label,
+                        value: item.value,
+                        amount: item.amount,
+                        discountMode: item.discountMode,
+                        discountValue: item.discountValue,
+                        sortOrder: itemIndex,
+                      })),
+                    },
+                  })),
+                }
+              : undefined,
+          lookupLinks: {
+            create: source.lookupLinks.map((link) => ({
+              lookupId: link.lookupId,
+            })),
+          },
+        },
+        include: DETAIL_INCLUDE,
+      });
+    });
+
+    await this.audit.write({
+      companyId: s.companyId,
+      actorId: s.userId,
+      entityType: 'Quotation',
+      entityId: quotation.id,
+      action: mode === 'revise' ? 'revise' : 'copy',
+      after: quotation,
+      before: { sourceId: source.id, sourceNumber: source.number },
+    });
+
+    return this.shape(quotation);
   }
 
   private discountHeader(

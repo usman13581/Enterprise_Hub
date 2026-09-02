@@ -11,7 +11,8 @@ import {
   type QuotationLookupCategory,
   type SessionPayload,
 } from '@marble/types';
-import { apiFetch, apiPost, apiPut } from '@/lib/api';
+import { apiDelete, apiFetch, apiPost, apiPut } from '@/lib/api';
+import { useCompanyAdmin } from '@/lib/useCompanyAdmin';
 import { dueDateIso } from '@/lib/dates';
 import { amount, day, moneyHeader } from '@/lib/format';
 import {
@@ -92,6 +93,7 @@ export default function QuotationsPage() {
   const [pageTab, setPageTab] = useState<PageTab>('quotations');
   const [saving, setSaving] = useState(false);
   const [features, setFeatures] = useState<string[]>([]);
+  const isAdmin = useCompanyAdmin();
 
   useEffect(() => {
     void apiFetch<SessionPayload>('/auth/session').then((s) => {
@@ -200,15 +202,42 @@ export default function QuotationsPage() {
 
   async function act(
     id: string,
-    action: 'approve' | 'cancel',
+    action: 'approve' | 'cancel' | 'delete',
     successText: string,
   ) {
     try {
-      await apiPost(`/quotations/${id}/${action}`, {});
+      if (action === 'delete') {
+        if (!window.confirm('Delete this draft permanently? This cannot be undone.')) {
+          return;
+        }
+        await apiDelete(`/quotations/${id}`);
+      } else {
+        await apiPost(`/quotations/${id}/${action}`, {});
+      }
       await reload();
-      notify(successText, action === 'cancel' ? 'danger' : 'success');
+      notify(successText, action === 'cancel' || action === 'delete' ? 'danger' : 'success');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Action failed');
+    }
+  }
+
+  async function duplicateFrom(id: string, mode: 'revise' | 'copy') {
+    try {
+      const path = mode === 'revise' ? 'revise' : 'copy';
+      const created = await apiPost<Quotation>(`/quotations/${id}/${path}`, {});
+      await reload();
+      notify(
+        mode === 'revise'
+          ? `Revision ${created.number} created as draft`
+          : `Copy ${created.number} created as draft`,
+      );
+      if (created.kind === 'counter_top') {
+        router.push(`/quotations/counter-top?edit=${created.id}`);
+        return;
+      }
+      startEdit(created);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not duplicate quotation');
     }
   }
 
@@ -480,20 +509,49 @@ export default function QuotationsPage() {
                               >
                                 Approve
                               </button>
-                              <button
-                                className={`${styles.ghost} ${styles.danger}`}
-                                onClick={() =>
-                                  void act(
-                                    quotation.id,
-                                    'cancel',
-                                    'Quotation cancelled',
-                                  )
-                                }
-                              >
-                                Cancel
-                              </button>
+                              {isAdmin ? (
+                                <button
+                                  className={`${styles.ghost} ${styles.danger}`}
+                                  onClick={() =>
+                                    void act(
+                                      quotation.id,
+                                      'delete',
+                                      'Quotation deleted',
+                                    )
+                                  }
+                                >
+                                  Delete
+                                </button>
+                              ) : (
+                                <button
+                                  className={`${styles.ghost} ${styles.danger}`}
+                                  onClick={() =>
+                                    void act(
+                                      quotation.id,
+                                      'cancel',
+                                      'Quotation cancelled',
+                                    )
+                                  }
+                                >
+                                  Cancel
+                                </button>
+                              )}
                             </>
                           ) : null}
+                          {quotation.status === 'approved' ? (
+                            <button
+                              className={styles.ghost}
+                              onClick={() => void duplicateFrom(quotation.id, 'revise')}
+                            >
+                              Revise
+                            </button>
+                          ) : null}
+                          <button
+                            className={styles.ghost}
+                            onClick={() => void duplicateFrom(quotation.id, 'copy')}
+                          >
+                            Copy as new
+                          </button>
                         </RowActionsBar>
                       </td>
                     </tr>

@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   Text,
   View,
 } from 'react-native';
-import { apiPost } from '../../lib/api';
+import { apiDelete, apiPost } from '../../lib/api';
+import { useCompanyAdmin } from '../../lib/useCompanyAdmin';
 import { amount, day, label, moneyHeader } from '../../lib/format';
 import {
   searchItems,
@@ -32,6 +34,7 @@ export default function AdvancesScreen() {
     usePolledList<AdvancePayment>('/advances');
   const { items: customers } = usePolledList<Customer>('/customers', 20000);
   const { flash, notify } = useFlash();
+  const isAdmin = useCompanyAdmin();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [showForm, setShowForm] = useState(false);
@@ -162,7 +165,39 @@ export default function AdvancesScreen() {
                       }
                     />
                   ) : null}
-                  {advance.allocatedAmount === 0 && !advance.cancelledAt ? (
+                  {advance.status === 'draft' && isAdmin ? (
+                    <LinkAction
+                      label="Delete"
+                      tone="danger"
+                      onPress={() =>
+                        Alert.alert(
+                          'Delete draft?',
+                          'This permanently removes the advance. This cannot be undone.',
+                          [
+                            { text: 'Keep', style: 'cancel' },
+                            {
+                              text: 'Delete',
+                              style: 'destructive',
+                              onPress: () =>
+                                void apiDelete(`/advances/${advance.id}`)
+                                  .then(() => reload())
+                                  .then(() => notify('Advance deleted', 'danger'))
+                                  .catch((e) =>
+                                    setError(
+                                      e instanceof Error
+                                        ? e.message
+                                        : 'Delete failed',
+                                    ),
+                                  ),
+                            },
+                          ],
+                        )
+                      }
+                    />
+                  ) : null}
+                  {advance.allocatedAmount === 0 &&
+                  !advance.cancelledAt &&
+                  !(advance.status === 'draft' && isAdmin) ? (
                     <LinkAction
                       label="Cancel"
                       onPress={() =>

@@ -6,7 +6,6 @@ import {
   View,
 } from 'react-native';
 import { apiFetch, apiPatch, apiPost } from '../../lib/api';
-import { money } from '../../lib/format';
 import {
   searchItems,
   useFlash,
@@ -26,7 +25,7 @@ type Plan = {
   name: string;
   code: string;
   interval: string;
-  priceAed: number;
+  priceUsd: number;
   trialDays: number;
   maxUsers: number;
   active: boolean;
@@ -39,7 +38,7 @@ export default function AdminPlansScreen() {
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [interval, setInterval] = useState<'monthly' | 'yearly'>('monthly');
-  const [priceAed, setPriceAed] = useState('0');
+  const [priceUsd, setPriceUsd] = useState('0');
   const [maxUsers, setMaxUsers] = useState('5');
   const [trialDays, setTrialDays] = useState('14');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -70,7 +69,7 @@ export default function AdminPlansScreen() {
       const payload = {
         name,
         code,
-        priceAed: Number(priceAed),
+        priceUsd: Number(priceUsd),
         maxUsers: Number(maxUsers),
         trialDays: Number(trialDays),
         interval,
@@ -98,7 +97,7 @@ export default function AdminPlansScreen() {
     setEditingId(plan.id);
     setName(plan.name);
     setCode(plan.code);
-    setPriceAed(String(plan.priceAed));
+    setPriceUsd(String(plan.priceUsd));
     setMaxUsers(String(plan.maxUsers));
     setTrialDays(String(plan.trialDays));
     setInterval(plan.interval === 'yearly' ? 'yearly' : 'monthly');
@@ -109,7 +108,7 @@ export default function AdminPlansScreen() {
     setName('');
     setCode('');
     setInterval('monthly');
-    setPriceAed('0');
+    setPriceUsd('0');
     setMaxUsers('5');
     setTrialDays('14');
   }
@@ -154,11 +153,11 @@ export default function AdminPlansScreen() {
           autoCapitalize="none"
           placeholderTextColor={colors.soft}
         />
-        <Text style={ui.label}>Price AED</Text>
+        <Text style={ui.label}>Price USD</Text>
         <TextInput
           style={ui.input}
-          value={priceAed}
-          onChangeText={setPriceAed}
+          value={priceUsd}
+          onChangeText={setPriceUsd}
           keyboardType="decimal-pad"
           placeholderTextColor={colors.soft}
         />
@@ -217,8 +216,10 @@ export default function AdminPlansScreen() {
             title={plan.name}
             meta={[
               plan.code,
-              money(plan.priceAed),
-              `${plan.maxUsers} seats`,
+              plan.code === 'custom'
+                ? 'Contact sales'
+                : `USD ${Number(plan.priceUsd).toFixed(2)}`,
+              plan.maxUsers === 0 ? 'unlimited seats' : `${plan.maxUsers} seats`,
               `${plan.trialDays}d trial`,
               plan.interval,
             ].join(' · ')}

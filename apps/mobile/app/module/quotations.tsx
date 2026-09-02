@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   Text,
   TextInput,
@@ -25,7 +26,8 @@ import {
   EMPTY_DISCOUNT,
   type DiscountDraft,
 } from '../../components/DiscountInput';
-import { apiFetch, apiPost, apiPut } from '../../lib/api';
+import { apiDelete, apiFetch, apiPost, apiPut } from '../../lib/api';
+import { useCompanyAdmin } from '../../lib/useCompanyAdmin';
 import { dueDateIso } from '../../lib/dates';
 import { day, money } from '../../lib/format';
 import {
@@ -117,6 +119,7 @@ export default function QuotationsScreen() {
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [lookups, setLookups] = useState<QuotationLookup[]>([]);
+  const isAdmin = useCompanyAdmin();
   const [lookupDraft, setLookupDraft] = useState({
     title: '',
     body: '',
@@ -301,13 +304,59 @@ export default function QuotationsScreen() {
     }
   }
 
-  async function act(id: string, action: 'approve' | 'cancel', text: string) {
+  async function act(
+    id: string,
+    action: 'approve' | 'cancel' | 'delete',
+    text: string,
+  ) {
     try {
-      await apiPost(`/quotations/${id}/${action}`, {});
+      if (action === 'delete') {
+        await apiDelete(`/quotations/${id}`);
+      } else {
+        await apiPost(`/quotations/${id}/${action}`, {});
+      }
       await reload();
-      notify(text, action === 'cancel' ? 'danger' : 'success');
+      notify(text, action === 'cancel' || action === 'delete' ? 'danger' : 'success');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Action failed');
+    }
+  }
+
+  function confirmDelete(id: string) {
+    Alert.alert(
+      'Delete draft?',
+      'This permanently removes the quotation. This cannot be undone.',
+      [
+        { text: 'Keep', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () =>
+            void act(id, 'delete', 'Quotation deleted'),
+        },
+      ],
+    );
+  }
+
+  async function duplicateFrom(id: string, mode: 'revise' | 'copy') {
+    try {
+      const path = mode === 'revise' ? 'revise' : 'copy';
+      const created = await apiPost<Quotation>(`/quotations/${id}/${path}`, {});
+      await reload();
+      notify(
+        mode === 'revise'
+          ? `Revision ${created.number} created`
+          : `Copy ${created.number} created`,
+      );
+      if (created.kind === 'counter_top') {
+        router.push(
+          `/module/quotations-counter-top?edit=${created.id}` as never,
+        );
+        return;
+      }
+      startEdit(created);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not duplicate quotation');
     }
   }
 
@@ -834,19 +883,37 @@ export default function QuotationsScreen() {
                           )
                         }
                       />
-                      <LinkAction
-                        label="Cancel"
-                        tone="danger"
-                        onPress={() =>
-                          void act(
-                            quotation.id,
-                            'cancel',
-                            'Quotation cancelled',
-                          )
-                        }
-                      />
+                      {isAdmin ? (
+                        <LinkAction
+                          label="Delete"
+                          tone="danger"
+                          onPress={() => confirmDelete(quotation.id)}
+                        />
+                      ) : (
+                        <LinkAction
+                          label="Cancel"
+                          tone="danger"
+                          onPress={() =>
+                            void act(
+                              quotation.id,
+                              'cancel',
+                              'Quotation cancelled',
+                            )
+                          }
+                        />
+                      )}
                     </>
                   ) : null}
+                  {quotation.status === 'approved' ? (
+                    <LinkAction
+                      label="Revise"
+                      onPress={() => void duplicateFrom(quotation.id, 'revise')}
+                    />
+                  ) : null}
+                  <LinkAction
+                    label="Copy as new"
+                    onPress={() => void duplicateFrom(quotation.id, 'copy')}
+                  />
                 </RecordRow>
               ))
             )}

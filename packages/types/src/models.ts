@@ -179,6 +179,11 @@ export type Quotation = {
   profit: number;
   approvedAt: string | null;
   cancelledAt: string | null;
+  revisionOfId: string | null;
+  rootQuotationId: string | null;
+  revisionNumber: number;
+  revisionOf: { id: string; number: string } | null;
+  rootQuotation: { id: string; number: string } | null;
   createdAt: string;
   lines: QuotationLine[];
   sections: QuotationSection[];
@@ -437,6 +442,20 @@ export type LpoLine = {
   lineTotal: number;
 };
 
+export type LpoPurchaseInvoiceSummary = {
+  id: string;
+  number: string;
+  status: string;
+  total: number;
+  balance: number;
+};
+
+export type LpoReceiptSummary = {
+  id: string;
+  number: string;
+  receiptDate: string;
+};
+
 export type Lpo = {
   id: string;
   number: string;
@@ -455,6 +474,8 @@ export type Lpo = {
   updatedAt: string;
   lines: LpoLine[];
   supplier?: { id: string; name: string };
+  purchaseInvoices?: LpoPurchaseInvoiceSummary[];
+  receipts?: LpoReceiptSummary[];
 };
 
 export type PurchaseInvoice = {

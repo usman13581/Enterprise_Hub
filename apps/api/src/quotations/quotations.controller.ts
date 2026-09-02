@@ -69,6 +69,16 @@ export class QuotationsController {
     return this.service.cancel(session, id);
   }
 
+  @Post(':id/revise')
+  revise(@CurrentSession() session: SessionContext, @Param('id') id: string) {
+    return this.service.revise(session, id);
+  }
+
+  @Post(':id/copy')
+  copyAsNew(@CurrentSession() session: SessionContext, @Param('id') id: string) {
+    return this.service.copyAsNew(session, id);
+  }
+
   @Delete(':id')
   remove(@CurrentSession() session: SessionContext, @Param('id') id: string) {
     return this.service.remove(session, id);

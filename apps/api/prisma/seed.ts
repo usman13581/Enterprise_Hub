@@ -133,7 +133,7 @@ async function main() {
     update: {
       name: 'Pilot',
       interval: 'yearly',
-      priceAed: 0,
+      priceUsd: 0,
       trialDays: 365,
       maxUsers: 5,
       active: true,
@@ -142,33 +142,63 @@ async function main() {
       name: 'Pilot',
       code: 'pilot',
       interval: 'yearly',
-      priceAed: 0,
+      priceUsd: 0,
       trialDays: 365,
       maxUsers: 5,
       active: true,
     },
   });
 
-  await prisma.plan.upsert({
-    where: { code: 'standard' },
-    update: {
-      name: 'Standard',
-      interval: 'monthly',
-      priceAed: 499,
+  const commercialPlans = [
+    {
+      code: 'basic',
+      name: 'Basic',
+      interval: 'monthly' as const,
+      priceUsd: 49,
       trialDays: 14,
-      maxUsers: 10,
-      active: true,
+      maxUsers: 1,
     },
-    create: {
-      name: 'Standard',
+    {
+      code: 'basic-yearly',
+      name: 'Basic Yearly',
+      interval: 'yearly' as const,
+      priceUsd: 499,
+      trialDays: 14,
+      maxUsers: 1,
+    },
+    {
       code: 'standard',
-      interval: 'monthly',
-      priceAed: 499,
+      name: 'Standard',
+      interval: 'monthly' as const,
+      priceUsd: 99,
       trialDays: 14,
       maxUsers: 10,
-      active: true,
     },
-  });
+    {
+      code: 'standard-yearly',
+      name: 'Standard Yearly',
+      interval: 'yearly' as const,
+      priceUsd: 949,
+      trialDays: 14,
+      maxUsers: 10,
+    },
+    {
+      code: 'custom',
+      name: 'Custom',
+      interval: 'monthly' as const,
+      priceUsd: 0,
+      trialDays: 0,
+      maxUsers: 0,
+    },
+  ];
+
+  for (const plan of commercialPlans) {
+    await prisma.plan.upsert({
+      where: { code: plan.code },
+      update: { ...plan, active: true },
+      create: { ...plan, active: true },
+    });
+  }
 
   const farExpiry = new Date();
   farExpiry.setFullYear(farExpiry.getFullYear() + 2);

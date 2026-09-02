@@ -590,6 +590,8 @@ export function CreditNoteForm({
           qty: String(line.qty),
           unitPrice: String(line.unitPrice),
           purchasePrice: String(line.purchasePrice),
+          discountMode: line.discountMode,
+          discountValue: String(line.discountValue ?? 0),
         }))
       : [{ ...EMPTY_INVOICE_LINE }],
   );

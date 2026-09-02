@@ -2,13 +2,15 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { computeInvoiceTotals } from '@marble/domain';
-import { apiPost } from '../../lib/api';
+import { apiDelete, apiPost } from '../../lib/api';
+import { useCompanyAdmin } from '../../lib/useCompanyAdmin';
 import { dueDateIso } from '../../lib/dates';
 import { amount, day, label } from '../../lib/format';
 import {
@@ -75,6 +77,7 @@ export default function InvoicesScreen() {
   const { items: customers } = usePolledList<Customer>('/customers', 20000);
   const { items: jobs } = usePolledList<JobListItem>('/jobs', 20000);
   const { flash, notify } = useFlash();
+  const isAdmin = useCompanyAdmin();
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -148,6 +151,31 @@ export default function InvoicesScreen() {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not issue');
     }
+  }
+
+  async function deleteDraft(id: string) {
+    try {
+      await apiDelete(`/invoices/${id}`);
+      await reload();
+      notify('Invoice deleted', 'danger');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not delete');
+    }
+  }
+
+  function confirmDeleteDraft(id: string) {
+    Alert.alert(
+      'Delete draft?',
+      'This permanently removes the invoice. This cannot be undone.',
+      [
+        { text: 'Keep', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => void deleteDraft(id),
+        },
+      ],
+    );
   }
 
   async function cancel(id: string) {
@@ -332,11 +360,19 @@ export default function InvoicesScreen() {
                         label="Issue"
                         onPress={() => void issue(invoice.id)}
                       />
-                      <LinkAction
-                        label="Cancel"
-                        tone="danger"
-                        onPress={() => void cancel(invoice.id)}
-                      />
+                      {isAdmin ? (
+                        <LinkAction
+                          label="Delete"
+                          tone="danger"
+                          onPress={() => confirmDeleteDraft(invoice.id)}
+                        />
+                      ) : (
+                        <LinkAction
+                          label="Cancel"
+                          tone="danger"
+                          onPress={() => void cancel(invoice.id)}
+                        />
+                      )}
                     </>
                   ) : null}
                   {invoice.status === 'issued' &&

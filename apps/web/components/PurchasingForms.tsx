@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { dateInputValue, dueDateIso, todayIso } from '@/lib/dates';
+import { apiFetch } from '@/lib/api';
 import { usePolledList } from '@/lib/useCollection';
 import type { Lpo, Product, PurchaseInvoice, Supplier } from '@marble/types';
 import {
@@ -15,6 +16,7 @@ import {
   EMPTY_PURCHASE_LINE,
   lpoLinePayload,
   lpoLinesToDraft,
+  lpoLinesToInvoiceDraft,
   purchaseInvoiceLinesToDraft,
   purchaseLinePayload,
   PurchasingLineEditor,
@@ -40,6 +42,7 @@ export type LpoSavePayload = {
 export type PurchaseInvoiceDetail = PurchaseInvoice & {
   taxInclusive: boolean;
   supplier: { id: string; name: string };
+  lpo?: { id: string; number: string } | null;
   lines: Array<{
     id: string;
     productId: string | null;
@@ -65,13 +68,20 @@ export type PurchaseInvoiceSavePayload = {
   lines: ReturnType<typeof purchaseLinePayload>;
 };
 
+export type PurchaseInvoicePreset = {
+  supplierId: string;
+  lpoId: string;
+};
+
 export function PurchaseInvoiceForm({
   invoice,
+  preset,
   onSave,
   onCancel,
   saving,
 }: {
   invoice?: PurchaseInvoiceDetail;
+  preset?: PurchaseInvoicePreset;
   onSave: (payload: PurchaseInvoiceSavePayload) => void | Promise<void>;
   onCancel: () => void;
   saving: boolean;
@@ -79,8 +89,10 @@ export function PurchaseInvoiceForm({
   const editing = Boolean(invoice);
   const { items: suppliers } = usePolledList<Supplier>('/suppliers');
   const { items: products } = usePolledList<Product>('/products');
-  const [supplierId, setSupplierId] = useState(invoice?.supplierId ?? '');
-  const [lpoId, setLpoId] = useState(invoice?.lpoId ?? '');
+  const [supplierId, setSupplierId] = useState(
+    invoice?.supplierId ?? preset?.supplierId ?? '',
+  );
+  const [lpoId, setLpoId] = useState(invoice?.lpoId ?? preset?.lpoId ?? '');
   const [supplierInvoiceNumber, setSupplierInvoiceNumber] = useState(
     invoice?.supplierInvoiceNumber ?? '',
   );
@@ -102,8 +114,22 @@ export function PurchaseInvoiceForm({
       : [{ ...EMPTY_PURCHASE_LINE }],
   );
   const { items: lpos } = usePolledList<Lpo>(
-    supplierId ? `/lpos?supplierId=${supplierId}&status=sent` : '/lpos?status=sent',
+    supplierId
+      ? `/lpos?supplierId=${supplierId}&invoiceEligible=1`
+      : '/lpos?invoiceEligible=1',
   );
+
+  useEffect(() => {
+    if (editing || !lpoId) return;
+    void apiFetch<Lpo>(`/lpos/${lpoId}`)
+      .then((lpo) => {
+        const draftLines = lpoLinesToInvoiceDraft(lpo.lines);
+        if (draftLines.length > 0) {
+          setLines(draftLines);
+        }
+      })
+      .catch(() => undefined);
+  }, [editing, lpoId]);
 
   const payloadLines = purchaseLinePayload(lines);
   const canSave =

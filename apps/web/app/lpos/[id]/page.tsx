@@ -1,15 +1,24 @@
 'use client';
 
-import { useParams, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { apiFetch, apiPost, apiPut } from '@/lib/api';
+import { apiDelete, apiFetch, apiPost, apiPut } from '@/lib/api';
+import { useCompanyAdmin } from '@/lib/useCompanyAdmin';
 import { usePolledList } from '@/lib/useCollection';
-import { BackLink, EmptyState, TableScroll, TotalsBlock } from '@/components/Finance';
+import {
+  BackLink,
+  EditIconButton,
+  EmptyState,
+  StatusBadge,
+  TableScroll,
+  TotalsBlock,
+} from '@/components/Finance';
 import {
   discountTotalsRows,
 } from '@/components/DiscountFields';
 import { LpoForm, type LpoSavePayload } from '@/components/PurchasingForms';
-import type { Lpo, Product, Supplier } from '@marble/types';
+import type { Lpo, LpoPurchaseInvoiceSummary, Product, Supplier } from '@marble/types';
 import { computePurchasingTotals } from '@marble/domain';
 import { todayIso } from '@/lib/dates';
 import { amount, day, moneyHeader } from '@/lib/format';
@@ -20,10 +29,14 @@ import finance from '@/components/finance.module.css';
 type Detail = Lpo & {
   supplier: { name: string };
   receipts: Array<{ id: string; number: string; receiptDate: string }>;
+  purchaseInvoices?: LpoPurchaseInvoiceSummary[];
 };
+
+const BILLABLE_LPO_STATUSES = ['approved', 'sent', 'partially_received'];
 
 export default function LpoDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { items: suppliers } = usePolledList<Supplier>('/suppliers');
   const { items: products } = usePolledList<Product>('/products');
@@ -32,6 +45,7 @@ export default function LpoDetailPage() {
   const [receipt, setReceipt] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState(searchParams.get('edit') === '1');
   const [saving, setSaving] = useState(false);
+  const isAdmin = useCompanyAdmin();
 
   async function reload() {
     try {
@@ -44,6 +58,18 @@ export default function LpoDetailPage() {
   useEffect(() => {
     void reload();
   }, [id]);
+
+  async function deleteDraft() {
+    if (!window.confirm('Delete this draft permanently? This cannot be undone.')) {
+      return;
+    }
+    try {
+      await apiDelete(`/lpos/${id}`);
+      router.push('/purchase-orders');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete LPO');
+    }
+  }
 
   async function action(name: 'approve' | 'send' | 'cancel') {
     try {
@@ -158,6 +184,18 @@ export default function LpoDetailPage() {
             <button className={styles.button} onClick={() => void action('approve')}>
               Approve
             </button>
+            {isAdmin ? (
+              <button
+                className={`${styles.ghost} ${styles.danger}`}
+                onClick={() => void deleteDraft()}
+              >
+                Delete
+              </button>
+            ) : (
+              <button className={styles.ghost} onClick={() => void action('cancel')}>
+                Cancel
+              </button>
+            )}
           </>
         ) : null}
         {lpo.status === 'approved' ? (
@@ -165,7 +203,15 @@ export default function LpoDetailPage() {
             Send
           </button>
         ) : null}
-        {['draft', 'approved', 'sent'].includes(lpo.status) ? (
+        {BILLABLE_LPO_STATUSES.includes(lpo.status) ? (
+          <Link
+            className={styles.button}
+            href={`/purchase-invoices?supplierId=${lpo.supplierId}&lpoId=${lpo.id}`}
+          >
+            Create purchase invoice
+          </Link>
+        ) : null}
+        {['approved', 'sent'].includes(lpo.status) ? (
           <button className={styles.ghost} onClick={() => void action('cancel')}>
             Cancel
           </button>
@@ -239,6 +285,54 @@ export default function LpoDetailPage() {
           </button>
         </div>
       ) : null}
+
+      <h2 className={styles.formTitle}>Purchase invoices</h2>
+      {(lpo.purchaseInvoices?.length ?? 0) > 0 ? (
+        <TableScroll>
+          <table className={finance.table}>
+            <thead>
+              <tr>
+                <th className={finance.rowLead} aria-label="Edit" />
+                <th>Invoice</th>
+                <th>Status</th>
+                <th className={finance.numeric}>{moneyHeader('Total')}</th>
+                <th className={finance.numeric}>{moneyHeader('Balance')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lpo.purchaseInvoices!.map((item) => (
+                <tr key={item.id}>
+                  <td className={finance.rowLead}>
+                    {item.status === 'draft' ? (
+                      <EditIconButton
+                        label="Edit purchase invoice"
+                        onClick={() =>
+                          router.push(`/purchase-invoices/${item.id}?edit=1`)
+                        }
+                      />
+                    ) : null}
+                  </td>
+                  <td>
+                    <Link
+                      className={finance.link}
+                      href={`/purchase-invoices/${item.id}`}
+                    >
+                      {item.number}
+                    </Link>
+                  </td>
+                  <td>
+                    <StatusBadge status={item.status} />
+                  </td>
+                  <td className={finance.numeric}>{amount(item.total)}</td>
+                  <td className={finance.numeric}>{amount(item.balance)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
+      ) : (
+        <p className={styles.count}>No purchase invoices linked to this LPO.</p>
+      )}
 
       <h2 className={styles.formTitle}>Receipts</h2>
       {lpo.receipts.length ? (

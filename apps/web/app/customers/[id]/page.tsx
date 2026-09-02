@@ -1,8 +1,8 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useState } from 'react';
 import { amount, day, label, moneyHeader } from '@/lib/format';
 import { useFlash, usePolledItem } from '@/lib/useCollection';
 import { Toast } from '@/components/ListControls';
@@ -35,6 +35,12 @@ export default function CustomerHubPage() {
   const { flash, notify } = useFlash();
   const [tab, setTab] = useState<Tab>('jobs');
   const [showAdvance, setShowAdvance] = useState(false);
+  const reportRange = useMemo(() => {
+    const now = new Date();
+    const from = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const to = now.toISOString().slice(0, 10);
+    return { from, to };
+  }, []);
 
   if (!item) {
     return (
@@ -387,7 +393,19 @@ export default function CustomerHubPage() {
         )
       ) : null}
 
-      {tab === 'ledger' ? <LedgerTable rows={ledger} /> : null}
+      {tab === 'ledger' ? (
+        <>
+          <div className={finance.actionBar}>
+            <Link
+              className={styles.ghost}
+              href={`/reports/customer-statement?customerId=${customer.id}&from=${reportRange.from}&to=${reportRange.to}`}
+            >
+              Open customer ledger report
+            </Link>
+          </div>
+          <LedgerTable rows={ledger} />
+        </>
+      ) : null}
 
       <Toast flash={flash} />
     </section>

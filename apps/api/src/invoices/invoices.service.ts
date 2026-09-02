@@ -30,7 +30,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { NumberingService } from '../common/numbering.service';
-import { SessionContext } from '../auth/session.types';
+import { SessionContext, requireCompanyAdmin } from '../auth/session.types';
 
 const INCLUDE = {
   customer: { select: { id: true, name: true, trn: true } },
@@ -534,6 +534,34 @@ export class InvoicesService {
     });
 
     return invoice;
+  }
+
+  async remove(session: SessionContext, id: string) {
+    const s = requireCompanyAdmin(session);
+    const before = await this.prisma.invoice.findFirst({
+      where: { id, companyId: s.companyId },
+      include: { creditNotes: { select: { id: true } } },
+    });
+    if (!before) throw new NotFoundException('Invoice not found');
+    if (before.status !== 'draft') {
+      throw new ConflictException('Only draft invoices can be deleted');
+    }
+    if (before.creditNotes.length > 0) {
+      throw new ConflictException(
+        'Delete linked credit notes before removing this invoice',
+      );
+    }
+
+    await this.prisma.invoice.delete({ where: { id } });
+    await this.audit.write({
+      companyId: s.companyId,
+      actorId: s.userId,
+      entityType: 'Invoice',
+      entityId: id,
+      action: 'delete',
+      before,
+    });
+    return { ok: true, id };
   }
 
   /** Shared save path for every non-credit-note invoice kind. */

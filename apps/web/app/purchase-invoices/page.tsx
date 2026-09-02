@@ -2,16 +2,22 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useMemo, useState } from 'react';
-import { apiPost, apiPut } from '@/lib/api';
-import { usePolledList } from '@/lib/useCollection';
+import { useEffect, useMemo, useState } from 'react';
+import { apiDelete, apiPost, apiPut } from '@/lib/api';
+import { useCompanyAdmin } from '@/lib/useCompanyAdmin';
+import {
+  searchItems,
+  useFlash,
+  usePagination,
+  usePolledList,
+} from '@/lib/useCollection';
 import { EditIconButton, EmptyState, FilterBar, StatusBadge, TableScroll } from '@/components/Finance';
-import { Toast } from '@/components/ListControls';
-import { useFlash } from '@/lib/useCollection';
+import { Pagination, SearchBox, Toast } from '@/components/ListControls';
 import { amount, moneyHeader } from '@/lib/format';
 import type { PurchaseInvoice } from '@marble/types';
 import {
   PurchaseInvoiceForm,
+  type PurchaseInvoicePreset,
   type PurchaseInvoiceSavePayload,
 } from '@/components/PurchasingForms';
 import page from '../page.module.css';
@@ -30,20 +36,32 @@ export default function PurchaseInvoicesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supplierId = searchParams.get('supplierId');
+  const lpoId = searchParams.get('lpoId');
+  const preset = useMemo<PurchaseInvoicePreset | undefined>(() => {
+    if (!supplierId || !lpoId) return undefined;
+    return { supplierId, lpoId };
+  }, [supplierId, lpoId]);
   const { items, error, setError, reload } = usePolledList<PurchaseInvoice>(
     supplierId ? `/purchase-invoices?supplierId=${supplierId}` : '/purchase-invoices',
   );
   const { flash, notify } = useFlash();
+  const isAdmin = useCompanyAdmin();
   const [filter, setFilter] = useState<Filter>('all');
+  const [query, setQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const filtered = useMemo(
-    () =>
+
+  useEffect(() => {
+    if (preset) setShowForm(true);
+  }, [preset]);
+  const filtered = useMemo(() => {
+    const byStatus =
       filter === 'all'
         ? items
-        : items.filter((item) => item.status === filter),
-    [items, filter],
-  );
+        : items.filter((item) => item.status === filter);
+    return searchItems(byStatus, query);
+  }, [items, filter, query]);
+  const pager = usePagination(filtered, `${filter}:${query}`);
 
   async function create(payload: PurchaseInvoiceSavePayload) {
     if (saving) return;
@@ -57,6 +75,19 @@ export default function PurchaseInvoicesPage() {
       setError(err instanceof Error ? err.message : 'Could not save purchase invoice');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function deleteDraft(id: string) {
+    if (!window.confirm('Delete this draft permanently? This cannot be undone.')) {
+      return;
+    }
+    try {
+      await apiDelete(`/purchase-invoices/${id}`);
+      await reload();
+      notify('Purchase invoice deleted', 'danger');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete invoice');
     }
   }
 
@@ -76,6 +107,7 @@ export default function PurchaseInvoicesPage() {
       {error ? <p className={styles.error}>{error}</p> : null}
       {showForm ? (
         <PurchaseInvoiceForm
+          preset={preset}
           saving={saving}
           onSave={create}
           onCancel={() => setShowForm(false)}
@@ -89,18 +121,25 @@ export default function PurchaseInvoicesPage() {
         </div>
       )}
       {!showForm ? (
-        <FilterBar
-          active={filter}
-          onChange={setFilter}
-          options={[
-            { key: 'all', label: 'All' },
-            { key: 'draft', label: 'Draft' },
-            { key: 'posted', label: 'Posted' },
-            { key: 'partially_paid', label: 'Partially paid' },
-            { key: 'paid', label: 'Paid' },
-            { key: 'cancelled', label: 'Cancelled' },
-          ]}
-        />
+        <>
+          <FilterBar
+            active={filter}
+            onChange={setFilter}
+            options={[
+              { key: 'all', label: 'All' },
+              { key: 'draft', label: 'Draft' },
+              { key: 'posted', label: 'Posted' },
+              { key: 'partially_paid', label: 'Partially paid' },
+              { key: 'paid', label: 'Paid' },
+              { key: 'cancelled', label: 'Cancelled' },
+            ]}
+          />
+          <SearchBox
+            value={query}
+            onChange={setQuery}
+            placeholder="Search purchase invoices…"
+          />
+        </>
       ) : null}
       {filtered.length ? (
         <TableScroll>
@@ -119,7 +158,7 @@ export default function PurchaseInvoicesPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((item) => (
+              {pager.paged.map((item) => (
                 <tr key={item.id}>
                   <td className={finance.rowLead}>
                     {item.status === 'draft' ? (
@@ -146,9 +185,19 @@ export default function PurchaseInvoicesPage() {
                   <td className={finance.numeric}>{amount(item.balance)}</td>
                   <td>
                     {item.status === 'draft' ? (
-                      <button className={styles.ghost} onClick={() => void post(item.id)}>
-                        Post
-                      </button>
+                      <>
+                        <button className={styles.ghost} onClick={() => void post(item.id)}>
+                          Post
+                        </button>
+                        {isAdmin ? (
+                          <button
+                            className={`${styles.ghost} ${styles.danger}`}
+                            onClick={() => void deleteDraft(item.id)}
+                          >
+                            Delete
+                          </button>
+                        ) : null}
+                      </>
                     ) : null}
                   </td>
                 </tr>
@@ -163,6 +212,16 @@ export default function PurchaseInvoicesPage() {
             : 'No purchase invoices match this filter.'}
         </EmptyState>
       )}
+      {!showForm && filtered.length > 0 ? (
+        <Pagination
+          page={pager.page}
+          setPage={pager.setPage}
+          pageSize={pager.pageSize}
+          setPageSize={pager.setPageSize}
+          pageCount={pager.pageCount}
+          total={pager.total}
+        />
+      ) : null}
       <Toast flash={flash} />
     </section>
   );

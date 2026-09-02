@@ -24,6 +24,7 @@ export type PurchaseLineDraft = {
   unitCost: string;
   discountMode: DiscountDraft['discountMode'];
   discountValue: string;
+  lpoLineId?: string;
 };
 
 export const EMPTY_PURCHASE_LINE: PurchaseLineDraft = {
@@ -43,6 +44,7 @@ const num = (value: string) => {
 
 export function purchaseLinePayload(lines: PurchaseLineDraft[]) {
   return lines.map((line) => ({
+    ...(line.lpoLineId ? { lpoLineId: line.lpoLineId } : {}),
     productId: line.productId || null,
     productName: line.productName.trim(),
     unit: line.unit.trim() || 'unit',
@@ -85,6 +87,25 @@ export function lpoLinesToDraft(lines: LpoLine[]): PurchaseLineDraft[] {
     discountMode: line.discountMode,
     discountValue: String(line.discountValue ?? 0),
   }));
+}
+
+export function lpoLinesToInvoiceDraft(lines: LpoLine[]): PurchaseLineDraft[] {
+  const draft: PurchaseLineDraft[] = [];
+  for (const line of lines) {
+    const remaining = line.orderedQty - line.invoicedQty;
+    if (remaining <= 0) continue;
+    draft.push({
+      productId: line.productId ?? '',
+      productName: line.productName,
+      unit: line.unit,
+      qty: String(remaining),
+      unitCost: String(line.unitCost),
+      discountMode: line.discountMode,
+      discountValue: String(line.discountValue ?? 0),
+      lpoLineId: line.id,
+    });
+  }
+  return draft;
 }
 
 export function lpoLinePayload(lines: PurchaseLineDraft[]) {
@@ -157,7 +178,7 @@ export function PurchasingLineEditor({
   return (
     <div className={`${styles.lineEditor} ${styles.purchasingLineEditor}`}>
       <div className={styles.lineHead}>
-        <span>Product</span>
+        <span>Description</span>
         <span>Unit</span>
         <span>Qty</span>
         <span>Unit cost</span>
@@ -169,26 +190,28 @@ export function PurchasingLineEditor({
       {lines.map((line, index) => (
         <div key={index} className={styles.lineRow}>
           <div>
-            <SearchableSelect
-              label=""
-              value={line.productId}
-              onChange={(value) => pickProduct(index, value)}
-              disabled={!supplierId}
-              placeholder="Search products…"
-              options={supplierProducts.map((product) => ({
-                id: product.id,
-                label: product.name,
-              }))}
+            <input
+              className={styles.lineInput}
+              value={line.productName}
+              placeholder="What is being purchased"
+              required
+              onChange={(event) =>
+                patch(index, { productName: event.target.value })
+              }
             />
-            {!line.productId && line.productName ? (
-              <input
-                className={styles.lineInput}
-                style={{ marginTop: '0.35rem' }}
-                value={line.productName}
-                placeholder="Product name"
-                onChange={(event) =>
-                  patch(index, { productName: event.target.value })
-                }
+            {supplierProducts.length > 0 ? (
+              <SearchableSelect
+                label=""
+                value={line.productId}
+                onChange={(value) => pickProduct(index, value)}
+                disabled={!supplierId}
+                placeholder="Optional catalog product…"
+                allowEmpty
+                emptyLabel="No catalog product"
+                options={supplierProducts.map((product) => ({
+                  id: product.id,
+                  label: product.name,
+                }))}
               />
             ) : null}
           </div>

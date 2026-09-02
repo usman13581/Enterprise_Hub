@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { apiPost } from '@/lib/api';
+import { apiDelete, apiPost } from '@/lib/api';
+import { useCompanyAdmin } from '@/lib/useCompanyAdmin';
 import { amount, day, label, moneyHeader } from '@/lib/format';
 import {
   searchItems,
@@ -23,6 +24,7 @@ export default function AdvancesPage() {
     usePolledList<AdvancePayment>('/advances');
   const { items: customers } = usePolledList<Customer>('/customers', 20000);
   const { flash, notify } = useFlash();
+  const isAdmin = useCompanyAdmin();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'draft' | 'posted' | 'cancelled'>('all');
   const [showForm, setShowForm] = useState(false);
@@ -59,6 +61,19 @@ export default function AdvancesPage() {
       notify('Advance approved');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not approve');
+    }
+  }
+
+  async function onDeleteDraft(id: string) {
+    if (!window.confirm('Delete this draft permanently? This cannot be undone.')) {
+      return;
+    }
+    try {
+      await apiDelete(`/advances/${id}`);
+      await reload();
+      notify('Advance deleted', 'danger');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete');
     }
   }
 
@@ -205,8 +220,17 @@ export default function AdvancesPage() {
                               Approve
                             </button>
                           ) : null}
+                          {advance.status === 'draft' && isAdmin ? (
+                            <button
+                              className={`${styles.ghost} ${styles.danger}`}
+                              onClick={() => void onDeleteDraft(advance.id)}
+                            >
+                              Delete
+                            </button>
+                          ) : null}
                           {advance.allocatedAmount === 0 &&
-                          !advance.cancelledAt ? (
+                          !advance.cancelledAt &&
+                          !(advance.status === 'draft' && isAdmin) ? (
                             <button
                               className={styles.ghost}
                               onClick={() => void onCancel(advance.id)}

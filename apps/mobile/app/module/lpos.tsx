@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   Text,
   TextInput,
@@ -20,7 +21,8 @@ import { FilterChips, RecordRow } from '../../components/Finance';
 import { ScreenScroll } from '../../components/ScreenScroll';
 import { FormField, FormPicker } from '../../components/FormField';
 import { SearchablePicker } from '../../components/SearchablePicker';
-import { apiPost } from '../../lib/api';
+import { apiDelete, apiPost } from '../../lib/api';
+import { useCompanyAdmin } from '../../lib/useCompanyAdmin';
 import {
   searchItems,
   useFlash,
@@ -76,6 +78,7 @@ export default function LposScreen() {
   const { items: suppliers } = usePolledList<Supplier>('/suppliers');
   const { items: products } = usePolledList<Product>('/products');
   const { flash, notify } = useFlash();
+  const isAdmin = useCompanyAdmin();
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -178,6 +181,31 @@ export default function LposScreen() {
     }
   }
 
+  async function deleteDraft(id: string) {
+    try {
+      await apiDelete(`/lpos/${id}`);
+      await reload();
+      notify('LPO deleted', 'danger');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete LPO');
+    }
+  }
+
+  function confirmDeleteDraft(id: string) {
+    Alert.alert(
+      'Delete draft?',
+      'This permanently removes the LPO. This cannot be undone.',
+      [
+        { text: 'Keep', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => void deleteDraft(id),
+        },
+      ],
+    );
+  }
+
   async function transition(
     id: string,
     action: 'approve' | 'send' | 'cancel',
@@ -230,7 +258,7 @@ export default function LposScreen() {
             {lines.map((line, index) => (
               <View key={index} style={styles.lineBox}>
                 <Text style={ui.label}>Line {index + 1}</Text>
-                <FormPicker label="Product">
+                <FormPicker label="Product (optional)">
                   <SearchablePicker
                     value={line.productId}
                     options={productOptions}
@@ -243,15 +271,13 @@ export default function LposScreen() {
                     onChange={(value) => pickProduct(index, value)}
                   />
                 </FormPicker>
-                {!line.productId ? (
-                  <FormField
-                    label="Product name"
-                    value={line.productName}
-                    onChangeText={(productName) =>
-                      patchLine(index, { productName })
-                    }
-                  />
-                ) : null}
+                <FormField
+                  label="Description"
+                  value={line.productName}
+                  onChangeText={(productName) =>
+                    patchLine(index, { productName })
+                  }
+                />
                 <View style={styles.row}>
                   <View style={styles.half}>
                     <Text style={ui.label}>Quantity</Text>
@@ -382,12 +408,22 @@ export default function LposScreen() {
             }
           >
             {item.status === 'draft' ? (
-              <Pressable
-                style={ui.ghost}
-                onPress={() => void transition(item.id, 'approve')}
-              >
-                <Text style={ui.ghostText}>Approve</Text>
-              </Pressable>
+              <>
+                <Pressable
+                  style={ui.ghost}
+                  onPress={() => void transition(item.id, 'approve')}
+                >
+                  <Text style={ui.ghostText}>Approve</Text>
+                </Pressable>
+                {isAdmin ? (
+                  <Pressable
+                    style={ui.ghost}
+                    onPress={() => confirmDeleteDraft(item.id)}
+                  >
+                    <Text style={[ui.ghostText, ui.dangerText]}>Delete</Text>
+                  </Pressable>
+                ) : null}
+              </>
             ) : item.status === 'approved' ? (
               <Pressable
                 style={ui.ghost}

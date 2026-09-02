@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -29,6 +29,7 @@ import {
 } from "../../components/Finance";
 import { AdvanceForm } from "../../components/MoneyForms";
 import { day, label, money } from "../../lib/format";
+import { isoDate, todayIso } from "../../lib/dates";
 import type { Customer, CustomerHub } from "../../lib/types";
 import { colors, ui } from "../../lib/ui";
 
@@ -320,6 +321,13 @@ function CustomerHubScreen({
     "jobs",
   );
   const [showAdvance, setShowAdvance] = useState(false);
+  const reportRange = useMemo(() => {
+    const now = new Date();
+    return {
+      from: isoDate(new Date(now.getFullYear(), now.getMonth(), 1)),
+      to: todayIso(),
+    };
+  }, []);
 
   if (!item) {
     return (
@@ -487,6 +495,19 @@ function CustomerHubScreen({
               />
             ))
           : null}
+
+        {tab === "ledger" ? (
+          <Pressable
+            style={ui.ghost}
+            onPress={() =>
+              router.push(
+                `/module/reports?report=customer-statement&customerId=${customer.id}&from=${reportRange.from}&to=${reportRange.to}` as never,
+              )
+            }
+          >
+            <Text style={ui.ghostText}>Open customer ledger report</Text>
+          </Pressable>
+        ) : null}
 
         {tab === "ledger"
           ? ledger.map((row) => (

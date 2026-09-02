@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   Text,
   TextInput,
@@ -20,14 +21,15 @@ import { FormField, FormPicker } from '../../../components/FormField';
 import { RecordRow } from '../../../components/Finance';
 import { ScreenScroll } from '../../../components/ScreenScroll';
 import { SearchablePicker } from '../../../components/SearchablePicker';
-import { apiFetch, apiPost, apiPut } from '../../../lib/api';
+import { apiDelete, apiFetch, apiPost, apiPut } from '../../../lib/api';
+import { useCompanyAdmin } from '../../../lib/useCompanyAdmin';
 import { dateInputValue, dueDateIso, todayIso } from '../../../lib/dates';
 import { usePolledList } from '../../../lib/useCollection';
 import { money } from '../../../lib/format';
 import { colors, ui } from '../../../lib/ui';
 
 type Detail = Lpo & {
-  supplier: { name: string };
+  supplier: { id: string; name: string };
   receipts: Array<{ id: string; number: string; receiptDate: string }>;
 };
 
@@ -70,6 +72,7 @@ function linesToDraft(lines: LpoLine[]): LineDraft[] {
 
 export default function LpoDetailScreen() {
   const { id, edit } = useLocalSearchParams<{ id: string; edit?: string }>();
+  const router = useRouter();
   const { items: products } = usePolledList<Product>('/products');
   const [lpo, setLpo] = useState<Detail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +84,7 @@ export default function LpoDetailScreen() {
     ...EMPTY_DISCOUNT,
   });
   const [requestedDeliveryDate, setRequestedDeliveryDate] = useState('');
+  const isAdmin = useCompanyAdmin();
 
   async function reload() {
     try {
@@ -157,6 +161,30 @@ export default function LpoDetailScreen() {
       unit: product.unit,
       unitCost: String(product.purchasePrice),
     });
+  }
+
+  async function deleteDraft() {
+    try {
+      await apiDelete(`/lpos/${id}`);
+      router.back();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete LPO');
+    }
+  }
+
+  function confirmDeleteDraft() {
+    Alert.alert(
+      'Delete draft?',
+      'This permanently removes the LPO. This cannot be undone.',
+      [
+        { text: 'Keep', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => void deleteDraft(),
+        },
+      ],
+    );
   }
 
   async function action(name: 'approve' | 'send' | 'cancel') {
@@ -236,6 +264,8 @@ export default function LpoDetailScreen() {
   }
 
   const canReceive = ['sent', 'partially_received'].includes(lpo.status);
+  const canInvoice = ['approved', 'sent', 'partially_received'].includes(lpo.status);
+  const purchaseInvoices = lpo.purchaseInvoices ?? [];
 
   if (editing && lpo.status === 'draft') {
     return (
@@ -254,7 +284,7 @@ export default function LpoDetailScreen() {
           {lines.map((line, index) => (
             <View key={index} style={styles.lineBox}>
               <Text style={ui.label}>Line {index + 1}</Text>
-              <FormPicker label="Product">
+              <FormPicker label="Product (optional)">
                 <SearchablePicker
                   value={line.productId}
                   options={productOptions}
@@ -263,15 +293,13 @@ export default function LpoDetailScreen() {
                   onChange={(value) => pickProduct(index, value)}
                 />
               </FormPicker>
-              {!line.productId ? (
-                <FormField
-                  label="Product name"
-                  value={line.productName}
-                  onChangeText={(productName) =>
-                    patchLine(index, { productName })
-                  }
-                />
-              ) : null}
+              <FormField
+                label="Description"
+                value={line.productName}
+                onChangeText={(productName) =>
+                  patchLine(index, { productName })
+                }
+              />
               <View style={styles.row}>
                 <View style={styles.half}>
                   <Text style={ui.label}>Quantity</Text>
@@ -385,6 +413,15 @@ export default function LpoDetailScreen() {
               <Pressable style={ui.button} onPress={() => void action('approve')}>
                 <Text style={ui.buttonText}>Approve</Text>
               </Pressable>
+              {isAdmin ? (
+                <Pressable style={ui.ghost} onPress={confirmDeleteDraft}>
+                  <Text style={[ui.ghostText, ui.dangerText]}>Delete</Text>
+                </Pressable>
+              ) : (
+                <Pressable style={ui.ghost} onPress={() => void action('cancel')}>
+                  <Text style={ui.ghostText}>Cancel</Text>
+                </Pressable>
+              )}
             </>
           ) : null}
           {lpo.status === 'approved' ? (
@@ -392,9 +429,21 @@ export default function LpoDetailScreen() {
               <Text style={ui.buttonText}>Send</Text>
             </Pressable>
           ) : null}
-          {['draft', 'approved', 'sent'].includes(lpo.status) ? (
+          {lpo.status === 'sent' ? (
             <Pressable style={ui.ghost} onPress={() => void action('cancel')}>
               <Text style={ui.ghostText}>Cancel</Text>
+            </Pressable>
+          ) : null}
+          {canInvoice ? (
+            <Pressable
+              style={ui.button}
+              onPress={() =>
+                router.push(
+                  `/module/purchase-invoices?supplierId=${lpo.supplierId}&lpoId=${lpo.id}` as never,
+                )
+              }
+            >
+              <Text style={ui.buttonText}>Create purchase invoice</Text>
             </Pressable>
           ) : null}
         </View>
@@ -425,6 +474,26 @@ export default function LpoDetailScreen() {
             <Text style={ui.buttonText}>Record receipt</Text>
           </Pressable>
         ) : null}
+
+        <Text style={styles.section}>Purchase invoices</Text>
+        {purchaseInvoices.length === 0 ? (
+          <Text style={styles.muted}>No purchase invoices linked yet.</Text>
+        ) : (
+          purchaseInvoices.map((item) => (
+            <Pressable
+              key={item.id}
+              onPress={() =>
+                router.push(`/module/purchase-invoices/${item.id}` as never)
+              }
+            >
+              <RecordRow
+                title={item.number}
+                status={item.status}
+                meta={`${money(item.total)} · Balance ${money(item.balance)}`}
+              />
+            </Pressable>
+          ))
+        )}
 
         <Text style={styles.section}>Receipts</Text>
         {lpo.receipts.length === 0 ? (

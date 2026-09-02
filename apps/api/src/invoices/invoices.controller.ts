@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -121,5 +122,10 @@ export class InvoicesController {
   @Post(':id/cancel')
   cancel(@CurrentSession() session: SessionContext, @Param('id') id: string) {
     return this.service.cancel(session, id);
+  }
+
+  @Delete(':id')
+  remove(@CurrentSession() session: SessionContext, @Param('id') id: string) {
+    return this.service.remove(session, id);
   }
 }

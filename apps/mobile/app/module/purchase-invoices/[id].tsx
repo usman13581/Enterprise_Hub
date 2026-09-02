@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   Switch,
   Text,
@@ -22,7 +23,8 @@ import { RecordRow } from '../../../components/Finance';
 import { ScreenScroll } from '../../../components/ScreenScroll';
 import { SearchablePicker } from '../../../components/SearchablePicker';
 import { Toast } from '../../../components/ListControls';
-import { apiFetch, apiPost, apiPut } from '../../../lib/api';
+import { apiDelete, apiFetch, apiPost, apiPut } from '../../../lib/api';
+import { useCompanyAdmin } from '../../../lib/useCompanyAdmin';
 import { dateInputValue } from '../../../lib/dates';
 import { useFlash, usePolledList } from '../../../lib/useCollection';
 import { money } from '../../../lib/format';
@@ -31,6 +33,7 @@ import { colors, ui } from '../../../lib/ui';
 type Detail = PurchaseInvoice & {
   taxInclusive: boolean;
   supplier: { id: string; name: string };
+  lpo?: { id: string; number: string } | null;
   lines: Array<{
     id: string;
     productId: string | null;
@@ -98,6 +101,7 @@ export default function PurchaseInvoiceDetailScreen() {
   const [issueDate, setIssueDate] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [taxInclusive, setTaxInclusive] = useState(false);
+  const isAdmin = useCompanyAdmin();
 
   async function reload() {
     try {
@@ -199,6 +203,30 @@ export default function PurchaseInvoiceDetailScreen() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function deleteDraft() {
+    try {
+      await apiDelete(`/purchase-invoices/${id}`);
+      router.back();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete purchase invoice');
+    }
+  }
+
+  function confirmDeleteDraft() {
+    Alert.alert(
+      'Delete draft?',
+      'This permanently removes the purchase invoice. This cannot be undone.',
+      [
+        { text: 'Keep', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => void deleteDraft(),
+        },
+      ],
+    );
   }
 
   async function post() {
@@ -384,7 +412,17 @@ export default function PurchaseInvoiceDetailScreen() {
         <Text style={ui.title}>{invoice.number}</Text>
         <Text style={ui.lede}>
           {invoice.supplier.name} · {invoice.status}
+          {invoice.lpo ? ` · LPO ${invoice.lpo.number}` : ''}
         </Text>
+        {invoice.lpo ? (
+          <Pressable
+            onPress={() =>
+              router.push(`/module/lpos/${invoice.lpo!.id}` as never)
+            }
+          >
+            <Text style={styles.back}>View linked LPO →</Text>
+          </Pressable>
+        ) : null}
         {error ? <Text style={ui.error}>{error}</Text> : null}
         {invoice.status === 'draft' ? (
           <View style={ui.cardActions}>
@@ -394,6 +432,11 @@ export default function PurchaseInvoiceDetailScreen() {
             <Pressable style={ui.button} onPress={() => void post()}>
               <Text style={ui.buttonText}>Post invoice</Text>
             </Pressable>
+            {isAdmin ? (
+              <Pressable style={ui.ghost} onPress={confirmDeleteDraft}>
+                <Text style={[ui.ghostText, ui.dangerText]}>Delete</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
         {invoice.lines.map((line) => (

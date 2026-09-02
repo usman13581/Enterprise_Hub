@@ -10,8 +10,11 @@ import {
   INVOICE_REPORT_VIEWS,
   REPORT_NAV,
   countVisibleReports,
-  groupFinanceReports,
+  groupCustomerLedgerReports,
   groupInvoiceReports,
+  groupJobsReports,
+  groupOtherFinanceReports,
+  groupSupplierLedgerReports,
   type InvoiceReportView,
   type ReportKey,
 } from '@marble/types';
@@ -59,7 +62,12 @@ type Selection =
   | { kind: 'invoice'; key: InvoiceReportView }
   | null;
 
-type Scope = 'all' | 'finance' | 'invoices';
+type Scope =
+  | 'all'
+  | 'customer-ledgers'
+  | 'supplier-ledgers'
+  | 'jobs'
+  | 'invoices';
 
 function monthBounds() {
   const now = new Date();
@@ -204,8 +212,20 @@ export default function ReportsScreen() {
   const [catalogQuery, setCatalogQuery] = useState('');
   const [scope, setScope] = useState<Scope>('all');
 
-  const financeGroups = useMemo(
-    () => groupFinanceReports(catalogQuery),
+  const customerGroups = useMemo(
+    () => groupCustomerLedgerReports(catalogQuery),
+    [catalogQuery],
+  );
+  const supplierGroups = useMemo(
+    () => groupSupplierLedgerReports(catalogQuery),
+    [catalogQuery],
+  );
+  const jobsGroups = useMemo(
+    () => groupJobsReports(catalogQuery),
+    [catalogQuery],
+  );
+  const otherGroups = useMemo(
+    () => groupOtherFinanceReports(catalogQuery),
     [catalogQuery],
   );
   const invoiceGroups = useMemo(
@@ -224,10 +244,18 @@ export default function ReportsScreen() {
   const rowPager = usePagination(filteredRows, rowQuery);
 
   const config = selection ? paramsFor(selection) : null;
-  const showFinance = scope === 'all' || scope === 'finance';
+  const showCustomer =
+    scope === 'all' || scope === 'customer-ledgers';
+  const showSupplier =
+    scope === 'all' || scope === 'supplier-ledgers';
+  const showJobs = scope === 'all' || scope === 'jobs';
+  const showOther = scope === 'all';
   const showInvoices = scope === 'all' || scope === 'invoices';
   const catalogEmpty =
-    (showFinance ? financeGroups.length : 0) +
+    (showCustomer ? customerGroups.length : 0) +
+      (showSupplier ? supplierGroups.length : 0) +
+      (showJobs ? jobsGroups.length : 0) +
+      (showOther ? otherGroups.length : 0) +
       (showInvoices ? invoiceGroups.length : 0) ===
     0;
 
@@ -306,7 +334,9 @@ export default function ReportsScreen() {
             {(
               [
                 ['all', 'All'],
-                ['finance', 'Finance'],
+                ['customer-ledgers', 'Customer ledgers'],
+                ['supplier-ledgers', 'Supplier ledgers'],
+                ['jobs', 'Jobs'],
                 ['invoices', 'Invoices'],
               ] as const
             ).map(([key, label]) => (
@@ -336,10 +366,124 @@ export default function ReportsScreen() {
             </View>
           ) : null}
 
-          {showFinance && financeGroups.length > 0 ? (
+          {showCustomer && customerGroups.length > 0 ? (
             <>
-              <Text style={styles.pillar}>Finance</Text>
-              {financeGroups.map((group) => (
+              <Text style={styles.pillar}>Customer ledgers</Text>
+              {customerGroups.map((group) => (
+                <View key={group.key} style={styles.groupPanel}>
+                  <View style={styles.groupHead}>
+                    <Text style={styles.groupTitle}>{group.label}</Text>
+                    <Text style={styles.groupHint}>{group.hint}</Text>
+                    <Text style={styles.groupCount}>
+                      {group.reports.length} report
+                      {group.reports.length === 1 ? '' : 's'}
+                    </Text>
+                  </View>
+                  {group.reports.map((report) => (
+                    <Pressable
+                      key={report.key}
+                      style={({ pressed }) => [
+                        styles.reportRow,
+                        pressed && styles.pressed,
+                      ]}
+                      onPress={() =>
+                        setSelection({ kind: 'finance', key: report.key })
+                      }
+                    >
+                      <View style={styles.reportText}>
+                        <Text style={styles.reportTitle}>{report.label}</Text>
+                        <Text style={styles.reportBody} numberOfLines={2}>
+                          {report.description}
+                        </Text>
+                      </View>
+                      <Text style={styles.reportArrow}>→</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ))}
+            </>
+          ) : null}
+
+          {showSupplier && supplierGroups.length > 0 ? (
+            <>
+              <Text style={styles.pillar}>Supplier ledgers</Text>
+              {supplierGroups.map((group) => (
+                <View key={group.key} style={styles.groupPanel}>
+                  <View style={styles.groupHead}>
+                    <Text style={styles.groupTitle}>{group.label}</Text>
+                    <Text style={styles.groupHint}>{group.hint}</Text>
+                    <Text style={styles.groupCount}>
+                      {group.reports.length} report
+                      {group.reports.length === 1 ? '' : 's'}
+                    </Text>
+                  </View>
+                  {group.reports.map((report) => (
+                    <Pressable
+                      key={report.key}
+                      style={({ pressed }) => [
+                        styles.reportRow,
+                        pressed && styles.pressed,
+                      ]}
+                      onPress={() =>
+                        setSelection({ kind: 'finance', key: report.key })
+                      }
+                    >
+                      <View style={styles.reportText}>
+                        <Text style={styles.reportTitle}>{report.label}</Text>
+                        <Text style={styles.reportBody} numberOfLines={2}>
+                          {report.description}
+                        </Text>
+                      </View>
+                      <Text style={styles.reportArrow}>→</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ))}
+            </>
+          ) : null}
+
+          {showJobs && jobsGroups.length > 0 ? (
+            <>
+              <Text style={styles.pillar}>Jobs & billing</Text>
+              {jobsGroups.map((group) => (
+                <View key={group.key} style={styles.groupPanel}>
+                  <View style={styles.groupHead}>
+                    <Text style={styles.groupTitle}>{group.label}</Text>
+                    <Text style={styles.groupHint}>{group.hint}</Text>
+                    <Text style={styles.groupCount}>
+                      {group.reports.length} report
+                      {group.reports.length === 1 ? '' : 's'}
+                    </Text>
+                  </View>
+                  {group.reports.map((report) => (
+                    <Pressable
+                      key={report.key}
+                      style={({ pressed }) => [
+                        styles.reportRow,
+                        pressed && styles.pressed,
+                      ]}
+                      onPress={() =>
+                        setSelection({ kind: 'finance', key: report.key })
+                      }
+                    >
+                      <View style={styles.reportText}>
+                        <Text style={styles.reportTitle}>{report.label}</Text>
+                        <Text style={styles.reportBody} numberOfLines={2}>
+                          {report.description}
+                        </Text>
+                      </View>
+                      <Text style={styles.reportArrow}>→</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ))}
+            </>
+          ) : null}
+
+          {showOther && otherGroups.length > 0 ? (
+            <>
+              <Text style={styles.pillar}>Catalog & tax</Text>
+              {otherGroups.map((group) => (
                 <View key={group.key} style={styles.groupPanel}>
                   <View style={styles.groupHead}>
                     <Text style={styles.groupTitle}>{group.label}</Text>

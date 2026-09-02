@@ -31,11 +31,21 @@ describe('parseDocumentSequence', () => {
   it('returns zero when there is no numeric tail', () => {
     expect(parseDocumentSequence('DRAFT')).toBe(0);
   });
+
+  it('ignores revision suffixes when reading the base sequence', () => {
+    expect(parseDocumentSequence('BM-QT-0007-R2')).toBe(7);
+  });
 });
 
 describe('nextSequence', () => {
   it('continues from the highest existing number', () => {
     expect(nextSequence(['BM-QT-0001', 'BM-QT-0009', 'BM-QT-0004'])).toBe(10);
+  });
+
+  it('ignores revision numbers when picking the next base number', () => {
+    expect(nextSequence(['BM-QT-0001', 'BM-QT-0001-R2', 'BM-QT-0001-R3'])).toBe(
+      2,
+    );
   });
 
   it('starts at one for a company with no documents', () => {

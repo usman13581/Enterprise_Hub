@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { FormEvent, useMemo, useState } from 'react';
-import { apiPatch, apiPost } from '@/lib/api';
+import { apiDelete, apiPatch, apiPost } from '@/lib/api';
+import { useCompanyAdmin } from '@/lib/useCompanyAdmin';
 import { dueDateIso } from '@/lib/dates';
 import { amount, day, label, moneyHeader } from '@/lib/format';
 import {
@@ -71,6 +72,7 @@ export default function InvoicesPage() {
   const { items: customers } = usePolledList<Customer>('/customers', 20000);
   const { items: jobs } = usePolledList<JobListItem>('/jobs', 20000);
   const { flash, notify } = useFlash();
+  const isAdmin = useCompanyAdmin();
 
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
@@ -182,6 +184,19 @@ export default function InvoicesPage() {
       notify('Invoice issued');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not issue');
+    }
+  }
+
+  async function onDeleteDraft(id: string) {
+    if (!window.confirm('Delete this draft permanently? This cannot be undone.')) {
+      return;
+    }
+    try {
+      await apiDelete(`/invoices/${id}`);
+      await reload();
+      notify('Invoice deleted', 'danger');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete');
     }
   }
 
@@ -463,12 +478,21 @@ export default function InvoicesPage() {
                               >
                                 Issue
                               </button>
-                              <button
-                                className={`${styles.ghost} ${styles.danger}`}
-                                onClick={() => void onCancel(invoice.id)}
-                              >
-                                Cancel
-                              </button>
+                              {isAdmin ? (
+                                <button
+                                  className={`${styles.ghost} ${styles.danger}`}
+                                  onClick={() => void onDeleteDraft(invoice.id)}
+                                >
+                                  Delete
+                                </button>
+                              ) : (
+                                <button
+                                  className={`${styles.ghost} ${styles.danger}`}
+                                  onClick={() => void onCancel(invoice.id)}
+                                >
+                                  Cancel
+                                </button>
+                              )}
                             </>
                           ) : null}
                           {invoice.status === 'issued' &&

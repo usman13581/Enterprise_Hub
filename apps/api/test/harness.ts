@@ -18,6 +18,7 @@ export type Harness = {
   get: (path: string) => request.Test;
   post: (path: string) => request.Test;
   put: (path: string) => request.Test;
+  patch: (path: string) => request.Test;
   del: (path: string) => request.Test;
   /** Requests without the bootstrap token, for auth assertions. */
   anon: () => request.Agent;
@@ -118,7 +119,7 @@ export async function createHarness(): Promise<Harness> {
   });
 
   const server = app.getHttpServer();
-  const authed = (method: 'get' | 'post' | 'put' | 'delete', path: string) =>
+  const authed = (method: 'get' | 'post' | 'put' | 'patch' | 'delete', path: string) =>
     request(server)[method](path).set('x-marble-token', TOKEN);
 
   return {
@@ -128,6 +129,7 @@ export async function createHarness(): Promise<Harness> {
     get: (path) => authed('get', path),
     post: (path) => authed('post', path),
     put: (path) => authed('put', path),
+    patch: (path) => authed('patch', path),
     del: (path) => authed('delete', path),
     anon: () => request(server),
     close: async () => {

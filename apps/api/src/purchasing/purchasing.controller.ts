@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -17,8 +17,18 @@ export class PurchasingController {
   constructor(private readonly purchasing: PurchasingService) {}
 
   @Get('lpos')
-  lpos(@CurrentSession() session: SessionContext, @Query('supplierId') supplierId?: string, @Query('status') status?: string) {
-    return this.purchasing.listLpos(session, supplierId, status);
+  lpos(
+    @CurrentSession() session: SessionContext,
+    @Query('supplierId') supplierId?: string,
+    @Query('status') status?: string,
+    @Query('invoiceEligible') invoiceEligible?: string,
+  ) {
+    return this.purchasing.listLpos(
+      session,
+      supplierId,
+      status,
+      invoiceEligible === '1' || invoiceEligible === 'true',
+    );
   }
 
   @Get('lpos/:id')
@@ -54,6 +64,11 @@ export class PurchasingController {
   @Post('lpos/:id/cancel')
   cancelLpo(@CurrentSession() session: SessionContext, @Param('id') id: string) {
     return this.purchasing.transitionLpo(session, id, 'cancel');
+  }
+
+  @Delete('lpos/:id')
+  removeLpo(@CurrentSession() session: SessionContext, @Param('id') id: string) {
+    return this.purchasing.removeLpo(session, id);
   }
 
   @Post('lpos/:id/receipts')
@@ -112,6 +127,11 @@ export class PurchasingController {
     return this.purchasing.cancelPurchaseInvoice(session, id);
   }
 
+  @Delete('purchase-invoices/:id')
+  removePurchaseInvoice(@CurrentSession() session: SessionContext, @Param('id') id: string) {
+    return this.purchasing.removePurchaseInvoice(session, id);
+  }
+
   @Post('supplier-payments')
   createSupplierPayment(@CurrentSession() session: SessionContext, @Body(zodBody(supplierPaymentSchema)) body: Parameters<PurchasingService['createSupplierPayment']>[1]) {
     return this.purchasing.createSupplierPayment(session, body);
@@ -125,6 +145,11 @@ export class PurchasingController {
   @Get('supplier-payments')
   supplierPayments(@CurrentSession() session: SessionContext, @Query('supplierId') supplierId?: string) {
     return this.purchasing.listSupplierPayments(session, supplierId);
+  }
+
+  @Delete('supplier-payments/:id')
+  removeSupplierPayment(@CurrentSession() session: SessionContext, @Param('id') id: string) {
+    return this.purchasing.removeSupplierPayment(session, id);
   }
 
   @Post('supplier-payments/:id/reverse')

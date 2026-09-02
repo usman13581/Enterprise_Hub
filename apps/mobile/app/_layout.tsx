@@ -13,6 +13,7 @@ import {
   markSessionActivity,
 } from '../lib/auth';
 import { CompanyCurrencyProvider } from '../lib/company-currency';
+import { colors } from '../lib/ui';
 
 export default function RootLayout() {
   const router = useRouter();

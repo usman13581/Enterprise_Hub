@@ -18,6 +18,7 @@ import {
   requirePlatformSession,
 } from '../auth/session.types';
 import { AdminService } from './admin.service';
+import { CompanyDeletionService } from './company-deletion.service';
 import { DemoProvisioningService } from '../public/demo-provisioning.service';
 import { AuthService } from '../auth/auth.service';
 
@@ -45,7 +46,7 @@ const planSchema = z.object({
   name: z.string().trim().min(1).max(100),
   code: z.string().trim().min(1).max(50),
   interval: z.enum(['month', 'monthly', 'year', 'yearly']).optional(),
-  priceAed: z.number().finite().nonnegative().optional(),
+  priceUsd: z.number().finite().nonnegative().optional(),
   trialDays: z.number().int().nonnegative().optional(),
   maxUsers: z.number().int().nonnegative().optional(),
   active: z.boolean().optional(),
@@ -91,6 +92,10 @@ const supportCloseSchema = z.object({
   note: z.string().trim().max(1000).optional(),
 });
 
+const companyDeleteSchema = z.object({
+  confirmation: z.string().trim().min(1).max(300),
+});
+
 @Controller('admin')
 @UseGuards(PlatformAdminGuard)
 export class AdminController {
@@ -98,6 +103,7 @@ export class AdminController {
     private readonly admin: AdminService,
     private readonly demos: DemoProvisioningService,
     private readonly auth: AuthService,
+    private readonly companyDeletion: CompanyDeletionService,
   ) {}
 
   @Get('overview')
@@ -150,6 +156,24 @@ export class AdminController {
     return this.admin.unsuspendCompany(id);
   }
 
+  @Get('companies/:id/delete-preview')
+  deletePreview(@Param('id') id: string) {
+    return this.companyDeletion.preview(id);
+  }
+
+  @Post('companies/:id/delete')
+  deleteCompany(
+    @CurrentSession() session: SessionContext,
+    @Param('id') id: string,
+    @Body(zodBody(companyDeleteSchema)) body: { confirmation: string },
+  ) {
+    return this.companyDeletion.deleteCompletely(
+      id,
+      body.confirmation,
+      requirePlatformSession(session),
+    );
+  }
+
   @Get('companies/:id/users')
   listUsers(@Param('id') id: string) {
     return this.admin.listCompanyUsers(id);
@@ -196,7 +220,7 @@ export class AdminController {
       name: string;
       code: string;
       interval?: string;
-      priceAed?: number;
+      priceUsd?: number;
       trialDays?: number;
       maxUsers?: number;
       active?: boolean;
@@ -213,7 +237,7 @@ export class AdminController {
       name?: string;
       code?: string;
       interval?: string;
-      priceAed?: number;
+      priceUsd?: number;
       trialDays?: number;
       maxUsers?: number;
       active?: boolean;

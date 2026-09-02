@@ -97,9 +97,10 @@ model Plan {
   code      String   @unique
   /// monthly | yearly
   interval  String   @default("monthly")
-  priceAed  Float    @default(0)
+  /// List price in USD (subscription billing currency).
+  priceUsd  Float    @default(0) @map("priceAed")
   trialDays Int      @default(14)
-  /// 0 = unlimited
+  /// 0 = unlimited (Custom / contact sales)
   maxUsers  Int      @default(0)
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -1348,6 +1349,12 @@ model Quotation {
   purchaseTotal Float     @default(0)
   approvedAt    DateTime?
   cancelledAt   DateTime?
+  /// Immediate parent when created via Revise (approved → next draft version).
+  revisionOfId    String?
+  /// First quotation in a revision chain (original v1).
+  rootQuotationId String?
+  /// 1 = original or copy-as-new; 2+ = revision index within the chain.
+  revisionNumber  Int       @default(1)
   version       Int       @default(1)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -1358,12 +1365,17 @@ model Quotation {
   sections    QuotationSection[]
   lookupLinks QuotationLookupLink[]
   job         Job?
+  revisionOf    Quotation?  @relation("QuotationRevisionOf", fields: [revisionOfId], references: [id], onDelete: SetNull)
+  revisions     Quotation[] @relation("QuotationRevisionOf")
+  rootQuotation Quotation?  @relation("QuotationRoot", fields: [rootQuotationId], references: [id], onDelete: SetNull)
+  derivedFromRoot Quotation[] @relation("QuotationRoot")
 
   @@unique([companyId, number])
   @@index([companyId, status])
   @@index([companyId, kind])
   @@index([companyId, customerId])
   @@index([companyId, updatedAt])
+  @@index([companyId, rootQuotationId])
   @@index([sampleSetId])
 }
 

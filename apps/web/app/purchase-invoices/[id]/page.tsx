@@ -1,9 +1,11 @@
 'use client';
 
-import { useParams, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { computePurchasingTotals } from '@marble/domain';
-import { apiFetch, apiPost, apiPut } from '@/lib/api';
+import { apiDelete, apiFetch, apiPost, apiPut } from '@/lib/api';
+import { useCompanyAdmin } from '@/lib/useCompanyAdmin';
 import {
   BackLink,
   EmptyState,
@@ -23,11 +25,13 @@ import finance from '@/components/finance.module.css';
 
 export default function PurchaseInvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [invoice, setInvoice] = useState<PurchaseInvoiceDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(searchParams.get('edit') === '1');
   const [saving, setSaving] = useState(false);
+  const isAdmin = useCompanyAdmin();
 
   async function reload() {
     try {
@@ -53,6 +57,18 @@ export default function PurchaseInvoiceDetailPage() {
       setError(err instanceof Error ? err.message : 'Could not save purchase invoice');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function deleteDraft() {
+    if (!window.confirm('Delete this draft permanently? This cannot be undone.')) {
+      return;
+    }
+    try {
+      await apiDelete(`/purchase-invoices/${id}`);
+      router.push('/purchase-invoices');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete invoice');
     }
   }
 
@@ -118,6 +134,14 @@ export default function PurchaseInvoiceDetailPage() {
       <h1 className={page.title}>{invoice.number}</h1>
       <p className={page.lede}>
         {invoice.supplier.name} · {invoice.status}
+        {invoice.lpo ? (
+          <>
+            {' · '}
+            <Link className={finance.link} href={`/lpos/${invoice.lpo.id}`}>
+              LPO {invoice.lpo.number}
+            </Link>
+          </>
+        ) : null}
       </p>
       {error ? <p className={styles.error}>{error}</p> : null}
       {invoice.status === 'draft' ? (
@@ -128,6 +152,14 @@ export default function PurchaseInvoiceDetailPage() {
           <button className={styles.button} onClick={() => void post()}>
             Post invoice
           </button>
+          {isAdmin ? (
+            <button
+              className={`${styles.ghost} ${styles.danger}`}
+              onClick={() => void deleteDraft()}
+            >
+              Delete
+            </button>
+          ) : null}
         </div>
       ) : null}
       {invoice.lines.length ? (

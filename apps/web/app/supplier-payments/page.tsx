@@ -1,11 +1,17 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { apiPost } from '@/lib/api';
+import { apiDelete, apiPost } from '@/lib/api';
+import { useCompanyAdmin } from '@/lib/useCompanyAdmin';
 import { todayIso } from '@/lib/dates';
 import { amount, day, label, moneyHeader } from '@/lib/format';
-import { useFlash, usePolledList } from '@/lib/useCollection';
-import { Toast } from '@/components/ListControls';
+import {
+  searchItems,
+  useFlash,
+  usePagination,
+  usePolledList,
+} from '@/lib/useCollection';
+import { Pagination, SearchBox, Toast } from '@/components/ListControls';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { EmptyState, FilterBar, RowActionsBar, StatusBadge, TableScroll } from '@/components/Finance';
 import type { PurchaseInvoice, Supplier } from '@marble/types';
@@ -33,12 +39,14 @@ export default function SupplierPaymentsPage() {
   const { items, error: listError, setError, reload } =
     usePolledList<SupplierPaymentRow>('/supplier-payments');
   const { flash, notify } = useFlash();
+  const isAdmin = useCompanyAdmin();
   const [supplierId, setSupplierId] = useState('');
   const [invoiceId, setInvoiceId] = useState('');
   const [amountValue, setAmountValue] = useState('');
   const [method, setMethod] = useState('bank_transfer');
   const [reference, setReference] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
+  const [query, setQuery] = useState('');
   const [error, setFormError] = useState<string | null>(null);
   const payableInvoices = invoices.filter(
     (invoice) =>
@@ -70,6 +78,19 @@ export default function SupplierPaymentsPage() {
     }
   }
 
+  async function deleteDraft(id: string) {
+    if (!window.confirm('Delete this draft permanently? This cannot be undone.')) {
+      return;
+    }
+    try {
+      await apiDelete(`/supplier-payments/${id}`);
+      await reload();
+      notify('Supplier payment deleted', 'danger');
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Could not delete payment');
+    }
+  }
+
   async function approve(id: string) {
     try {
       await apiPost(`/supplier-payments/${id}/approve`, {});
@@ -80,13 +101,14 @@ export default function SupplierPaymentsPage() {
     }
   }
 
-  const filtered = useMemo(
-    () =>
+  const filtered = useMemo(() => {
+    const byStatus =
       filter === 'all'
         ? items
-        : items.filter((item) => item.status === filter),
-    [items, filter],
-  );
+        : items.filter((item) => item.status === filter);
+    return searchItems(byStatus, query);
+  }, [items, filter, query]);
+  const pager = usePagination(filtered, `${filter}:${query}`);
 
   return (
     <section className={page.page}>
@@ -169,6 +191,12 @@ export default function SupplierPaymentsPage() {
         ]}
       />
 
+      <SearchBox
+        value={query}
+        onChange={setQuery}
+        placeholder="Search supplier payments…"
+      />
+
       {filtered.length === 0 ? (
         <EmptyState>
           {items.length === 0
@@ -190,7 +218,7 @@ export default function SupplierPaymentsPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((item) => (
+              {pager.paged.map((item) => (
                 <tr key={item.id}>
                   <td>
                     <strong>{item.number}</strong>
@@ -206,12 +234,22 @@ export default function SupplierPaymentsPage() {
                   <td>
                     <RowActionsBar>
                       {item.status === 'draft' ? (
-                        <button
-                          className={styles.button}
-                          onClick={() => void approve(item.id)}
-                        >
-                          Approve
-                        </button>
+                        <>
+                          <button
+                            className={styles.button}
+                            onClick={() => void approve(item.id)}
+                          >
+                            Approve
+                          </button>
+                          {isAdmin ? (
+                            <button
+                              className={`${styles.ghost} ${styles.danger}`}
+                              onClick={() => void deleteDraft(item.id)}
+                            >
+                              Delete
+                            </button>
+                          ) : null}
+                        </>
                       ) : null}
                     </RowActionsBar>
                   </td>
@@ -221,6 +259,16 @@ export default function SupplierPaymentsPage() {
           </table>
         </TableScroll>
       )}
+      {filtered.length > 0 ? (
+        <Pagination
+          page={pager.page}
+          setPage={pager.setPage}
+          pageSize={pager.pageSize}
+          setPageSize={pager.setPageSize}
+          pageCount={pager.pageCount}
+          total={pager.total}
+        />
+      ) : null}
       <Toast flash={flash} />
     </section>
   );

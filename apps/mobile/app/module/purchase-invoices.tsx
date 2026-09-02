@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   Switch,
   Text,
@@ -9,7 +10,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { computePurchasingTotals } from '@marble/domain';
-import type { Product, PurchaseInvoice, Supplier } from '@marble/types';
+import type { Lpo, Product, PurchaseInvoice, Supplier } from '@marble/types';
 import {
   discountPayload,
   DiscountInput,
@@ -21,7 +22,8 @@ import { FilterChips, RecordRow } from '../../components/Finance';
 import { Pagination, SearchBox, Toast } from '../../components/ListControls';
 import { ScreenScroll } from '../../components/ScreenScroll';
 import { SearchablePicker } from '../../components/SearchablePicker';
-import { apiPost } from '../../lib/api';
+import { apiDelete, apiFetch, apiPost } from '../../lib/api';
+import { useCompanyAdmin } from '../../lib/useCompanyAdmin';
 import { dueDateIso, todayIso } from '../../lib/dates';
 import {
   searchItems,
@@ -66,7 +68,7 @@ const num = (value: string) => {
 };
 
 export default function PurchaseInvoicesScreen() {
-  const params = useLocalSearchParams<{ supplierId?: string }>();
+  const params = useLocalSearchParams<{ supplierId?: string; lpoId?: string }>();
   const router = useRouter();
   const listPath = params.supplierId
     ? `/purchase-invoices?supplierId=${params.supplierId}`
@@ -76,10 +78,14 @@ export default function PurchaseInvoicesScreen() {
   const { items: suppliers } = usePolledList<Supplier>('/suppliers');
   const { items: products } = usePolledList<Product>('/products');
   const { flash, notify } = useFlash();
+  const isAdmin = useCompanyAdmin();
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(
+    Boolean(params.lpoId || params.supplierId),
+  );
   const [supplierId, setSupplierId] = useState(params.supplierId ?? '');
+  const [lpoId, setLpoId] = useState(params.lpoId ?? '');
   const [supplierInvoiceNumber, setSupplierInvoiceNumber] = useState('');
   const [issueDate, setIssueDate] = useState(todayIso());
   const [dueDate, setDueDate] = useState(dueDateIso());
@@ -118,6 +124,54 @@ export default function PurchaseInvoicesScreen() {
   const supplierProducts = products.filter(
     (product) => product.supplierId === supplierId,
   );
+  const { items: eligibleLpos } = usePolledList<Lpo>('/lpos?invoiceEligible=1');
+  const lpos = useMemo(
+    () =>
+      supplierId
+        ? eligibleLpos.filter((item) => item.supplierId === supplierId)
+        : [],
+    [eligibleLpos, supplierId],
+  );
+  const lpoOptions = useMemo(
+    () => lpos.map((item) => ({ id: item.id, label: item.number })),
+    [lpos],
+  );
+
+  useEffect(() => {
+    if (params.supplierId) setSupplierId(params.supplierId);
+    if (params.lpoId) {
+      setLpoId(params.lpoId);
+      setShowForm(true);
+    }
+  }, [params.supplierId, params.lpoId]);
+
+  useEffect(() => {
+    if (!lpoId) return;
+    void apiFetch<Lpo>(`/lpos/${lpoId}`)
+      .then((lpo) => {
+        setSupplierId(lpo.supplierId);
+        const draftLines = lpo.lines
+          .map((line) => {
+            const remaining = line.orderedQty - line.invoicedQty;
+            if (remaining <= 0) return null;
+            return {
+              productId: line.productId ?? '',
+              productName: line.productName,
+              unit: line.unit,
+              qty: String(remaining),
+              unitCost: String(line.unitCost),
+              discountMode: line.discountMode,
+              discountValue: String(line.discountValue ?? 0),
+            } satisfies LineDraft;
+          })
+          .filter((line): line is LineDraft => line !== null);
+        if (draftLines.length) setLines(draftLines);
+      })
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : 'Could not load LPO'),
+      );
+  }, [lpoId, setError]);
+
   const productOptions = supplierProducts.map((item) => ({
     id: item.id,
     label: item.name,
@@ -146,6 +200,7 @@ export default function PurchaseInvoicesScreen() {
   function resetForm() {
     setShowForm(false);
     setSupplierId(params.supplierId ?? '');
+    setLpoId(params.lpoId ?? '');
     setSupplierInvoiceNumber('');
     setIssueDate(todayIso());
     setDueDate(dueDateIso());
@@ -170,6 +225,7 @@ export default function PurchaseInvoicesScreen() {
     try {
       await apiPost('/purchase-invoices', {
         supplierId,
+        lpoId: lpoId || null,
         issueDate,
         dueDate: dueDate || null,
         supplierInvoiceNumber: supplierInvoiceNumber.trim() || null,
@@ -185,6 +241,33 @@ export default function PurchaseInvoicesScreen() {
         err instanceof Error ? err.message : 'Could not save purchase invoice',
       );
     }
+  }
+
+  async function deleteDraft(id: string) {
+    try {
+      await apiDelete(`/purchase-invoices/${id}`);
+      await reload();
+      notify('Purchase invoice deleted', 'danger');
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Could not delete purchase invoice',
+      );
+    }
+  }
+
+  function confirmDeleteDraft(id: string) {
+    Alert.alert(
+      'Delete draft?',
+      'This permanently removes the purchase invoice. This cannot be undone.',
+      [
+        { text: 'Keep', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => void deleteDraft(id),
+        },
+      ],
+    );
   }
 
   async function post(id: string) {
@@ -224,8 +307,22 @@ export default function PurchaseInvoicesScreen() {
                 emptyText="No suppliers match your search."
                 onChange={(value) => {
                   setSupplierId(value);
+                  setLpoId('');
                   setLines([{ ...EMPTY_LINE }]);
                 }}
+              />
+            </FormPicker>
+            <FormPicker label="LPO (optional)">
+              <SearchablePicker
+                value={lpoId}
+                options={lpoOptions}
+                searchPlaceholder="Search LPOs…"
+                emptyText={
+                  supplierId
+                    ? 'No billable LPOs for this supplier.'
+                    : 'Select a supplier first.'
+                }
+                onChange={(value) => setLpoId(value)}
               />
             </FormPicker>
             <FormField
@@ -251,7 +348,7 @@ export default function PurchaseInvoicesScreen() {
             {lines.map((line, index) => (
               <View key={index} style={styles.lineBox}>
                 <Text style={ui.label}>Line {index + 1}</Text>
-                <FormPicker label="Product">
+                <FormPicker label="Product (optional)">
                   <SearchablePicker
                     value={line.productId}
                     options={productOptions}
@@ -264,15 +361,13 @@ export default function PurchaseInvoicesScreen() {
                     onChange={(value) => pickProduct(index, value)}
                   />
                 </FormPicker>
-                {!line.productId ? (
-                  <FormField
-                    label="Product name"
-                    value={line.productName}
-                    onChangeText={(productName) =>
-                      patchLine(index, { productName })
-                    }
-                  />
-                ) : null}
+                <FormField
+                  label="Description"
+                  value={line.productName}
+                  onChangeText={(productName) =>
+                    patchLine(index, { productName })
+                  }
+                />
                 <View style={styles.row}>
                   <View style={styles.half}>
                     <Text style={ui.label}>Quantity</Text>
@@ -402,9 +497,19 @@ export default function PurchaseInvoicesScreen() {
             }
           >
             {item.status === 'draft' ? (
-              <Pressable style={ui.ghost} onPress={() => void post(item.id)}>
-                <Text style={ui.ghostText}>Post</Text>
-              </Pressable>
+              <>
+                <Pressable style={ui.ghost} onPress={() => void post(item.id)}>
+                  <Text style={ui.ghostText}>Post</Text>
+                </Pressable>
+                {isAdmin ? (
+                  <Pressable
+                    style={ui.ghost}
+                    onPress={() => confirmDeleteDraft(item.id)}
+                  >
+                    <Text style={[ui.ghostText, ui.dangerText]}>Delete</Text>
+                  </Pressable>
+                ) : null}
+              </>
             ) : null}
           </RecordRow>
         ))}

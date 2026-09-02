@@ -59,6 +59,22 @@ type IndustryCategory = {
   code: string;
 };
 
+type DeletePreview = {
+  company: { id: string; name: string; slug: string };
+  confirmationPhrase: string;
+  counts: {
+    users: number;
+    customers: number;
+    suppliers: number;
+    jobs: number;
+    invoices: number;
+    quotations: number;
+    lpos: number;
+    purchaseInvoices: number;
+    auditLogs: number;
+  };
+};
+
 export default function AdminCompanyDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [company, setCompany] = useState<CompanyDetail | null>(null);
@@ -77,6 +93,9 @@ export default function AdminCompanyDetailScreen() {
   const [payReference, setPayReference] = useState('');
   const [payDate, setPayDate] = useState(todayIso());
   const [saving, setSaving] = useState(false);
+  const [deletePreview, setDeletePreview] = useState<DeletePreview | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [showDelete, setShowDelete] = useState(false);
   const { flash, notify } = useFlash();
 
   const load = useCallback(async () => {
@@ -155,6 +174,35 @@ export default function AdminCompanyDetailScreen() {
       router.replace('/' as never);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Workspace access failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function loadDeletePreview() {
+    if (!id) return;
+    try {
+      const preview = await apiFetch<DeletePreview>(
+        `/admin/companies/${id}/delete-preview`,
+      );
+      setDeletePreview(preview);
+      setDeleteConfirmation('');
+      setShowDelete(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not load delete preview');
+    }
+  }
+
+  async function deleteCompany() {
+    if (!id || !deletePreview || !deleteConfirmation) return;
+    setSaving(true);
+    try {
+      await apiPost(`/admin/companies/${id}/delete`, {
+        confirmation: deleteConfirmation,
+      });
+      router.replace('/admin/companies' as never);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Delete failed');
     } finally {
       setSaving(false);
     }
@@ -457,6 +505,63 @@ export default function AdminCompanyDetailScreen() {
             onPress={() => void createUser()}
           />
         </RowActions>
+      </View>
+
+      <View style={ui.card}>
+        <Text style={ui.cardTitle}>Danger zone</Text>
+        <Text style={ui.cardMeta}>
+          Permanently delete this company and all of its data. This cannot be
+          undone.
+        </Text>
+        {!showDelete ? (
+          <RowActions>
+            <ActionButton
+              label="Delete company permanently…"
+              tone="danger"
+              disabled={saving}
+              onPress={() => void loadDeletePreview()}
+            />
+          </RowActions>
+        ) : deletePreview ? (
+          <>
+            <Text style={ui.cardMeta}>
+              {deletePreview.counts.users} users ·{' '}
+              {deletePreview.counts.customers} customers ·{' '}
+              {deletePreview.counts.jobs} jobs ·{' '}
+              {deletePreview.counts.invoices} invoices
+            </Text>
+            <Text style={ui.label}>
+              Type {deletePreview.confirmationPhrase}
+            </Text>
+            <TextInput
+              style={ui.input}
+              value={deleteConfirmation}
+              onChangeText={setDeleteConfirmation}
+              autoCapitalize="characters"
+              placeholder={deletePreview.confirmationPhrase}
+              placeholderTextColor={colors.soft}
+            />
+            <RowActions>
+              <ActionButton
+                label={saving ? 'Deleting…' : 'Delete permanently'}
+                tone="danger"
+                disabled={
+                  saving ||
+                  deleteConfirmation !== deletePreview.confirmationPhrase
+                }
+                onPress={() => void deleteCompany()}
+              />
+              <ActionButton
+                label="Cancel"
+                onPress={() => {
+                  setShowDelete(false);
+                  setDeletePreview(null);
+                  setDeleteConfirmation('');
+                }}
+              />
+            </RowActions>
+          </>
+        ) : null}
       </View>
 
       <Toast flash={flash} />

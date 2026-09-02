@@ -9,7 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { NumberingService } from '../common/numbering.service';
-import { SessionContext } from '../auth/session.types';
+import { SessionContext, requireCompanyAdmin } from '../auth/session.types';
 
 const INCLUDE = {
   customer: { select: { id: true, name: true } },
@@ -290,7 +290,31 @@ export class AdvancesService {
   }
 
   async remove(session: SessionContext, id: string) {
-    return this.cancel(session, id);
+    const s = requireCompanyAdmin(session);
+    const before = await this.prisma.advancePayment.findFirst({
+      where: { id, companyId: s.companyId },
+      include: { allocations: true },
+    });
+    if (!before) throw new NotFoundException('Advance not found');
+    if (before.status !== 'draft') {
+      throw new ConflictException('Only draft advances can be deleted');
+    }
+    if (before.allocations.length > 0) {
+      throw new ConflictException(
+        'This advance is applied to an invoice and cannot be deleted',
+      );
+    }
+
+    await this.prisma.advancePayment.delete({ where: { id } });
+    await this.audit.write({
+      companyId: s.companyId,
+      actorId: s.userId,
+      entityType: 'AdvancePayment',
+      entityId: id,
+      action: 'delete',
+      before,
+    });
+    return { ok: true, id };
   }
 
   private async assertCustomer(companyId: string, customerId: string) {

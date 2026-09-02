@@ -407,7 +407,7 @@ export class AdminService {
     name: string;
     code: string;
     interval?: string;
-    priceAed?: number;
+    priceUsd?: number;
     trialDays?: number;
     maxUsers?: number;
     active?: boolean;
@@ -421,7 +421,7 @@ export class AdminService {
         name: input.name.trim(),
         code,
         interval: normalizeInterval(input.interval),
-        priceAed: input.priceAed ?? 0,
+        priceUsd: input.priceUsd ?? 0,
         trialDays: input.trialDays ?? 14,
         maxUsers: input.maxUsers ?? 0,
         active: input.active ?? true,
@@ -435,7 +435,7 @@ export class AdminService {
       name?: string;
       code?: string;
       interval?: string;
-      priceAed?: number;
+      priceUsd?: number;
       trialDays?: number;
       maxUsers?: number;
       active?: boolean;
@@ -453,7 +453,7 @@ export class AdminService {
         ...(input.interval !== undefined
           ? { interval: normalizeInterval(input.interval) }
           : {}),
-        ...(input.priceAed !== undefined ? { priceAed: input.priceAed } : {}),
+        ...(input.priceUsd !== undefined ? { priceUsd: input.priceUsd } : {}),
         ...(input.trialDays !== undefined ? { trialDays: input.trialDays } : {}),
         ...(input.maxUsers !== undefined ? { maxUsers: input.maxUsers } : {}),
         ...(input.active !== undefined ? { active: input.active } : {}),

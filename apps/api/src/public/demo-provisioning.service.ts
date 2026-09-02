@@ -168,7 +168,7 @@ export class DemoProvisioningService {
             name: 'Enterprise Hub Demo',
             code: DEMO_PLAN_CODE,
             interval: 'monthly',
-            priceAed: 0,
+            priceUsd: 0,
             trialDays: DEMO_DAYS,
             maxUsers: 3,
             active: true,

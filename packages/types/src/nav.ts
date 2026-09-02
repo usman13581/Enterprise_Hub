@@ -62,7 +62,7 @@ export const ADMIN_NAV_ICONS: Record<string, string> = {
 export const REPORT_NAV = [
   {
     key: 'customer-statement',
-    label: 'Customer statement',
+    label: 'Customer ledger',
     description: 'Opening, movements, and closing balance for a customer.',
     group: 'customers',
     params: ['from', 'to', 'customerId', 'jobId'] as const,
@@ -160,7 +160,7 @@ export const REPORT_NAV = [
   },
   {
     key: 'supplier-statement',
-    label: 'Supplier statement',
+    label: 'Supplier ledger',
     description: 'Supplier payable movements, payments, advances, and closing balance.',
     group: 'supplier-finance',
     params: ['from', 'to', 'supplierId'] as const,

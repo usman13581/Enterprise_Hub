@@ -1,3 +1,5 @@
+import { ForbiddenException } from '@nestjs/common';
+
 export type SessionKind = 'company' | 'platform';
 
 /**
@@ -56,4 +58,15 @@ export function requirePlatformSession(
     throw new Error('Platform session required');
   }
   return session;
+}
+
+/** Company owner/admin — required for irreversible draft deletion. */
+export function requireCompanyAdmin(
+  session: SessionContext,
+): CompanySessionContext {
+  const company = requireCompanySession(session);
+  if (company.companyRole !== 'admin' || company.readOnly) {
+    throw new ForbiddenException('Company admin access required.');
+  }
+  return company;
 }

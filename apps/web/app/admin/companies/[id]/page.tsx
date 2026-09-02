@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { apiFetch, apiPatch, apiPost } from "@/lib/api";
 import { beginReadOnlyWorkspace, getAuthToken } from "@/lib/auth";
 import { todayIso } from "@/lib/dates";
@@ -15,7 +15,7 @@ type Plan = {
   name: string;
   code: string;
   interval: string;
-  priceAed: number;
+  priceUsd: number;
   trialDays: number;
   maxUsers: number;
   active: boolean;
@@ -56,8 +56,25 @@ type CompanyDetail = {
   } | null;
 };
 
+type DeletePreview = {
+  company: { id: string; name: string; slug: string };
+  confirmationPhrase: string;
+  counts: {
+    users: number;
+    customers: number;
+    suppliers: number;
+    jobs: number;
+    invoices: number;
+    quotations: number;
+    lpos: number;
+    purchaseInvoices: number;
+    auditLogs: number;
+  };
+};
+
 export default function AdminCompanyDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const id = String(params.id);
 
   const [company, setCompany] = useState<CompanyDetail | null>(null);
@@ -80,6 +97,11 @@ export default function AdminCompanyDetailPage() {
   const [userEmail, setUserEmail] = useState("");
   const [userPassword, setUserPassword] = useState("");
   const [userRole, setUserRole] = useState<"admin" | "member">("member");
+  const [deletePreview, setDeletePreview] = useState<DeletePreview | null>(
+    null,
+  );
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [showDelete, setShowDelete] = useState(false);
 
   async function reload() {
     const [c, u, p, cats] = await Promise.all([
@@ -223,6 +245,36 @@ export default function AdminCompanyDetailPage() {
     }
   }
 
+  async function loadDeletePreview() {
+    setError(null);
+    try {
+      const preview = await apiFetch<DeletePreview>(
+        `/admin/companies/${id}/delete-preview`,
+      );
+      setDeletePreview(preview);
+      setDeleteConfirmation("");
+      setShowDelete(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load preview");
+    }
+  }
+
+  async function deleteCompany() {
+    if (!deletePreview || !deleteConfirmation) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await apiPost(`/admin/companies/${id}/delete`, {
+        confirmation: deleteConfirmation,
+      });
+      router.push("/admin/companies");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function patchUser(
     userId: string,
     body: { active?: boolean; companyRole?: "admin" | "member" },
@@ -331,7 +383,11 @@ export default function AdminCompanyDetailPage() {
             >
               {plans.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} ({money(p.priceAed)})
+                  {p.name} (
+                  {p.code === "custom"
+                    ? "Contact sales"
+                    : `USD ${Number(p.priceUsd).toFixed(2)}`}
+                  )
                 </option>
               ))}
             </select>
@@ -521,6 +577,75 @@ export default function AdminCompanyDetailPage() {
           ))}
         </ul>
       )}
+
+      <div className={styles.form}>
+        <p className={styles.formTitle}>Danger zone</p>
+        <p className={styles.count}>
+          Permanently delete this company and all of its data — users, profile,
+          customers, jobs, invoices, suppliers, HR records, audit logs, and
+          uploaded files. This cannot be undone.
+        </p>
+        {!showDelete ? (
+          <div className={styles.actions}>
+            <button
+              type="button"
+              className={`${styles.ghost} ${styles.danger}`}
+              disabled={busy}
+              onClick={() => void loadDeletePreview()}
+            >
+              Delete company permanently…
+            </button>
+          </div>
+        ) : deletePreview ? (
+          <>
+            <p className={styles.count}>
+              {deletePreview.counts.users} users ·{" "}
+              {deletePreview.counts.customers} customers ·{" "}
+              {deletePreview.counts.jobs} jobs ·{" "}
+              {deletePreview.counts.invoices} invoices ·{" "}
+              {deletePreview.counts.suppliers} suppliers ·{" "}
+              {deletePreview.counts.auditLogs} audit entries
+            </p>
+            <div className={styles.field}>
+              <label className={styles.label}>
+                Type{" "}
+                <strong>{deletePreview.confirmationPhrase}</strong> to confirm
+              </label>
+              <input
+                className={styles.input}
+                value={deleteConfirmation}
+                onChange={(e) => setDeleteConfirmation(e.target.value)}
+                placeholder={deletePreview.confirmationPhrase}
+              />
+            </div>
+            <div className={styles.actions}>
+              <button
+                type="button"
+                className={`${styles.ghost} ${styles.danger}`}
+                disabled={
+                  busy ||
+                  deleteConfirmation !== deletePreview.confirmationPhrase
+                }
+                onClick={() => void deleteCompany()}
+              >
+                {busy ? "Deleting…" : "Delete company permanently"}
+              </button>
+              <button
+                type="button"
+                className={styles.ghost}
+                disabled={busy}
+                onClick={() => {
+                  setShowDelete(false);
+                  setDeletePreview(null);
+                  setDeleteConfirmation("");
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        ) : null}
+      </div>
     </section>
   );
 }

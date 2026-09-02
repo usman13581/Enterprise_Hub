@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState, type ComponentProps } from 'react';
-import { apiPost } from '@/lib/api';
+import { apiDelete, apiPost } from '@/lib/api';
+import { useCompanyAdmin } from '@/lib/useCompanyAdmin';
 import { Pagination, SearchBox, Toast } from '@/components/ListControls';
 import { EmptyState, EditIconButton, FilterBar, StatusBadge, TableScroll } from '@/components/Finance';
 import { LpoQuickForm } from '@/components/PurchasingForms';
@@ -29,6 +30,7 @@ export default function LposPage() {
   const { items: suppliers } = usePolledList<Supplier>('/suppliers');
   const { items: products } = usePolledList<Product>('/products');
   const { flash, notify } = useFlash();
+  const isAdmin = useCompanyAdmin();
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -54,6 +56,19 @@ export default function LposPage() {
       setError(err instanceof Error ? err.message : 'Could not create LPO');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function deleteDraft(id: string) {
+    if (!window.confirm('Delete this draft permanently? This cannot be undone.')) {
+      return;
+    }
+    try {
+      await apiDelete(`/lpos/${id}`);
+      await reload();
+      notify('LPO deleted', 'danger');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete LPO');
     }
   }
 
@@ -148,12 +163,22 @@ export default function LposPage() {
                   </td>
                   <td>
                     {item.status === 'draft' ? (
-                      <button
-                        className={styles.ghost}
-                        onClick={() => void transition(item.id, 'approve')}
-                      >
-                        Approve
-                      </button>
+                      <>
+                        <button
+                          className={styles.ghost}
+                          onClick={() => void transition(item.id, 'approve')}
+                        >
+                          Approve
+                        </button>
+                        {isAdmin ? (
+                          <button
+                            className={`${styles.ghost} ${styles.danger}`}
+                            onClick={() => void deleteDraft(item.id)}
+                          >
+                            Delete
+                          </button>
+                        ) : null}
+                      </>
                     ) : item.status === 'approved' ? (
                       <button
                         className={styles.ghost}
